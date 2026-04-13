@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "260063702751",
+    "project_id": "app-recetas-e5f12",
+    "storage_bucket": "app-recetas-e5f12.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:260063702751:android:2b54b7fd6526c29d7ac36a",
+        "android_client_info": {
+          "package_name": "com.example.programovil"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAtAz5Qtz8Qgx25rlAFe2dqO5z4dGlHLyA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
