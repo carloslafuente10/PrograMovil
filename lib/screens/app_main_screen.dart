@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
+import 'favoritos_screen.dart';
 
 class AppMainScreen extends StatefulWidget {
   const AppMainScreen({super.key});
@@ -9,6 +10,7 @@ class AppMainScreen extends StatefulWidget {
 }
 
 class _AppMainScreenState extends State<AppMainScreen> {
+
   int selectedIndex = 0;
 
   late final List<Widget> page;
@@ -16,45 +18,95 @@ class _AppMainScreenState extends State<AppMainScreen> {
   @override
   void initState() {
     super.initState();
+
     page = [
-      HomeScreen(), // índice 0 → Home
-      const Center(child: Text("Favoritos")), // índice 1 → Fav
-      const Center(child: Text("Plan")), // índice 2 → Plan
-      const Center(child: Text("Configuración")), // índice 3 → Config
+
+      HomeScreen(),
+
+      const FavoritosScreen(),
+
+      const Center(
+        child: Text("Plan"),
+      ),
+
+      const Center(
+        child: Text("Configuración"),
+      ),
+
     ];
   }
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
+
       backgroundColor: const Color(0xFFF7F7F5),
 
       bottomNavigationBar: BottomNavigationBar(
+
         currentIndex: selectedIndex,
+
         selectedItemColor: const Color(0xFF2D9E73),
+
         unselectedItemColor: Colors.grey,
+
         backgroundColor: Colors.white,
+
         elevation: 10,
+
         type: BottomNavigationBarType.fixed,
-        onTap: (value) => setState(() => selectedIndex = value),
+
+        onTap: (value) {
+
+          setState(() {
+
+            selectedIndex = value;
+
+          });
+
+        },
+
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Inicio"),
+
           BottomNavigationBarItem(
+
+            icon: Icon(Icons.home),
+
+            label: "Inicio",
+
+          ),
+
+          BottomNavigationBarItem(
+
             icon: Icon(Icons.favorite_border),
+
             label: "Favoritos",
+
           ),
+
           BottomNavigationBarItem(
+
             icon: Icon(Icons.calendar_month_outlined),
+
             label: "Plan",
+
           ),
+
           BottomNavigationBarItem(
+
             icon: Icon(Icons.settings_outlined),
+
             label: "Ajustes",
+
           ),
+
         ],
+
       ),
 
       body: page[selectedIndex],
+
     );
   }
 }
