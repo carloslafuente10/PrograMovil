@@ -23,13 +23,11 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-<<<<<<< Updated upstream
         return ios;
       case TargetPlatform.macOS:
         return macos;
       case TargetPlatform.windows:
         return windows;
-=======
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for ios - '
           'you can reconfigure this by running the FlutterFire CLI again.',
@@ -44,7 +42,6 @@ class DefaultFirebaseOptions {
           'DefaultFirebaseOptions have not been configured for windows - '
           'you can reconfigure this by running the FlutterFire CLI again.',
         );
->>>>>>> Stashed changes
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -74,7 +71,6 @@ class DefaultFirebaseOptions {
     projectId: 'app-recetas-e5f12',
     storageBucket: 'app-recetas-e5f12.firebasestorage.app',
   );
-<<<<<<< Updated upstream
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyDvFQbFGM57PqC-ASEDBbDNyxUUNnSeoSA',
@@ -103,6 +99,4 @@ class DefaultFirebaseOptions {
     storageBucket: 'app-recetas-e5f12.firebasestorage.app',
     measurementId: 'G-TBRKKJ51HV',
   );
-=======
->>>>>>> Stashed changes
 }

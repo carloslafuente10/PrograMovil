@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-<<<<<<< Updated upstream
 import '../servicios/api_servicio.dart';
-=======
 import 'home_screen.dart';
->>>>>>> Stashed changes
 
 class AppMainScreen extends StatefulWidget {
   const AppMainScreen({super.key});
@@ -20,7 +17,6 @@ class _AppMainScreenState extends State<AppMainScreen> {
   @override
   void initState() {
     page = [
-<<<<<<< Updated upstream
       // 🔥 HOME (recetas desde backend)
       FutureBuilder(
         future: ApiService.getRecetas(),
@@ -81,9 +77,7 @@ class _AppMainScreenState extends State<AppMainScreen> {
       ),
 
       // 🔥 otras pantallas
-=======
       HomeScreen(),
->>>>>>> Stashed changes
       const Center(child: Text("Favoritos")),
       const Center(child: Text("Plan")),
       const Center(child: Text("Configuración")),
