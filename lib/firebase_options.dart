@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart'
 /// Default [FirebaseOptions] for use with your Firebase apps.
 ///
 /// Example:
-/// 
+/// ```dart
 /// import 'firebase_options.dart';
 /// // ...
 /// await Firebase.initializeApp(
@@ -23,13 +23,11 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-
         return ios;
       case TargetPlatform.macOS:
         return macos;
       case TargetPlatform.windows:
         return windows;
-
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for ios - '
           'you can reconfigure this by running the FlutterFire CLI again.',
@@ -44,7 +42,6 @@ class DefaultFirebaseOptions {
           'DefaultFirebaseOptions have not been configured for windows - '
           'you can reconfigure this by running the FlutterFire CLI again.',
         );
- 
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -75,7 +72,6 @@ class DefaultFirebaseOptions {
     storageBucket: 'app-recetas-e5f12.firebasestorage.app',
   );
 
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyDvFQbFGM57PqC-ASEDBbDNyxUUNnSeoSA',
     appId: '1:260063702751:ios:1382acf4cd12cfe57ac36a',
@@ -103,6 +99,4 @@ class DefaultFirebaseOptions {
     storageBucket: 'app-recetas-e5f12.firebasestorage.app',
     measurementId: 'G-TBRKKJ51HV',
   );
-
-
 }
