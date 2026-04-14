@@ -8,9 +8,7 @@ import 'screens/app_main_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   runApp(const MyApp());
 }
@@ -20,18 +18,13 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp( // ❗ quitamos const
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'App Recetas',
-      theme: ThemeData(
-        primarySwatch: Colors.orange,
-        useMaterial3: true,
-      ),
 
-      // 👉 ELIGE SOLO UNA
-      //home: const LoginPage(),
-      // home: const AppMainScreen(),
-       home: const AppMainScreen(),
+      title: 'App Recetas',
+      theme: ThemeData(primarySwatch: Colors.orange, useMaterial3: true),
+      // Puedes cambiar aquí entre Login o App principal
+      home: const LoginPage(),
     );
   }
 }
