@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-<<<<<<< Updated upstream
+ Updated upstream
 
 import 'firebase_options.dart';
 import 'screens/login_page.dart';
-=======
+
 import 'firebase_options.dart';
->>>>>>> Stashed changes
+ Stashed changes
 import 'screens/app_main_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(
-<<<<<<< Updated upstream
+ Updated upstream
     options: DefaultFirebaseOptions.currentPlatform,
-=======
+
     options:
     DefaultFirebaseOptions.currentPlatform,
->>>>>>> Stashed changes
+ Stashed changes
   );
 
   runApp(const MyApp());

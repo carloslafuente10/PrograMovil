@@ -1,5 +1,5 @@
-<<<<<<< Updated upstream
+ Updated upstream
 {"flutter":{"platforms":{"android":{"default":{"projectId":"app-recetas-e5f12","appId":"1:260063702751:android:2b54b7fd6526c29d7ac36a","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"app-recetas-e5f12","configurations":{"android":"1:260063702751:android:2b54b7fd6526c29d7ac36a","ios":"1:260063702751:ios:1382acf4cd12cfe57ac36a","macos":"1:260063702751:ios:1382acf4cd12cfe57ac36a","web":"1:260063702751:web:8600b6e110469c867ac36a","windows":"1:260063702751:web:26ea5d95d88760747ac36a"}}}}}}
-=======
+
 {"flutter":{"platforms":{"android":{"default":{"projectId":"app-recetas-e5f12","appId":"1:260063702751:android:2b54b7fd6526c29d7ac36a","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"app-recetas-e5f12","configurations":{"android":"1:260063702751:android:2b54b7fd6526c29d7ac36a","web":"1:260063702751:web:8600b6e110469c867ac36a"}}}}}}
->>>>>>> Stashed changes
+ Stashed changes
