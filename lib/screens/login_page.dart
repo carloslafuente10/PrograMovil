@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:programovil/screens/home_screen.dart';
+import 'package:programovil/screens/app_main_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LoginPage — respeta el diseño original (blanco, naranja, cubiertos)
@@ -101,9 +102,9 @@ class _LoginPageState extends State<LoginPage>
 
       // Navegamos al Home reemplazando la ruta actual
       Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => HomeScreen()),
-      );
+  context,
+  MaterialPageRoute(builder: (_) => AppMainScreen()), // Esto te lleva a la pantalla con botones
+);
     } on FirebaseAuthException catch (e) {
       print('FirebaseAuthException en acceder(): ${e.code}');
 
