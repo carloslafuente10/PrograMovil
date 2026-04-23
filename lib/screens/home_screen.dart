@@ -1,1187 +1,818 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'detalle_receta_screen.dart';
 import 'favoritos_provider.dart';
+import 'app_main_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-
   const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
-
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-
   String _categoriaSeleccionada = 'Todo';
 
-  final TextEditingController _searchController =
-      TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
 
   String _busqueda = '';
 
   final List<Map<String, String>> _recetas = [
-
     {
       "nombre": "Arepas rellenas",
       "img": "assets/images/platos/Arepas rellenas.jpg",
       "calorias": "320",
       "tiempo": "15",
-      "categoria": "Almuerzo"
+      "categoria": "Almuerzo",
     },
-
     {
       "nombre": "Ceviche Peruano",
       "img": "assets/images/platos/Ceviche peruano.webp",
       "calorias": "210",
       "tiempo": "20",
-      "categoria": "Almuerzo"
+      "categoria": "Almuerzo",
     },
-
     {
       "nombre": "Ensalada César",
       "img": "assets/images/platos/Ensalada César.jpg",
       "calorias": "180",
       "tiempo": "10",
-      "categoria": "Almuerzo"
+      "categoria": "Almuerzo",
     },
-
     {
       "nombre": "Majadito",
       "img": "assets/images/platos/Majadito.jpg",
       "calorias": "450",
       "tiempo": "35",
-      "categoria": "Almuerzo"
+      "categoria": "Almuerzo",
     },
-
     {
       "nombre": "Pique macho",
       "img": "assets/images/platos/Pique macho.jpg",
       "calorias": "600",
       "tiempo": "40",
-      "categoria": "Cena"
+      "categoria": "Cena",
     },
-
     {
       "nombre": "Quesadillas",
       "img": "assets/images/platos/Quesadillas.webp",
       "calorias": "350",
       "tiempo": "15",
-      "categoria": "Cena"
+      "categoria": "Cena",
     },
-
     {
       "nombre": "Salteña",
       "img": "assets/images/platos/Salteña.jpg",
       "calorias": "280",
       "tiempo": "25",
-      "categoria": "Desayuno"
+      "categoria": "Desayuno",
     },
-
     {
       "nombre": "Silpancho",
       "img": "assets/images/platos/Silpancho.jpg",
       "calorias": "520",
       "tiempo": "30",
-      "categoria": "Almuerzo"
+      "categoria": "Almuerzo",
     },
-
     {
       "nombre": "Sopa de maní",
       "img": "assets/images/platos/Sopa de mani.jpg",
       "calorias": "390",
       "tiempo": "45",
-      "categoria": "Almuerzo"
+      "categoria": "Almuerzo",
     },
-
     {
       "nombre": "Tacos al pastor",
       "img": "assets/images/platos/Tacos al pastor.jpg",
       "calorias": "250",
       "tiempo": "20",
-      "categoria": "Cena"
+      "categoria": "Cena",
     },
-
     {
       "nombre": "Trancapecho",
       "img": "assets/images/platos/Trancapecho.jpg",
       "calorias": "480",
       "tiempo": "10",
-      "categoria": "Desayuno"
+      "categoria": "Desayuno",
     },
-
     {
       "nombre": "Anticucho",
       "img": "assets/images/platos/Anticucho.webp",
       "calorias": "310",
       "tiempo": "25",
-      "categoria": "Cena"
+      "categoria": "Cena",
     },
-
   ];
 
-  final List<String> _categorias = [
-
-    'Todo',
-    'Desayuno',
-    'Almuerzo',
-    'Cena'
-
-  ];
+  final List<String> _categorias = ['Todo', 'Desayuno', 'Almuerzo', 'Cena'];
 
   final Color _verde = const Color(0xFF2D9E73);
 
   List<Map<String, String>> get _recetasFiltradas {
-
     return _recetas.where((r) {
-
       final coincideCategoria =
           _categoriaSeleccionada == 'Todo' ||
           r['categoria'] == _categoriaSeleccionada;
-
-      final coincideBusqueda =
-          r['nombre']!
-              .toLowerCase()
-              .contains(_busqueda.toLowerCase());
-
-      return coincideCategoria &&
-          coincideBusqueda;
-
+      final coincideBusqueda = r['nombre']!.toLowerCase().contains(
+        _busqueda.toLowerCase(),
+      );
+      return coincideCategoria && coincideBusqueda;
     }).toList();
+  }
 
+  // ── Botón Explorar: enfoca la barra de búsqueda ──────────────────────────
+  void _onExplorarTap() {
+    _searchController.clear();
+    setState(() => _busqueda = '');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('¡Busca tu receta favorita arriba! 🍽️'),
+        backgroundColor: _verde,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  // ── Botón Perfil: navega al tab Ajustes (índice 3) ───────────────────────
+  void _onPerfilTap() {
+    final mainScreen = context.findAncestorStateOfType<AppMainScreenState>();
+    if (mainScreen != null) {
+      mainScreen.setState(() => mainScreen.selectedIndex = 3);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-
-    final favState =
-        FavoritosProvider.of(context);
+    final favState = FavoritosProvider.of(context);
 
     return ListenableBuilder(
-
       listenable: favState,
-
       builder: (context, _) {
-
         return Scaffold(
-
-          backgroundColor:
-              const Color(0xFFF7F7F5),
-
+          backgroundColor: const Color(0xFFF7F7F5),
           body: SafeArea(
-
             child: ListView(
-
               children: [
-
+                // ── Encabezado ─────────────────────────────────────────────
                 Padding(
-
-                  padding: const EdgeInsets.fromLTRB(
-
-                    20,
-                    20,
-                    20,
-                    12,
-
-                  ),
-
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
                   child: Row(
-
-                    mainAxisAlignment:
-                        MainAxisAlignment
-                            .spaceBetween,
-
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
-
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-
                       const Text(
-
                         '¿Qué cocinarás hoy?',
-
                         style: TextStyle(
-
                           fontSize: 24,
-
-                          fontWeight:
-                              FontWeight.bold,
-
-                          color: Color(
-                              0xFF1A1A1A),
-
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A1A1A),
                           height: 1.3,
-
                         ),
-
                       ),
 
-                      CircleAvatar(
-
-                        radius: 20,
-
-                        backgroundColor:
-                            const Color(
-                                0xFFE8E8E8),
-
-                        child: Icon(
-
-                          Icons.person_outline,
-
-                          color:
-                              Colors.grey[600],
-
-                          size: 22,
-
+                      // ── BOTÓN PERFIL ──────────────────────────────────
+                      GestureDetector(
+                        onTap: _onPerfilTap,
+                        child: CircleAvatar(
+                          radius: 20,
+                          backgroundColor: const Color(0xFFE8E8E8),
+                          child: Icon(
+                            Icons.person_outline,
+                            color: Colors.grey[600],
+                            size: 22,
+                          ),
                         ),
-
                       ),
-
                     ],
-
                   ),
-
                 ),
 
+                // ── Buscador ───────────────────────────────────────────────
                 Padding(
-
-                  padding:
-                      const EdgeInsets.symmetric(
-
-                    horizontal: 20,
-
-                  ),
-
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: TextField(
-
-                    controller:
-                        _searchController,
-
-                    onChanged: (v) {
-
-                      setState(() {
-
-                        _busqueda = v;
-
-                      });
-
-                    },
-
-                    decoration:
-                        InputDecoration(
-
-                      hintText:
-                          'Buscar recetas...',
-
-                      hintStyle:
-                          TextStyle(
-
-                        color:
-                            Colors.grey[400],
-
+                    controller: _searchController,
+                    onChanged: (v) => setState(() => _busqueda = v),
+                    decoration: InputDecoration(
+                      hintText: 'Buscar recetas...',
+                      hintStyle: TextStyle(
+                        color: Colors.grey[400],
                         fontSize: 14,
-
                       ),
-
                       prefixIcon: Icon(
-
                         Icons.search,
-
-                        color:
-                            Colors.grey[400],
-
+                        color: Colors.grey[400],
                         size: 20,
-
                       ),
-
                       filled: true,
-
-                      fillColor:
-                          Colors.white,
-
-                      contentPadding:
-                          const EdgeInsets
-                              .symmetric(
-
-                        vertical: 12,
-
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[200]!),
                       ),
-
-                      border:
-                          OutlineInputBorder(
-
-                        borderRadius:
-                            BorderRadius
-                                .circular(12),
-
-                        borderSide:
-                            BorderSide(
-
-                          color:
-                              Colors.grey[200]!,
-
-                        ),
-
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[200]!),
                       ),
-
-                      enabledBorder:
-                          OutlineInputBorder(
-
-                        borderRadius:
-                            BorderRadius
-                                .circular(12),
-
-                        borderSide:
-                            BorderSide(
-
-                          color:
-                              Colors.grey[200]!,
-
-                        ),
-
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: _verde, width: 1.5),
                       ),
-
-                      focusedBorder:
-                          OutlineInputBorder(
-
-                        borderRadius:
-                            BorderRadius
-                                .circular(12),
-
-                        borderSide:
-                            BorderSide(
-
-                          color: _verde,
-
-                          width: 1.5,
-
-                        ),
-
-                      ),
-
                     ),
-
                   ),
-
                 ),
 
                 const SizedBox(height: 16),
 
+                // ── Banner verde ───────────────────────────────────────────
                 Padding(
-
-                  padding:
-                      const EdgeInsets.symmetric(
-
-                    horizontal: 20,
-
-                  ),
-
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Container(
-
-                    decoration:
-                        BoxDecoration(
-
+                    decoration: BoxDecoration(
                       color: _verde,
-
-                      borderRadius:
-                          BorderRadius
-                              .circular(16),
-
+                      borderRadius: BorderRadius.circular(16),
                     ),
-
                     child: Padding(
-
-                      padding:
-                          const EdgeInsets
-                              .all(20),
-
+                      padding: const EdgeInsets.all(20),
                       child: Row(
-
                         children: [
-
                           Expanded(
-
                             child: Column(
-
-                              crossAxisAlignment:
-                                  CrossAxisAlignment
-                                      .start,
-
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-
                                 const Text(
-
                                   '¡Cocina las\nmejores\nrecetas en casa!',
-
                                   style: TextStyle(
-
                                     color: Colors.white,
-
                                     fontSize: 16,
-
                                     fontWeight: FontWeight.bold,
-
                                     height: 1.35,
-
                                   ),
-
                                 ),
-
                                 const SizedBox(height: 10),
 
+                                // ── BOTÓN EXPLORAR ────────────────────────
                                 ElevatedButton(
-
-                                  onPressed: () {},
-
-                                  style:
-                                      ElevatedButton
-                                          .styleFrom(
-
-                                    backgroundColor:
-                                        Colors.white,
-
-                                    foregroundColor:
-                                        _verde,
-
+                                  onPressed: _onExplorarTap,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: _verde,
                                     elevation: 0,
-
-                                    padding:
-                                        const EdgeInsets
-                                            .symmetric(
-
+                                    padding: const EdgeInsets.symmetric(
                                       horizontal: 18,
-
                                       vertical: 8,
-
                                     ),
-
-                                    shape:
-                                        RoundedRectangleBorder(
-
-                                      borderRadius:
-                                          BorderRadius
-                                              .circular(8),
-
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
-
-                                    minimumSize:
-                                        Size.zero,
-
+                                    minimumSize: Size.zero,
                                     tapTargetSize:
-                                        MaterialTapTargetSize
-                                            .shrinkWrap,
-
+                                        MaterialTapTargetSize.shrinkWrap,
                                   ),
-
-                                  child:
-                                      const Text(
-
+                                  child: const Text(
                                     'Explorar',
-
-                                    style:
-                                        TextStyle(
-
+                                    style: TextStyle(
                                       fontSize: 12,
-
-                                      fontWeight:
-                                          FontWeight
-                                              .w600,
-
+                                      fontWeight: FontWeight.w600,
                                     ),
-
                                   ),
-
                                 ),
-
                               ],
-
                             ),
-
                           ),
-
                           ClipRRect(
-
-                            borderRadius:
-                                BorderRadius
-                                    .circular(12),
-
+                            borderRadius: BorderRadius.circular(12),
                             child: Container(
-
                               width: 90,
-
                               height: 90,
-
-                              color:
-                                  Colors.white
-                                      .withOpacity(0.15),
-
+                              color: Colors.white.withOpacity(0.15),
                               child: const Icon(
-
                                 Icons.restaurant,
-
                                 size: 48,
-
-                                color:
-                                    Colors.white70,
-
+                                color: Colors.white70,
                               ),
-
                             ),
-
                           ),
-
                         ],
-
                       ),
-
                     ),
-
                   ),
-
                 ),
 
                 const SizedBox(height: 20),
 
+                // ── Categorías ─────────────────────────────────────────────
                 const Padding(
-
-                  padding:
-                      EdgeInsets.only(
-
-                    left: 20,
-
-                    bottom: 10,
-
-                  ),
-
+                  padding: EdgeInsets.only(left: 20, bottom: 10),
                   child: Text(
-
                     'Categorías',
-
                     style: TextStyle(
-
                       fontSize: 15,
-
-                      fontWeight:
-                          FontWeight.w600,
-
-                      color:
-                          Color(0xFF1A1A1A),
-
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1A1A1A),
                     ),
-
                   ),
-
                 ),
 
                 SizedBox(
-
                   height: 38,
-
-                  child: ListView
-                      .separated(
-
-                    scrollDirection:
-                        Axis.horizontal,
-
-                    padding:
-                        const EdgeInsets
-                            .symmetric(
-
-                      horizontal: 20,
-
-                    ),
-
-                    itemCount:
-                        _categorias.length,
-
-                    separatorBuilder:
-                        (_, __) =>
-                            const SizedBox(
-
-                      width: 8,
-
-                    ),
-
-                    itemBuilder:
-                        (context, i) {
-
-                      final cat =
-                          _categorias[i];
-
-                      final activo =
-                          cat ==
-                              _categoriaSeleccionada;
-
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: _categorias.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, i) {
+                      final cat = _categorias[i];
+                      final activo = cat == _categoriaSeleccionada;
                       return GestureDetector(
-
-                        onTap: () {
-
-                          setState(() {
-
-                            _categoriaSeleccionada =
-                                cat;
-
-                          });
-
-                        },
-
-                        child:
-                            AnimatedContainer(
-
-                          duration:
-                              const Duration(
-
-                            milliseconds:
-                                200,
-
-                          ),
-
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
-
+                        onTap: () =>
+                            setState(() => _categoriaSeleccionada = cat),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(
                             horizontal: 18,
-
                             vertical: 8,
-
                           ),
-
-                          decoration:
-                              BoxDecoration(
-
-                            color: activo
-                                ? _verde
-                                : Colors.white,
-
-                            borderRadius:
-                                BorderRadius
-                                    .circular(20),
-
-                            border:
-                                Border.all(
-
-                              color: activo
-                                  ? _verde
-                                  : Colors.grey[300]!,
-
+                          decoration: BoxDecoration(
+                            color: activo ? _verde : Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: activo ? _verde : Colors.grey[300]!,
                             ),
-
                           ),
-
                           child: Text(
-
                             cat,
-
-                            style:
-                                TextStyle(
-
+                            style: TextStyle(
                               fontSize: 12,
-
-                              fontWeight:
-                                  FontWeight.w500,
-
-                              color: activo
-                                  ? Colors.white
-                                  : Colors.grey[700],
-
+                              fontWeight: FontWeight.w500,
+                              color: activo ? Colors.white : Colors.grey[700],
                             ),
-
                           ),
-
                         ),
-
                       );
-
                     },
-
                   ),
-
                 ),
 
                 const SizedBox(height: 20),
 
+                // ── Sección "Rápido y fácil" ───────────────────────────────
                 Padding(
-
-                  padding:
-                      const EdgeInsets.symmetric(
-
-                    horizontal: 20,
-
-                  ),
-
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Row(
-
-                    mainAxisAlignment:
-                        MainAxisAlignment
-                            .spaceBetween,
-
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-
                       const Text(
-
                         'Rápido y fácil de preparar',
-
                         style: TextStyle(
-
                           fontSize: 15,
-
-                          fontWeight:
-                              FontWeight.bold,
-
-                          color:
-                              Color(0xFF1A1A1A),
-
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A1A1A),
                         ),
-
                       ),
 
-                      Text(
-
-                        'Ver todo',
-
-                        style: TextStyle(
-
-                          fontSize: 12,
-
-                          color: _verde,
-
-                          fontWeight:
-                              FontWeight.w500,
-
+                      // ── BOTÓN VER TODO ────────────────────────────────
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => _VerTodasRecetasScreen(
+                                recetas: _recetas,
+                                verde: _verde,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          'Ver todo',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _verde,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-
                       ),
-
                     ],
-
                   ),
-
                 ),
 
                 const SizedBox(height: 12),
 
+                // ── Carrusel de recetas ────────────────────────────────────
                 SizedBox(
-
                   height: 200,
-
-                  child:
-                      _recetasFiltradas
-                              .isEmpty
-
-                          ? Center(
-
-                              child: Text(
-
-                                'No se encontraron recetas',
-
-                                style:
-                                    TextStyle(
-
-                                  color: Colors.grey[500],
-
-                                ),
-
-                              ),
-
-                            )
-
-                          : ListView
-                              .separated(
-
-                              scrollDirection:
-                                  Axis.horizontal,
-
-                              padding:
-                                  const EdgeInsets
-                                      .symmetric(
-
-                                horizontal: 20,
-
-                              ),
-
-                              itemCount:
-                                  _recetasFiltradas
-                                      .length,
-
-                              separatorBuilder:
-                                  (_, __) =>
-                                      const SizedBox(
-
-                                width: 12,
-
-                              ),
-
-                              itemBuilder:
-                                  (context, i) {
-
-                                final r =
-                                    _recetasFiltradas[i];
-
-                                return GestureDetector(
-
-                                  onTap: () {
-
-                                    Navigator.push(
-
-                                      context,
-
-                                      MaterialPageRoute(
-
-                                        builder:
-                                            (_) =>
-                                                DetalleRecetaScreen(
-
-                                          nombreReceta:
-                                              r['nombre']!,
-
-                                        ),
-
-                                      ),
-
-                                    );
-
-                                  },
-
-                                  child:
-                                      _RecetaCard(
-
-                                    receta: r,
-
-                                    verde: _verde,
-
-                                    favState:
-                                        favState,
-
+                  child: _recetasFiltradas.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No se encontraron recetas',
+                            style: TextStyle(color: Colors.grey[500]),
+                          ),
+                        )
+                      : ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          itemCount: _recetasFiltradas.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 12),
+                          itemBuilder: (context, i) {
+                            final r = _recetasFiltradas[i];
+                            return GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => DetalleRecetaScreen(
+                                      nombreReceta: r['nombre']!,
+                                    ),
                                   ),
-
                                 );
-
                               },
-
-                            ),
-
+                              child: _RecetaCard(
+                                receta: r,
+                                verde: _verde,
+                                favState: favState,
+                              ),
+                            );
+                          },
+                        ),
                 ),
 
                 const SizedBox(height: 24),
-
               ],
-
             ),
-
           ),
-
         );
-
       },
-
     );
-
   }
-
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Card de receta (carrusel)
+// ─────────────────────────────────────────────────────────────────────────────
 class _RecetaCard extends StatelessWidget {
-
   final Map<String, String> receta;
-
   final Color verde;
-
   final FavoritosState favState;
 
   const _RecetaCard({
-
     required this.receta,
-
     required this.verde,
-
     required this.favState,
-
   });
 
   @override
   Widget build(BuildContext context) {
-
-    final esFav =
-        favState.esFavorito(
-
-      receta['nombre']!,
-
-    );
+    final esFav = favState.esFavorito(receta['nombre']!);
 
     return Container(
-
       width: 150,
-
       decoration: BoxDecoration(
-
         color: Colors.white,
-
-        borderRadius:
-            BorderRadius.circular(14),
-
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
-
           BoxShadow(
-
-            color:
-                Colors.black.withOpacity(
-
-              0.06,
-
-            ),
-
+            color: Colors.black.withOpacity(0.06),
             blurRadius: 8,
-
-            offset:
-                const Offset(0, 2),
-
+            offset: const Offset(0, 2),
           ),
-
         ],
-
       ),
-
       child: Column(
-
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
           Stack(
-
             children: [
-
               ClipRRect(
-
-                borderRadius:
-                    const BorderRadius
-                        .vertical(
-
+                borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(14),
-
                 ),
-
                 child: Image.asset(
-
                   receta['img']!,
-
                   width: 150,
-
                   height: 110,
-
                   fit: BoxFit.cover,
-
-                  errorBuilder:
-                      (_, __, ___) =>
-                          Container(
-
+                  errorBuilder: (_, __, ___) => Container(
                     width: 150,
-
                     height: 110,
-
-                    color: const Color(
-
-                      0xFFE8E8E8,
-
-                    ),
-
+                    color: const Color(0xFFE8E8E8),
                     child: const Icon(
-
                       Icons.fastfood,
-
                       size: 40,
-
-                      color:
-                          Colors.white70,
-
+                      color: Colors.white70,
                     ),
-
                   ),
-
                 ),
-
               ),
-
               Positioned(
-
                 top: 8,
-
                 right: 8,
-
                 child: GestureDetector(
-
-                  onTap: () {
-
-                    favState.toggle(
-
-                      receta,
-
-                    );
-
-                  },
-
+                  onTap: () => favState.toggle(receta),
                   child: Container(
-
                     width: 28,
-
                     height: 28,
-
-                    decoration:
-                        const BoxDecoration(
-
+                    decoration: const BoxDecoration(
                       color: Colors.white,
-
-                      shape:
-                          BoxShape.circle,
-
+                      shape: BoxShape.circle,
                     ),
-
                     child: Icon(
-
-                      esFav
-
-                          ? Icons.favorite
-
-                          : Icons.favorite_border,
-
+                      esFav ? Icons.favorite : Icons.favorite_border,
                       size: 16,
-
-                      color: esFav
-
-                          ? Colors.red
-
-                          : Colors.grey,
-
+                      color: esFav ? Colors.red : Colors.grey,
                     ),
-
                   ),
-
                 ),
-
               ),
-
             ],
-
           ),
-
           Padding(
-
-            padding:
-                const EdgeInsets.all(8),
-
+            padding: const EdgeInsets.all(8),
             child: Column(
-
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-
                 Text(
-
                   receta['nombre']!,
-
-                  style:
-                      const TextStyle(
-
+                  style: const TextStyle(
                     fontSize: 12,
-
-                    fontWeight:
-                        FontWeight.w600,
-
-                    color:
-                        Color(0xFF1A1A1A),
-
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1A1A1A),
                   ),
-
                   maxLines: 1,
-
-                  overflow:
-                      TextOverflow.ellipsis,
-
+                  overflow: TextOverflow.ellipsis,
                 ),
-
                 const SizedBox(height: 5),
-
                 Row(
-
                   children: [
-
                     Icon(
-
                       Icons.local_fire_department,
-
                       size: 12,
-
-                      color:
-                          Colors.orange[400],
-
+                      color: Colors.orange[400],
                     ),
-
                     const SizedBox(width: 2),
-
                     Text(
-
                       '${receta['calorias']} Cal',
-
-                      style: TextStyle(
-
-                        fontSize: 10,
-
-                        color:
-                            Colors.grey[500],
-
-                      ),
-
+                      style: TextStyle(fontSize: 10, color: Colors.grey[500]),
                     ),
-
                     const SizedBox(width: 8),
-
-                    Icon(
-
-                      Icons.access_time,
-
-                      size: 12,
-
-                      color:
-                          Colors.grey[400],
-
-                    ),
-
+                    Icon(Icons.access_time, size: 12, color: Colors.grey[400]),
                     const SizedBox(width: 2),
-
                     Text(
-
                       '${receta['tiempo']} Min',
-
-                      style: TextStyle(
-
-                        fontSize: 10,
-
-                        color:
-                            Colors.grey[500],
-
-                      ),
-
+                      style: TextStyle(fontSize: 10, color: Colors.grey[500]),
                     ),
-
                   ],
-
                 ),
-
               ],
-
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Pantalla: Ver todas las recetas (carga desde Firestore en tiempo real)
+// ─────────────────────────────────────────────────────────────────────────────
+class _VerTodasRecetasScreen extends StatefulWidget {
+  final List<Map<String, String>> recetas;
+  final Color verde;
+
+  const _VerTodasRecetasScreen({required this.recetas, required this.verde});
+
+  @override
+  State<_VerTodasRecetasScreen> createState() => _VerTodasRecetasScreenState();
+}
+
+class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
+  String _busqueda = '';
+  final TextEditingController _ctrl = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F7F5),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1A1A1A),
+        elevation: 0,
+        title: const Text(
+          'Todas las recetas',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+      body: Column(
+        children: [
+          // Buscador
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              controller: _ctrl,
+              onChanged: (v) => setState(() => _busqueda = v),
+              decoration: InputDecoration(
+                hintText: 'Buscar...',
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: Colors.grey[400],
+                  size: 20,
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[200]!),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey[200]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: widget.verde, width: 1.5),
+                ),
+              ),
+            ),
           ),
 
+          // Lista desde Firestore
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('app-recetas-completas')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(
+                    child: CircularProgressIndicator(color: widget.verde),
+                  );
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(
+                    child: Text('No hay recetas disponibles'),
+                  );
+                }
+
+                final docs = snapshot.data!.docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final nombre = (data['nombre'] ?? '')
+                      .toString()
+                      .toLowerCase();
+                  return nombre.contains(_busqueda.toLowerCase());
+                }).toList();
+
+                if (docs.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'Sin resultados para "$_busqueda"',
+                      style: TextStyle(color: Colors.grey[500]),
+                    ),
+                  );
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, i) {
+                    final data = docs[i].data() as Map<String, dynamic>;
+                    final nombre = data['nombre']?.toString() ?? 'Sin nombre';
+                    final imagen = data['imagen']?.toString() ?? '';
+                    final calorias =
+                        data['calorias']?.toString() ??
+                        data['calorías']?.toString() ??
+                        '—';
+                    final tiempo = data['tiempo']?.toString() ?? '—';
+
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                DetalleRecetaScreen(nombreReceta: nombre),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            // Imagen
+                            ClipRRect(
+                              borderRadius: const BorderRadius.horizontal(
+                                left: Radius.circular(14),
+                              ),
+                              child: imagen.isNotEmpty
+                                  ? Image.network(
+                                      imagen,
+                                      width: 90,
+                                      height: 90,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          _imgPlaceholder(),
+                                    )
+                                  : _imgPlaceholder(),
+                            ),
+                            const SizedBox(width: 14),
+                            // Info
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    nombre,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF1A1A1A),
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.local_fire_department,
+                                        size: 13,
+                                        color: Colors.orange[400],
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        '$calorias Cal',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey[500],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Icon(
+                                        Icons.access_time,
+                                        size: 13,
+                                        color: Colors.grey[400],
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        '$tiempo min',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey[500],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(right: 14),
+                              child: Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 14,
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
         ],
-
       ),
-
     );
-
   }
 
+  Widget _imgPlaceholder() {
+    return Container(
+      width: 90,
+      height: 90,
+      color: const Color(0xFFE8E8E8),
+      child: const Icon(Icons.fastfood, size: 32, color: Colors.white70),
+    );
+  }
 }
