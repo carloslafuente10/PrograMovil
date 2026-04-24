@@ -1,639 +1,728 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class DetalleRecetaScreen extends StatelessWidget {
+class _IngredienteCompleto {
+  final String id;
+  final double cantidad;
+  final String unidad;
+  final String nombre;
+  final String foto;
+  final String sustituto;
 
-  final String nombreReceta;
-
-  const DetalleRecetaScreen({
-    super.key,
-    required this.nombreReceta,
+  const _IngredienteCompleto({
+    required this.id,
+    required this.cantidad,
+    required this.unidad,
+    required this.nombre,
+    required this.foto,
+    required this.sustituto,
   });
+}
 
+class DetalleRecetaScreen extends StatefulWidget {
+  final String nombreReceta;
+  const DetalleRecetaScreen({super.key, required this.nombreReceta});
+
+  @override
+  State<DetalleRecetaScreen> createState() => _DetalleRecetaScreenState();
+}
+
+class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   static const Color _verde = Color(0xFF2D9E73);
 
+  int _porciones = 1;
+  int _porcionesBase = 1;
+  bool _isFirstLoad = true;
+  List<bool> _checks = [];
+  bool _esFav = false;
+
+  late Future<Map<String, dynamic>> _futureDatos;
+
+  @override
+  void initState() {
+    super.initState();
+    _futureDatos = _cargarTodo();
+  }
+
+  String _calcularNumero(double cantidadBase) {
+    final double resultado = cantidadBase * _porciones / _porcionesBase;
+    final int parteEntera = resultado.floor();
+    final double decimal = resultado - parteEntera;
+
+    final Map<double, String> fracciones = {
+      0.25: '1/4',
+      0.33: '1/3',
+      0.5: '1/2',
+      0.67: '2/3',
+      0.75: '3/4',
+    };
+
+    String? fraccion;
+    for (final entry in fracciones.entries) {
+      if ((decimal - entry.key).abs() < 0.05) {
+        fraccion = entry.value;
+        break;
+      }
+    }
+
+    if (decimal < 0.05) return '$parteEntera';
+    if (fraccion != null && parteEntera == 0) return fraccion;
+    if (fraccion != null && parteEntera > 0) return '$parteEntera $fraccion';
+    return resultado.toStringAsFixed(1);
+  }
+
+  // Pluralizador
+  String _pluralizarSeguro(double cantidad, String texto) {
+    String limpio = texto.trim();
+    if (cantidad <= 1 || limpio.isEmpty) return limpio;
+
+    List<String> partes = limpio.split(' ');
+    String primera = partes[0];
+    String lower = primera.toLowerCase();
+
+    if (lower.endsWith('s') || lower.endsWith('x')) {
+      // Ya está en plural, no hacer nada
+    } else if (lower.endsWith('z')) {
+      partes[0] = '${primera.substring(0, primera.length - 1)}ces';
+    } else if (RegExp(r'[aeiouáéóíú]$').hasMatch(lower)) {
+      partes[0] = '${primera}s';
+    } else {
+      partes[0] = '${primera}es';
+    }
+
+    return partes.join(' ');
+  }
+
+  String _textoIngrediente(
+    double cantidadBase,
+    String unidadOriginal,
+    String nombre,
+  ) {
+    double cantidadActual = cantidadBase * _porciones / _porcionesBase;
+    String unidadNorm = unidadOriginal.trim().toLowerCase();
+
+    if (['gramo', 'gramos', 'g', 'gr'].contains(unidadNorm) &&
+        cantidadActual >= 1000) {
+      return '${(cantidadActual / 1000).toStringAsFixed(1).replaceAll('.0', '')} kg de $nombre';
+    }
+    if (['mililitro', 'mililitros', 'ml'].contains(unidadNorm) &&
+        cantidadActual >= 1000) {
+      return '${(cantidadActual / 1000).toStringAsFixed(1).replaceAll('.0', '')} L de $nombre';
+    }
+
+    final String numero = _calcularNumero(cantidadBase);
+    final String unidad = unidadOriginal.trim();
+
+    if (unidad.isNotEmpty) {
+      return '$numero ${_pluralizarSeguro(cantidadActual, unidad)} de $nombre';
+    }
+    return '$numero ${_pluralizarSeguro(cantidadActual, nombre)}';
+  }
+
+  Future<Map<String, dynamic>> _cargarTodo() async {
+    final recetasSnap = await FirebaseFirestore.instance
+        .collection('app-recetas-completas')
+        .get();
+
+    Map<String, dynamic>? receta;
+    for (final doc in recetasSnap.docs) {
+      if ((doc.data()['nombre'] ?? '').toString().trim() ==
+          widget.nombreReceta.trim()) {
+        receta = doc.data();
+        break;
+      }
+    }
+
+    if (receta == null) throw Exception('Receta no encontrada');
+
+    final List<dynamic> rawIngredientes = receta['ingredientes'] ?? [];
+    final List<_IngredienteCompleto> ingredientes = [];
+
+    for (final item in rawIngredientes) {
+      if (item is! Map) continue;
+
+      final String id =
+          item['ingrediente_id']?.toString() ??
+          item['ingrediente']?.toString() ??
+          '';
+      final double cantidad = (item['cantidad'] is num)
+          ? (item['cantidad'] as num).toDouble()
+          : 0.0;
+      final String unidad = item['unidad']?.toString() ?? '';
+
+      String nombre = id;
+      String foto = '';
+      String sustituto = '';
+
+      if (id.isNotEmpty) {
+        try {
+          final maestroDoc = await FirebaseFirestore.instance
+              .collection('ingredientes_maestros')
+              .doc(id)
+              .get();
+          if (maestroDoc.exists) {
+            final m = maestroDoc.data()!;
+            nombre = m['nombre']?.toString().trim() ?? id;
+            foto = m['foto']?.toString() ?? '';
+            final raw = m['sustitutos'];
+            if (raw is String)
+              sustituto = raw;
+            else if (raw is List)
+              sustituto = raw.join(', ');
+          }
+        } catch (_) {}
+      }
+
+      // limpia los guiones de los IDs (Ej: salsa-wostershire -> salsa wostershire)
+      if (nombre == id && nombre.contains('-')) {
+        nombre = nombre.replaceAll('-', ' ');
+      }
+
+      ingredientes.add(
+        _IngredienteCompleto(
+          id: id,
+          cantidad: cantidad,
+          unidad: unidad,
+          nombre: nombre,
+          foto: foto,
+          sustituto: sustituto,
+        ),
+      );
+    }
+    return {'receta': receta, 'ingredientes': ingredientes};
+  }
+
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-
       backgroundColor: const Color(0xFFF7F7F5),
-
-      appBar: AppBar(
-
-        backgroundColor: Colors.white,
-
-        foregroundColor: const Color(0xFF1A1A1A),
-
-        elevation: 0,
-
-        title: Text(
-
-          nombreReceta,
-
-          style: const TextStyle(
-
-            fontSize: 16,
-
-            fontWeight: FontWeight.w600,
-
-          ),
-
-        ),
-
-      ),
-
-      body: FutureBuilder<QuerySnapshot>(
-
-        future: FirebaseFirestore.instance
-
-            .collection("app-recetas-completas")
-
-            .get(),
-
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _futureDatos,
         builder: (context, snapshot) {
-
           if (snapshot.connectionState == ConnectionState.waiting) {
-
-            return const Center(
-
-              child: CircularProgressIndicator(
-
-                color: _verde,
-
-              ),
-
+            return const Scaffold(
+              backgroundColor: Color(0xFFF7F7F5),
+              body: Center(child: CircularProgressIndicator(color: _verde)),
             );
-
           }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          if (snapshot.hasError)
+            return Scaffold(appBar: AppBar(title: Text(widget.nombreReceta)));
 
-            return const Center(
+          final receta = snapshot.data!['receta'] as Map<String, dynamic>;
+          final ingredientes =
+              snapshot.data!['ingredientes'] as List<_IngredienteCompleto>;
 
-              child: Text(
-
-                "No hay recetas en Firebase",
-
-              ),
-
-            );
-
+          if (_isFirstLoad) {
+            _porcionesBase =
+                int.tryParse(receta['porcion_base']?.toString() ?? '1') ?? 1;
+            _porciones = _porcionesBase;
+            _checks = List.filled(ingredientes.length, false);
+            _isFirstLoad = false;
           }
 
-          Map<String, dynamic>? receta;
+          final String imagenPrincipal = receta['imagen'] ?? '';
+          final String nombre = receta['nombre'] ?? widget.nombreReceta;
+          final double caloriasBase =
+              double.tryParse(receta['calorías']?.toString() ?? '0') ?? 0;
+          final int caloriasTotales =
+              (caloriasBase * _porciones / _porcionesBase).round();
 
-          for (var doc in snapshot.data!.docs) {
+          int tiempoBase =
+              int.tryParse(receta['tiempo']?.toString() ?? '0') ?? 0;
+          int tiempoAjustado = tiempoBase > 0
+              ? (tiempoBase *
+                        (1 + (0.15 * ((_porciones / _porcionesBase) - 1))))
+                    .round()
+              : 0;
 
-            final data = doc.data() as Map<String, dynamic>;
+          String rating = '';
+          receta.forEach((k, v) {
+            if (k.trim() == 'rating') rating = v.toString();
+          });
 
-            if ((data["nombre"] ?? "").toString().trim() ==
-                nombreReceta.trim()) {
+          final int resenasNum =
+              int.tryParse(receta['reseña']?.toString() ?? '0') ?? 0;
 
-              receta = data;
-
-              break;
-
-            }
-
-          }
-
-          if (receta == null) {
-
-            return const Center(
-
-              child: Text(
-
-                "Receta no encontrada",
-
-              ),
-
-            );
-
-          }
-
-          final String imagenPrincipal = receta["imagen"] ?? "";
-
-          final String nombre = receta["nombre"] ?? nombreReceta;
-
-          final String calorias =
-              receta["calorías"]?.toString() ??
-              receta["calorias"]?.toString() ??
-              "—";
-
-          final String tiempo =
-              receta["tiempo"]?.toString() ??
-              "—";
-
-          final String categoria =
-              receta["categoría"]?.toString() ??
-              receta["categoria"]?.toString() ??
-              "";
-
-          final String rating =
-              receta["rating"]?.toString() ??
-              "";
-
-          final List<String> ingredientes =
-              List<String>.from(receta["nomIngredientes"] ?? []);
-
-          final List<String> cantidades =
-              List<String>.from(receta["cantIngredientes"] ?? []);
-
-          final List<String> imagenes =
-              List<String>.from(receta["imgIngredientes"] ?? []);
-
-          return ListView(
-
-            padding: EdgeInsets.zero,
-
-            children: [
-
-              if (imagenPrincipal.isNotEmpty)
-
-                SizedBox(
-
-                  height: 240,
-
-                  width: double.infinity,
-
-                  child: Image.network(
-
-                    imagenPrincipal,
-
-                    fit: BoxFit.cover,
-
-                    errorBuilder: (_, __, ___) => Container(
-
-                      height: 240,
-
-                      color: const Color(0xFFE8E8E8),
-
-                      child: const Icon(
-
-                        Icons.restaurant,
-
-                        size: 60,
-
-                        color: Colors.white54,
-
-                      ),
-
+          return CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                expandedHeight: 260,
+                pinned: true,
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.white,
+                leading: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    margin: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      shape: BoxShape.circle,
                     ),
-
+                    child: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 18,
+                      color: Colors.white,
+                    ),
                   ),
-
                 ),
-
-              Container(
-
-                color: Colors.white,
-
-                padding: const EdgeInsets.all(20),
-
-                child: Column(
-
-                  crossAxisAlignment: CrossAxisAlignment.start,
-
-                  children: [
-
-                    Text(
-
-                      nombre,
-
-                      style: const TextStyle(
-
-                        fontSize: 22,
-
-                        fontWeight: FontWeight.bold,
-
-                        color: Color(0xFF1A1A1A),
-
-                      ),
-
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    Wrap(
-
-                      spacing: 12,
-
-                      runSpacing: 8,
-
-                      children: [
-
-                        _InfoChip(
-
-                          icon: Icons.local_fire_department,
-
-                          iconColor: Colors.orange,
-
-                          label: '$calorias Cal',
-
-                        ),
-
-                        _InfoChip(
-
-                          icon: Icons.access_time,
-
-                          iconColor: _verde,
-
-                          label: '$tiempo min',
-
-                        ),
-
-                        if (categoria.isNotEmpty)
-
-                          _InfoChip(
-
-                            icon: Icons.category_outlined,
-
-                            iconColor: Colors.blueGrey,
-
-                            label: categoria,
-
+                flexibleSpace: FlexibleSpaceBar(
+                  background: imagenPrincipal.isNotEmpty
+                      ? Image.network(imagenPrincipal, fit: BoxFit.cover)
+                      : Container(
+                          color: _verde.withValues(alpha: 0.2),
+                          child: const Icon(
+                            Icons.restaurant,
+                            size: 80,
+                            color: Colors.white54,
                           ),
-
-                        if (rating.isNotEmpty)
-
-                          _InfoChip(
-
-                            icon: Icons.star_rounded,
-
-                            iconColor: Colors.amber,
-
-                            label: rating,
-
-                          ),
-
-                      ],
-
-                    ),
-
-                  ],
-
+                        ),
                 ),
-
               ),
 
-              const SizedBox(height: 8),
-
-              Container(
-
-                color: Colors.white,
-
-                padding: const EdgeInsets.all(20),
-
+              SliverToBoxAdapter(
                 child: Column(
-
                   crossAxisAlignment: CrossAxisAlignment.start,
-
                   children: [
-
-                    Row(
-
-                      children: [
-
-                        const Icon(
-
-                          Icons.restaurant_menu,
-
-                          color: _verde,
-
-                          size: 20,
-
-                        ),
-
-                        const SizedBox(width: 8),
-
-                        Text(
-
-                          'Ingredientes (${ingredientes.length})',
-
-                          style: const TextStyle(
-
-                            fontSize: 17,
-
-                            fontWeight: FontWeight.bold,
-
-                            color: Color(0xFF1A1A1A),
-
-                          ),
-
-                        ),
-
-                      ],
-
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    if (ingredientes.isEmpty)
-
-                      Text(
-
-                        'No hay ingredientes disponibles',
-
-                        style: TextStyle(
-
-                          color: Colors.grey[500],
-
-                        ),
-
-                      )
-
-                    else
-
-                      ListView.separated(
-
-                        shrinkWrap: true,
-
-                        physics: const NeverScrollableScrollPhysics(),
-
-                        itemCount: ingredientes.length,
-
-                        separatorBuilder: (_, __) => Divider(
-
-                          height: 1,
-
-                          color: Colors.grey[100],
-
-                        ),
-
-                        itemBuilder: (context, i) {
-
-                          final imgUrl =
-                              (imagenes.length > i)
-                                  ? imagenes[i].trim()
-                                  : '';
-
-                          final cantidad =
-                              (cantidades.length > i)
-                                  ? cantidades[i]
-                                  : '';
-
-                          return Padding(
-
-                            padding: const EdgeInsets.symmetric(
-
-                              vertical: 10,
-
+                    Container(
+                      color: Colors.white,
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            nombre,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1A1A1A),
                             ),
-
-                            child: Row(
-
-                              children: [
-
-                                ClipRRect(
-
-                                  borderRadius:
-
-                                      BorderRadius.circular(8),
-
-                                  child: imgUrl.isNotEmpty
-
-                                      ? Image.network(
-
-                                          imgUrl,
-
-                                          width: 50,
-
-                                          height: 50,
-
-                                          fit: BoxFit.cover,
-
-                                          errorBuilder: (_, __, ___) =>
-                                              _IngredienteIconPlaceholder(),
-
-                                        )
-
-                                      : _IngredienteIconPlaceholder(),
-
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.local_fire_department,
+                                size: 15,
+                                color: Colors.orange[400],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${caloriasBase.round()} Cal/plato (Total: $caloriasTotales)',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[600],
                                 ),
-
+                              ),
+                              const SizedBox(width: 14),
+                              Icon(
+                                Icons.access_time,
+                                size: 15,
+                                color: Colors.grey[400],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                tiempoAjustado > 0
+                                    ? '~$tiempoAjustado Min'
+                                    : '—',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              if (rating.isNotEmpty &&
+                                  rating != '0' &&
+                                  rating != '0.0') ...[
                                 const SizedBox(width: 14),
-
-                                Expanded(
-
-                                  child: Text(
-
-                                    ingredientes[i],
-
-                                    style: const TextStyle(
-
-                                      fontSize: 13,
-
-                                      color: Color(0xFF1A1A1A),
-
-                                      fontWeight: FontWeight.w500,
-
-                                    ),
-
-                                  ),
-
+                                const Icon(
+                                  Icons.star_rounded,
+                                  size: 15,
+                                  color: Colors.amber,
                                 ),
-
-                                if (cantidad.isNotEmpty)
-
-                                  Container(
-
-                                    padding:
-
-                                        const EdgeInsets.symmetric(
-
-                                      horizontal: 10,
-
-                                      vertical: 4,
-
-                                    ),
-
-                                    decoration: BoxDecoration(
-
-                                      color:
-
-                                          _verde.withOpacity(0.1),
-
-                                      borderRadius:
-
-                                          BorderRadius.circular(8),
-
-                                    ),
-
-                                    child: Text(
-
-                                      cantidad,
-
-                                      style:
-
-                                          const TextStyle(
-
-                                        fontSize: 12,
-
-                                        color: _verde,
-
-                                        fontWeight:
-
-                                            FontWeight.w600,
-
-                                      ),
-
-                                    ),
-
+                                const SizedBox(width: 4),
+                                Text(
+                                  resenasNum > 0
+                                      ? '$rating/5 ($resenasNum Reseñas)'
+                                      : '$rating/5',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey[600],
                                   ),
-
+                                ),
                               ],
-
-                            ),
-
-                          );
-
-                        },
-
+                            ],
+                          ),
+                        ],
                       ),
+                    ),
 
+                    const SizedBox(height: 8),
+
+                    Container(
+                      color: Colors.white,
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Ingredientes',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1A1A1A),
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  _ContadorBtn(
+                                    icon: Icons.remove,
+                                    onTap: () {
+                                      if (_porciones > 1)
+                                        setState(() => _porciones--);
+                                    },
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                    ),
+                                    child: Text(
+                                      '$_porciones',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF1A1A1A),
+                                      ),
+                                    ),
+                                  ),
+                                  _ContadorBtn(
+                                    icon: Icons.add,
+                                    onTap: () => setState(() => _porciones++),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4, bottom: 14),
+                            child: Text(
+                              '¿Cuántas porciones?\nMarca lo que ya tienes en casa',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[400],
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+
+                          if (ingredientes.isEmpty)
+                            Text(
+                              'No hay ingredientes disponibles',
+                              style: TextStyle(color: Colors.grey[500]),
+                            )
+                          else
+                            ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: ingredientes.length,
+                              separatorBuilder: (context, index) =>
+                                  Divider(height: 1, color: Colors.grey[100]),
+                              itemBuilder: (context, i) {
+                                final ing = ingredientes[i];
+                                final marcado = _checks.length > i
+                                    ? _checks[i]
+                                    : false;
+                                final String textoCompleto = _textoIngrediente(
+                                  ing.cantidad,
+                                  ing.unidad,
+                                  ing.nombre,
+                                );
+
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      GestureDetector(
+                                        onTap: () => setState(
+                                          () => _checks[i] = !_checks[i],
+                                        ),
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          children: [
+                                            ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              child: ing.foto.isNotEmpty
+                                                  ? Image.network(
+                                                      ing.foto,
+                                                      width: 44,
+                                                      height: 44,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder: (c, e, s) =>
+                                                          _IngPlaceholder(),
+                                                    )
+                                                  : _IngPlaceholder(),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Text(
+                                                textoCompleto,
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: marcado
+                                                      ? Colors.grey[400]
+                                                      : const Color(0xFF1A1A1A),
+                                                  decoration: marcado
+                                                      ? TextDecoration
+                                                            .lineThrough
+                                                      : null,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            AnimatedContainer(
+                                              duration: const Duration(
+                                                milliseconds: 200,
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 6,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: marcado
+                                                    ? _verde
+                                                    : Colors.orange.withValues(
+                                                        alpha: 0.1,
+                                                      ),
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                                border: Border.all(
+                                                  color: marcado
+                                                      ? _verde
+                                                      : Colors.orange[300]!,
+                                                  width: 1,
+                                                ),
+                                              ),
+                                              child: Text(
+                                                marcado ? 'Tengo ✓' : 'Falta',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: marcado
+                                                      ? Colors.white
+                                                      : Colors.orange[700],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (ing.sustituto.isNotEmpty && !marcado)
+                                        Container(
+                                          margin: const EdgeInsets.only(
+                                            top: 12,
+                                            left: 56,
+                                          ),
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF4F5F7),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.lightbulb_outline,
+                                                    color: Colors.orange[400],
+                                                    size: 16,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  const Text(
+                                                    'Sugerencia',
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 13,
+                                                      color: Color(0xFF1A1A1A),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 6),
+                                              RichText(
+                                                text: TextSpan(
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: Colors.grey[600],
+                                                    height: 1.4,
+                                                  ),
+                                                  children: [
+                                                    const TextSpan(
+                                                      text: 'Si no tienes ',
+                                                    ),
+                                                    TextSpan(
+                                                      text: ing.nombre,
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: Color(
+                                                          0xFF1A1A1A,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const TextSpan(
+                                                      text: ', puedes usar ',
+                                                    ),
+                                                    TextSpan(
+                                                      text: ing.sustituto,
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: Color(
+                                                          0xFF1A1A1A,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const TextSpan(text: '.'),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 100),
                   ],
-
                 ),
-
               ),
-
-              const SizedBox(height: 24),
-
             ],
-
           );
-
         },
-
       ),
-
-    );
-
-  }
-
-}
-
-class _InfoChip extends StatelessWidget {
-
-  final IconData icon;
-
-  final Color iconColor;
-
-  final String label;
-
-  const _InfoChip({
-
-    required this.icon,
-
-    required this.iconColor,
-
-    required this.label,
-
-  });
-
-  @override
-  Widget build(BuildContext context) {
-
-    return Container(
-
-      padding: const EdgeInsets.symmetric(
-
-        horizontal: 12,
-
-        vertical: 6,
-
-      ),
-
-      decoration: BoxDecoration(
-
-        color: iconColor.withOpacity(0.08),
-
-        borderRadius: BorderRadius.circular(20),
-
-        border: Border.all(
-
-          color: iconColor.withOpacity(0.2),
-
-        ),
-
-      ),
-
-      child: Row(
-
-        mainAxisSize: MainAxisSize.min,
-
-        children: [
-
-          Icon(
-
-            icon,
-
-            size: 14,
-
-            color: iconColor,
-
-          ),
-
-          const SizedBox(width: 5),
-
-          Text(
-
-            label,
-
-            style: TextStyle(
-
-              fontSize: 12,
-
-              fontWeight: FontWeight.w600,
-
-              color: iconColor,
-
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, -4),
             ),
-
-          ),
-
-        ],
-
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('¡A cocinar! 👨‍🍳'),
+                      backgroundColor: _verde,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  ),
+                  icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                  label: const Text(
+                    'Empezar a cocinar',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _verde,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            GestureDetector(
+              onTap: () => setState(() => _esFav = !_esFav),
+              child: Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: _esFav
+                      ? Colors.red.withValues(alpha: 0.1)
+                      : const Color(0xFFF7F7F5),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: _esFav ? Colors.redAccent : Colors.grey[300]!,
+                  ),
+                ),
+                child: Icon(
+                  _esFav ? Icons.favorite : Icons.favorite_border,
+                  color: _esFav ? Colors.redAccent : Colors.grey[400],
+                  size: 22,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-
     );
-
   }
-
 }
 
-class _IngredienteIconPlaceholder extends StatelessWidget {
+class _ContadorBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _ContadorBtn({required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-
-    return Container(
-
-      width: 50,
-
-      height: 50,
-
-      decoration: BoxDecoration(
-
-        color: const Color(0xFFE8E8E8),
-
-        borderRadius: BorderRadius.circular(8),
-
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 30,
+        height: 30,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0F0F0),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, size: 18, color: const Color(0xFF1A1A1A)),
       ),
-
-      child: const Icon(
-
-        Icons.restaurant,
-
-        size: 24,
-
-        color: Colors.white70,
-
-      ),
-
     );
-
   }
+}
 
+class _IngPlaceholder extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8E8E8),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Icon(Icons.restaurant, size: 20, color: Colors.white70),
+    );
+  }
 }
