@@ -308,7 +308,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                '${caloriasBase.round()} Cal/plato (Total: $caloriasTotales)',
+                                '${caloriasBase.round()} Calorías por plato (Total: $caloriasTotales)',
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: Colors.grey[600],
@@ -323,7 +323,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                               const SizedBox(width: 4),
                               Text(
                                 tiempoAjustado > 0
-                                    ? '~$tiempoAjustado Min'
+                                    ? '~$tiempoAjustado min aprox'
                                     : '—',
                                 style: TextStyle(
                                   fontSize: 13,
@@ -408,7 +408,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                           Padding(
                             padding: const EdgeInsets.only(top: 4, bottom: 14),
                             child: Text(
-                              '¿Cuántas porciones?\nMarca lo que ya tienes en casa',
+                              '¿Cuántas porciones deseas preparar?\nMarca lo que ya tienes en casa',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey[400],

@@ -13,10 +13,11 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _categoriaSeleccionada = 'Todo';
-
+  String _busqueda = '';
   final TextEditingController _searchController = TextEditingController();
 
-  String _busqueda = '';
+  final Color _verde = const Color(0xFF2D9E73);
+  final List<String> _categorias = ['Todo', 'Desayuno', 'Almuerzo', 'Cena'];
 
   final List<Map<String, String>> _recetas = [
     {
@@ -105,10 +106,6 @@ class _HomeScreenState extends State<HomeScreen> {
     },
   ];
 
-  final List<String> _categorias = ['Todo', 'Desayuno', 'Almuerzo', 'Cena'];
-
-  final Color _verde = const Color(0xFF2D9E73);
-
   List<Map<String, String>> get _recetasFiltradas {
     return _recetas.where((r) {
       final coincideCategoria =
@@ -121,10 +118,13 @@ class _HomeScreenState extends State<HomeScreen> {
     }).toList();
   }
 
-  // ── Botón Explorar: enfoca la barra de búsqueda ──────────────────────────
-  void _onExplorarTap() {
+  void _limpiarBusqueda() {
     _searchController.clear();
     setState(() => _busqueda = '');
+  }
+
+  void _onExplorarTap() {
+    _limpiarBusqueda();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('¡Busca tu receta favorita arriba! 🍽️'),
@@ -136,7 +136,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Botón Perfil: navega al tab Ajustes (índice 3) ───────────────────────
   void _onPerfilTap() {
     final mainScreen = context.findAncestorStateOfType<AppMainScreenState>();
     if (mainScreen != null) {
@@ -156,292 +155,17 @@ class _HomeScreenState extends State<HomeScreen> {
           body: SafeArea(
             child: ListView(
               children: [
-                // ── Encabezado ─────────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        '¿Qué cocinarás hoy?',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1A1A1A),
-                          height: 1.3,
-                        ),
-                      ),
-
-                      // ── BOTÓN PERFIL ──────────────────────────────────
-                      GestureDetector(
-                        onTap: _onPerfilTap,
-                        child: CircleAvatar(
-                          radius: 20,
-                          backgroundColor: const Color(0xFFE8E8E8),
-                          child: Icon(
-                            Icons.person_outline,
-                            color: Colors.grey[600],
-                            size: 22,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // ── Buscador ───────────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (v) => setState(() => _busqueda = v),
-                    decoration: InputDecoration(
-                      hintText: 'Buscar recetas...',
-                      hintStyle: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 14,
-                      ),
-                      prefixIcon: Icon(
-                        Icons.search,
-                        color: Colors.grey[400],
-                        size: 20,
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[200]!),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[200]!),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: _verde, width: 1.5),
-                      ),
-                    ),
-                  ),
-                ),
-
+                _buildEncabezado(),
+                _buildBuscador(),
                 const SizedBox(height: 16),
-
-                // ── Banner verde ───────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: _verde,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  '¡Cocina las\nmejores\nrecetas en casa!',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    height: 1.35,
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-
-                                // ── BOTÓN EXPLORAR ────────────────────────
-                                ElevatedButton(
-                                  onPressed: _onExplorarTap,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: _verde,
-                                    elevation: 0,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 18,
-                                      vertical: 8,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                  child: const Text(
-                                    'Explorar',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              width: 90,
-                              height: 90,
-                              color: Colors.white.withOpacity(0.15),
-                              child: const Icon(
-                                Icons.restaurant,
-                                size: 48,
-                                color: Colors.white70,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
+                _buildBannerExplorar(),
                 const SizedBox(height: 20),
-
-                // ── Categorías ─────────────────────────────────────────────
-                const Padding(
-                  padding: EdgeInsets.only(left: 20, bottom: 10),
-                  child: Text(
-                    'Categorías',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                ),
-
-                SizedBox(
-                  height: 38,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: _categorias.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (context, i) {
-                      final cat = _categorias[i];
-                      final activo = cat == _categoriaSeleccionada;
-                      return GestureDetector(
-                        onTap: () =>
-                            setState(() => _categoriaSeleccionada = cat),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: activo ? _verde : Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: activo ? _verde : Colors.grey[300]!,
-                            ),
-                          ),
-                          child: Text(
-                            cat,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: activo ? Colors.white : Colors.grey[700],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-
+                _buildTituloSeccion('Categorías'),
+                _buildCategorias(),
                 const SizedBox(height: 20),
-
-                // ── Sección "Rápido y fácil" ───────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Rápido y fácil de preparar',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
-
-                      // ── BOTÓN VER TODO ────────────────────────────────
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => _VerTodasRecetasScreen(
-                                recetas: _recetas,
-                                verde: _verde,
-                              ),
-                            ),
-                          );
-                        },
-                        child: Text(
-                          'Ver todo',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: _verde,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
+                _buildHeaderRecetasRapeidas(context),
                 const SizedBox(height: 12),
-
-                // ── Carrusel de recetas ────────────────────────────────────
-                SizedBox(
-                  height: 200,
-                  child: _recetasFiltradas.isEmpty
-                      ? Center(
-                          child: Text(
-                            'No se encontraron recetas',
-                            style: TextStyle(color: Colors.grey[500]),
-                          ),
-                        )
-                      : ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          itemCount: _recetasFiltradas.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(width: 12),
-                          itemBuilder: (context, i) {
-                            final r = _recetasFiltradas[i];
-                            return GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => DetalleRecetaScreen(
-                                      nombreReceta: r['nombre']!,
-                                    ),
-                                  ),
-                                );
-                              },
-                              child: _RecetaCard(
-                                receta: r,
-                                verde: _verde,
-                                favState: favState,
-                              ),
-                            );
-                          },
-                        ),
-                ),
-
+                _buildCarruselRecetas(favState),
                 const SizedBox(height: 24),
               ],
             ),
@@ -450,11 +174,280 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
   }
+
+  // widgets de Home
+  Widget _buildEncabezado() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '¿Qué cocinarás hoy?',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1A1A),
+              height: 1.3,
+            ),
+          ),
+          GestureDetector(
+            onTap: _onPerfilTap,
+            child: CircleAvatar(
+              radius: 20,
+              backgroundColor: const Color(0xFFE8E8E8),
+              child: Icon(
+                Icons.person_outline,
+                color: Colors.grey[600],
+                size: 22,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBuscador() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (v) => setState(() => _busqueda = v),
+        decoration: InputDecoration(
+          hintText: 'Buscar recetas...',
+          hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+          prefixIcon: Icon(Icons.search, color: Colors.grey[400], size: 20),
+          // Aquí se implementa el botón X
+          suffixIcon: _busqueda.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear, color: Colors.grey, size: 20),
+                  onPressed: _limpiarBusqueda,
+                )
+              : null,
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[200]!),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[200]!),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: _verde, width: 1.5),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBannerExplorar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _verde,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '¡Cocina las\nmejores\nrecetas en casa!',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: _onExplorarTap,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: _verde,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Explorar',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: 90,
+                  height: 90,
+                  color: Colors.white.withValues(alpha: 0.15),
+                  child: const Icon(
+                    Icons.restaurant,
+                    size: 48,
+                    color: Colors.white70,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTituloSeccion(String titulo) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 20, bottom: 10),
+      child: Text(
+        titulo,
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF1A1A1A),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategorias() {
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: _categorias.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final cat = _categorias[i];
+          final activo = cat == _categoriaSeleccionada;
+          return GestureDetector(
+            onTap: () => setState(() => _categoriaSeleccionada = cat),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+              decoration: BoxDecoration(
+                color: activo ? _verde : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: activo ? _verde : Colors.grey[300]!),
+              ),
+              child: Text(
+                cat,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: activo ? Colors.white : Colors.grey[700],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildHeaderRecetasRapeidas(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            'Rápido y fácil de preparar',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1A1A),
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      _VerTodasRecetasScreen(recetas: _recetas, verde: _verde),
+                ),
+              );
+            },
+            child: Text(
+              'Ver todo',
+              style: TextStyle(
+                fontSize: 12,
+                color: _verde,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCarruselRecetas(FavoritosState favState) {
+    return SizedBox(
+      height: 200,
+      child: _recetasFiltradas.isEmpty
+          ? Center(
+              child: Text(
+                'No se encontraron recetas',
+                style: TextStyle(color: Colors.grey[500]),
+              ),
+            )
+          : ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              itemCount: _recetasFiltradas.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 12),
+              itemBuilder: (context, i) {
+                final r = _recetasFiltradas[i];
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            DetalleRecetaScreen(nombreReceta: r['nombre']!),
+                      ),
+                    );
+                  },
+                  child: _RecetaCard(
+                    receta: r,
+                    verde: _verde,
+                    favState: favState,
+                  ),
+                );
+              },
+            ),
+    );
+  }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Card de receta (carrusel)
-// ─────────────────────────────────────────────────────────────────────────────
+// Carrusel de recetas
+
 class _RecetaCard extends StatelessWidget {
   final Map<String, String> receta;
   final Color verde;
@@ -469,7 +462,6 @@ class _RecetaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final esFav = favState.esFavorito(receta['nombre']!);
-
     return Container(
       width: 150,
       decoration: BoxDecoration(
@@ -477,7 +469,7 @@ class _RecetaCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -497,7 +489,7 @@ class _RecetaCard extends StatelessWidget {
                   width: 150,
                   height: 110,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+                  errorBuilder: (context, error, stackTrace) => Container(
                     width: 150,
                     height: 110,
                     color: const Color(0xFFE8E8E8),
@@ -577,9 +569,8 @@ class _RecetaCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Pantalla: Ver todas las recetas (carga desde Firestore en tiempo real)
-// ─────────────────────────────────────────────────────────────────────────────
+// Pantalla: Ver todas las recetas
+
 class _VerTodasRecetasScreen extends StatefulWidget {
   final List<Map<String, String>> recetas;
   final Color verde;
@@ -622,6 +613,20 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                   color: Colors.grey[400],
                   size: 20,
                 ),
+                // Botón de X también aquí para consistencia
+                suffixIcon: _busqueda.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(
+                          Icons.clear,
+                          color: Colors.grey,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          _ctrl.clear();
+                          setState(() => _busqueda = '');
+                        },
+                      )
+                    : null,
                 filled: true,
                 fillColor: Colors.white,
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -683,7 +688,8 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                     vertical: 8,
                   ),
                   itemCount: docs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 10),
                   itemBuilder: (context, i) {
                     final data = docs[i].data() as Map<String, dynamic>;
                     final nombre = data['nombre']?.toString() ?? 'Sin nombre';
@@ -699,7 +705,7 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) =>
+                            builder: (context) =>
                                 DetalleRecetaScreen(nombreReceta: nombre),
                           ),
                         );
@@ -710,7 +716,7 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
+                              color: Colors.black.withValues(alpha: 0.05),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -718,7 +724,6 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                         ),
                         child: Row(
                           children: [
-                            // Imagen
                             ClipRRect(
                               borderRadius: const BorderRadius.horizontal(
                                 left: Radius.circular(14),
@@ -729,13 +734,13 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                                       width: 90,
                                       height: 90,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) =>
-                                          _imgPlaceholder(),
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              _imgPlaceholder(),
                                     )
                                   : _imgPlaceholder(),
                             ),
                             const SizedBox(width: 14),
-                            // Info
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
