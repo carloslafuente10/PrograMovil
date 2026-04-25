@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'favoritos_provider.dart';
 
 class _IngredienteCompleto {
   final String id;
@@ -34,7 +35,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   int _porcionesBase = 1;
   bool _isFirstLoad = true;
   List<bool> _checks = [];
-  bool _esFav = false;
 
   late Future<Map<String, dynamic>> _futureDatos;
 
@@ -71,7 +71,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     return resultado.toStringAsFixed(1);
   }
 
-  // Pluralizador
   String _pluralizarSeguro(double cantidad, String texto) {
     String limpio = texto.trim();
     if (cantidad <= 1 || limpio.isEmpty) return limpio;
@@ -81,7 +80,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     String lower = primera.toLowerCase();
 
     if (lower.endsWith('s') || lower.endsWith('x')) {
-      // Ya está en plural, no hacer nada
     } else if (lower.endsWith('z')) {
       partes[0] = '${primera.substring(0, primera.length - 1)}ces';
     } else if (RegExp(r'[aeiouáéóíú]$').hasMatch(lower)) {
@@ -173,7 +171,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
         } catch (_) {}
       }
 
-      // limpia los guiones de los IDs (Ej: salsa-wostershire -> salsa wostershire)
       if (nombre == id && nombre.contains('-')) {
         nombre = nombre.replaceAll('-', ' ');
       }
@@ -194,6 +191,8 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final favState = FavoritosProvider.of(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F5),
       body: FutureBuilder<Map<String, dynamic>>(
@@ -243,6 +242,8 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
 
           final int resenasNum =
               int.tryParse(receta['reseña']?.toString() ?? '0') ?? 0;
+
+          final bool esFav = favState.esFavorito(nombre);
 
           return CustomScrollView(
             slivers: [
@@ -632,58 +633,88 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
             ),
           ],
         ),
-        child: Row(
-          children: [
-            Expanded(
-              child: SizedBox(
-                height: 52,
-                child: ElevatedButton.icon(
-                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('¡A cocinar! 👨‍🍳'),
-                      backgroundColor: _verde,
-                      behavior: SnackBarBehavior.floating,
+        child: FutureBuilder<Map<String, dynamic>>(
+          future: _futureDatos,
+          builder: (context, snapshot) {
+            // Extraemos nombre e imagen del snapshot si ya cargó
+            final receta = snapshot.data?['receta'] as Map<String, dynamic>?;
+            final String nombre = receta?['nombre'] ?? widget.nombreReceta;
+            final String imagenPrincipal = receta?['imagen'] ?? '';
+            final double caloriasBase =
+                double.tryParse(receta?['calorías']?.toString() ?? '0') ?? 0;
+            final int tiempoBase =
+                int.tryParse(receta?['tiempo']?.toString() ?? '0') ?? 0;
+
+            //  leer esFav desde el provider
+            final bool esFav = favState.esFavorito(nombre);
+
+            return Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 52,
+                    child: ElevatedButton.icon(
+                      onPressed: () =>
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('¡A cocinar! 👨‍🍳'),
+                              backgroundColor: _verde,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          ),
+                      icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                      label: const Text(
+                        'Empezar a cocinar',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _verde,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
                     ),
                   ),
-                  icon: const Icon(Icons.play_arrow_rounded, size: 22),
-                  label: const Text(
-                    'Empezar a cocinar',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _verde,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
+                ),
+                const SizedBox(width: 12),
+                // toggle conectado al provider con datos reales
+                GestureDetector(
+                  onTap: () {
+                    favState.toggle({
+                      'nombre': nombre,
+                      'img': imagenPrincipal,
+                      'calorias': caloriasBase.round().toString(),
+                      'tiempo': tiempoBase.toString(),
+                      'categoria': receta?['categoria']?.toString() ?? '',
+                    });
+                  },
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: esFav
+                          ? Colors.red.withValues(alpha: 0.1)
+                          : const Color(0xFFF7F7F5),
                       borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: esFav ? Colors.redAccent : Colors.grey[300]!,
+                      ),
+                    ),
+                    child: Icon(
+                      esFav ? Icons.favorite : Icons.favorite_border,
+                      color: esFav ? Colors.redAccent : Colors.grey[400],
+                      size: 22,
                     ),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            GestureDetector(
-              onTap: () => setState(() => _esFav = !_esFav),
-              child: Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: _esFav
-                      ? Colors.red.withValues(alpha: 0.1)
-                      : const Color(0xFFF7F7F5),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: _esFav ? Colors.redAccent : Colors.grey[300]!,
-                  ),
-                ),
-                child: Icon(
-                  _esFav ? Icons.favorite : Icons.favorite_border,
-                  color: _esFav ? Colors.redAccent : Colors.grey[400],
-                  size: 22,
-                ),
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         ),
       ),
     );
