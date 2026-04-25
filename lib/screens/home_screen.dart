@@ -445,9 +445,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ─────────────────────────────────────────────
 //  Card de receta
-// ─────────────────────────────────────────────
+
 class _RecetaCard extends StatelessWidget {
   final Map<String, String> receta;
   final Color verde;
@@ -569,9 +568,8 @@ class _RecetaCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────
 //  Pantalla: Ver todas las recetas
-// ─────────────────────────────────────────────
+
 class _VerTodasRecetasScreen extends StatefulWidget {
   final List<Map<String, String>> recetas;
   final Color verde;

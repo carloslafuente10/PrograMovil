@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'screens/app_main_screen.dart';
 
 class RegistroScreen extends StatefulWidget {
   const RegistroScreen({super.key});
@@ -24,9 +27,8 @@ class _RegistroScreenState extends State<RegistroScreen>
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
 
-  // ─── Paleta gastronómica ────────────────────────────────────────────────────
-  static const _naranja = Color(0xFFE64A19); // DeepOrange 700
-  static const _naranjaClaro = Color(0xFFFF7043); // DeepOrange 400
+  static const _naranja = Color(0xFFE64A19);
+  static const _naranjaClaro = Color(0xFFFF7043);
   static const _fondoClaro = Color(0xFFFFF8F5);
   static const _grisTexto = Color(0xFF5D4037);
   static const _bordeInput = Color(0xFFFFCCBC);
@@ -38,15 +40,11 @@ class _RegistroScreenState extends State<RegistroScreen>
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    _fadeAnim = CurvedAnimation(
-      parent: _animController,
-      curve: Curves.easeOut,
-    );
+    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
     _slideAnim = Tween<Offset>(
       begin: const Offset(0, 0.12),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
-
     _animController.forward();
   }
 
@@ -108,22 +106,96 @@ class _RegistroScreenState extends State<RegistroScreen>
   Future<void> _crearCuenta() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Verificación extra antes de llamar a Firebase
+    if (_contrasenaController.text != _confirmarContrasenaController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Las contraseñas no coinciden'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() => _cargando = true);
 
-    // TODO: conectar con tu servicio de autenticación / backend
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      // 1. Crear usuario en Firebase Auth
+      final credencial = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
+            email: _correoController.text.trim(),
+            password: _contrasenaController.text,
+          )
+          .timeout(
+            const Duration(seconds: 15),
+            onTimeout: () => throw Exception('Tiempo de espera agotado'),
+          );
 
-    if (!mounted) return;
-    setState(() => _cargando = false);
+      // 2. Guardar nombre en el perfil de Auth
+      await credencial.user?.updateDisplayName(_nombreController.text.trim());
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('¡Cuenta creada con éxito! 🎉'),
-        backgroundColor: _naranja,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+      // 3. Guardar datos extra en Firestore
+      await FirebaseFirestore.instance
+          .collection('app-usuarios')
+          .doc(credencial.user!.uid)
+          .set({
+            'nombre': _nombreController.text.trim(),
+            'correo': _correoController.text.trim(),
+            'creadoEn': FieldValue.serverTimestamp(),
+          });
+
+      if (!mounted) return;
+
+      // 4. Navegar eliminando toda la pila anterior
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const AppMainScreen()),
+        (route) => false,
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _cargando = false);
+
+      String mensaje = 'Ocurrió un error. Intenta de nuevo.';
+      if (e.code == 'email-already-in-use') {
+        mensaje = 'Este correo ya está registrado.';
+      } else if (e.code == 'weak-password') {
+        mensaje = 'La contraseña es muy débil.';
+      } else if (e.code == 'invalid-email') {
+        mensaje = 'El correo no es válido.';
+      } else if (e.code == 'network-request-failed') {
+        mensaje = 'Sin conexión a internet.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(mensaje),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _cargando = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
   }
 
   // ─── Widgets auxiliares ─────────────────────────────────────────────────────
@@ -138,7 +210,7 @@ class _RegistroScreenState extends State<RegistroScreen>
       labelText: label,
       hintText: hint,
       labelStyle: const TextStyle(color: _grisTexto),
-      hintStyle: TextStyle(color: _grisTexto.withOpacity(0.5)),
+      hintStyle: TextStyle(color: _grisTexto.withValues(alpha: 0.5)),
       prefixIcon: Icon(icono, color: _naranjaClaro),
       suffixIcon: sufijo,
       filled: true,
@@ -181,8 +253,9 @@ class _RegistroScreenState extends State<RegistroScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // ── Cabecera con ícono ──────────────────────────────────
                     const SizedBox(height: 12),
+
+                    // ── Cabecera con ícono ──────────────────────────────────
                     Center(
                       child: Container(
                         width: 100,
@@ -196,7 +269,7 @@ class _RegistroScreenState extends State<RegistroScreen>
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: _naranja.withOpacity(0.35),
+                              color: _naranja.withValues(alpha: 0.35),
                               blurRadius: 20,
                               offset: const Offset(0, 8),
                             ),
@@ -229,7 +302,7 @@ class _RegistroScreenState extends State<RegistroScreen>
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 14,
-                        color: _grisTexto.withOpacity(0.75),
+                        color: _grisTexto.withValues(alpha: 0.75),
                         height: 1.4,
                       ),
                     ),
@@ -284,10 +357,11 @@ class _RegistroScreenState extends State<RegistroScreen>
                             _ocultarContrasena
                                 ? Icons.visibility_off_outlined
                                 : Icons.visibility_outlined,
-                            color: _grisTexto.withOpacity(0.6),
+                            color: _grisTexto.withValues(alpha: 0.6),
                           ),
                           onPressed: () => setState(
-                              () => _ocultarContrasena = !_ocultarContrasena),
+                            () => _ocultarContrasena = !_ocultarContrasena,
+                          ),
                         ),
                       ),
                       validator: _validarContrasena,
@@ -311,11 +385,12 @@ class _RegistroScreenState extends State<RegistroScreen>
                             _ocultarConfirmarContrasena
                                 ? Icons.visibility_off_outlined
                                 : Icons.visibility_outlined,
-                            color: _grisTexto.withOpacity(0.6),
+                            color: _grisTexto.withValues(alpha: 0.6),
                           ),
-                          onPressed: () => setState(() =>
-                              _ocultarConfirmarContrasena =
-                                  !_ocultarConfirmarContrasena),
+                          onPressed: () => setState(
+                            () => _ocultarConfirmarContrasena =
+                                !_ocultarConfirmarContrasena,
+                          ),
                         ),
                       ),
                       validator: _validarConfirmarContrasena,
@@ -323,7 +398,7 @@ class _RegistroScreenState extends State<RegistroScreen>
 
                     const SizedBox(height: 32),
 
-                    // ── Botón CREAR CUENTA ─────────────────────────────────
+                    // ── Botón CREAR CUENTA ──────────────────────────────────
                     SizedBox(
                       height: 56,
                       child: ElevatedButton(
@@ -331,9 +406,11 @@ class _RegistroScreenState extends State<RegistroScreen>
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _naranja,
                           foregroundColor: Colors.white,
-                          disabledBackgroundColor: _naranja.withOpacity(0.6),
+                          disabledBackgroundColor: _naranja.withValues(
+                            alpha: 0.6,
+                          ),
                           elevation: 4,
-                          shadowColor: _naranja.withOpacity(0.4),
+                          shadowColor: _naranja.withValues(alpha: 0.4),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(15),
                           ),
@@ -371,28 +448,27 @@ class _RegistroScreenState extends State<RegistroScreen>
                     Row(
                       children: [
                         Expanded(
-                            child: Divider(color: _bordeInput, thickness: 1.5)),
+                          child: Divider(color: _bordeInput, thickness: 1.5),
+                        ),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           child: Text(
                             '¿Ya tienes cuenta?',
                             style: TextStyle(
-                                color: _grisTexto.withOpacity(0.6),
-                                fontSize: 13),
+                              color: _grisTexto.withValues(alpha: 0.6),
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                         Expanded(
-                            child: Divider(color: _bordeInput, thickness: 1.5)),
+                          child: Divider(color: _bordeInput, thickness: 1.5),
+                        ),
                       ],
                     ),
 
                     // ── TextButton → Ir al Login ────────────────────────────
                     TextButton(
-                      onPressed: () {
-                        // TODO: Navigator.pop(context) o pushReplacementNamed
-                        // a tu LoginScreen
-                        Navigator.of(context).pop();
-                      },
+                      onPressed: () => Navigator.of(context).pop(),
                       style: TextButton.styleFrom(
                         foregroundColor: _naranja,
                         padding: const EdgeInsets.symmetric(vertical: 12),
