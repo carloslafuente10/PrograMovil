@@ -48,7 +48,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     final double resultado = cantidadBase * _porciones / _porcionesBase;
     final int parteEntera = resultado.floor();
     final double decimal = resultado - parteEntera;
-
     final Map<double, String> fracciones = {
       0.25: '1/4',
       0.33: '1/3',
@@ -56,7 +55,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
       0.67: '2/3',
       0.75: '3/4',
     };
-
     String? fraccion;
     for (final entry in fracciones.entries) {
       if ((decimal - entry.key).abs() < 0.05) {
@@ -110,7 +108,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
 
     final String numero = _calcularNumero(cantidadBase);
     final String unidad = unidadOriginal.trim();
-
     if (unidad.isNotEmpty) {
       return '$numero ${_pluralizarSeguro(cantidadActual, unidad)} de $nombre';
     }
@@ -121,7 +118,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     final recetasSnap = await FirebaseFirestore.instance
         .collection('app-recetas-completas')
         .get();
-
     Map<String, dynamic>? receta;
     for (final doc in recetasSnap.docs) {
       if ((doc.data()['nombre'] ?? '').toString().trim() ==
@@ -132,13 +128,10 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     }
 
     if (receta == null) throw Exception('Receta no encontrada');
-
     final List<dynamic> rawIngredientes = receta['ingredientes'] ?? [];
     final List<_IngredienteCompleto> ingredientes = [];
-
     for (final item in rawIngredientes) {
       if (item is! Map) continue;
-
       final String id =
           item['ingrediente_id']?.toString() ??
           item['ingrediente']?.toString() ??
@@ -151,7 +144,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
       String nombre = id;
       String foto = '';
       String sustituto = '';
-
       if (id.isNotEmpty) {
         try {
           final maestroDoc = await FirebaseFirestore.instance
@@ -192,7 +184,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   @override
   Widget build(BuildContext context) {
     final favState = FavoritosProvider.of(context);
-
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F5),
       body: FutureBuilder<Map<String, dynamic>>(
@@ -222,13 +213,19 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
 
           final String imagenPrincipal = receta['imagen'] ?? '';
           final String nombre = receta['nombre'] ?? widget.nombreReceta;
-          final double caloriasBase =
-              double.tryParse(receta['calorías']?.toString() ?? '0') ?? 0;
-          final int caloriasTotales =
-              (caloriasBase * _porciones / _porcionesBase).round();
 
-          int tiempoBase =
+          final double caloriasBase =
+              double.tryParse(
+                (receta['calorías'] ?? receta['calorias'])?.toString() ?? '0',
+              ) ??
+              0;
+
+          final int caloriasTotales =
+              (caloriasBase * (_porciones / _porcionesBase)).round();
+
+          final int tiempoBase =
               int.tryParse(receta['tiempo']?.toString() ?? '0') ?? 0;
+
           int tiempoAjustado = tiempoBase > 0
               ? (tiempoBase *
                         (1 + (0.15 * ((_porciones / _porcionesBase) - 1))))
@@ -242,8 +239,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
 
           final int resenasNum =
               int.tryParse(receta['reseña']?.toString() ?? '0') ?? 0;
-
-          final bool esFav = favState.esFavorito(nombre);
 
           return CustomScrollView(
             slivers: [
@@ -440,7 +435,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                   ing.unidad,
                                   ing.nombre,
                                 );
-
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 12,
@@ -641,13 +635,15 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
             final String nombre = receta?['nombre'] ?? widget.nombreReceta;
             final String imagenPrincipal = receta?['imagen'] ?? '';
             final double caloriasBase =
-                double.tryParse(receta?['calorías']?.toString() ?? '0') ?? 0;
+                double.tryParse(
+                  (receta?['calorías'] ?? receta?['calorias'])?.toString() ??
+                      '0',
+                ) ??
+                0;
             final int tiempoBase =
                 int.tryParse(receta?['tiempo']?.toString() ?? '0') ?? 0;
 
-            //  leer esFav desde el provider
             final bool esFav = favState.esFavorito(nombre);
-
             return Row(
               children: [
                 Expanded(
@@ -684,15 +680,17 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                 const SizedBox(width: 12),
                 // toggle conectado al provider con datos reales
                 GestureDetector(
-                  onTap: () {
-                    favState.toggle({
-                      'nombre': nombre,
-                      'img': imagenPrincipal,
-                      'calorias': caloriasBase.round().toString(),
-                      'tiempo': tiempoBase.toString(),
-                      'categoria': receta?['categoria']?.toString() ?? '',
-                    });
-                  },
+                  onTap: snapshot.hasData
+                      ? () {
+                          favState.toggle({
+                            'nombre': nombre,
+                            'img': imagenPrincipal,
+                            'calorias': caloriasBase.round().toString(),
+                            'tiempo': tiempoBase.toString(),
+                            'categoria': receta?['categoria']?.toString() ?? '',
+                          });
+                        }
+                      : null,
                   child: Container(
                     width: 52,
                     height: 52,
