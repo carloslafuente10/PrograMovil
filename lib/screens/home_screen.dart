@@ -106,6 +106,12 @@ class _HomeScreenState extends State<HomeScreen> {
     },
   ];
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   List<Map<String, String>> get _recetasFiltradas {
     return _recetas.where((r) {
       final coincideCategoria =
@@ -147,35 +153,29 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final favState = FavoritosProvider.of(context);
 
-    return ListenableBuilder(
-      listenable: favState,
-      builder: (context, _) {
-        return Scaffold(
-          backgroundColor: const Color(0xFFF7F7F5),
-          body: SafeArea(
-            child: ListView(
-              children: [
-                _buildEncabezado(),
-                _buildBuscador(),
-                const SizedBox(height: 16),
-                _buildBannerExplorar(),
-                const SizedBox(height: 20),
-                _buildTituloSeccion('Categorías'),
-                _buildCategorias(),
-                const SizedBox(height: 20),
-                _buildHeaderRecetasRapeidas(context),
-                const SizedBox(height: 12),
-                _buildCarruselRecetas(favState),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
-        );
-      },
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F7F5),
+      body: SafeArea(
+        child: ListView(
+          children: [
+            _buildEncabezado(),
+            _buildBuscador(),
+            const SizedBox(height: 16),
+            _buildBannerExplorar(),
+            const SizedBox(height: 20),
+            _buildTituloSeccion('Categorías'),
+            _buildCategorias(),
+            const SizedBox(height: 20),
+            _buildHeaderRecetasRapidas(context),
+            const SizedBox(height: 12),
+            _buildCarruselRecetas(favState),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
     );
   }
 
-  // widgets de Home
   Widget _buildEncabezado() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
@@ -219,7 +219,6 @@ class _HomeScreenState extends State<HomeScreen> {
           hintText: 'Buscar recetas...',
           hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
           prefixIcon: Icon(Icons.search, color: Colors.grey[400], size: 20),
-          // Aquí se implementa el botón X
           suffixIcon: _busqueda.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.clear, color: Colors.grey, size: 20),
@@ -340,7 +339,7 @@ class _HomeScreenState extends State<HomeScreen> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: _categorias.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, i) {
           final cat = _categorias[i];
           final activo = cat == _categoriaSeleccionada;
@@ -369,7 +368,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildHeaderRecetasRapeidas(BuildContext context) {
+  Widget _buildHeaderRecetasRapidas(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
@@ -388,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) =>
+                  builder: (_) =>
                       _VerTodasRecetasScreen(recetas: _recetas, verde: _verde),
                 ),
               );
@@ -421,7 +420,7 @@ class _HomeScreenState extends State<HomeScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
               itemCount: _recetasFiltradas.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 12),
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
               itemBuilder: (context, i) {
                 final r = _recetasFiltradas[i];
                 return GestureDetector(
@@ -429,7 +428,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) =>
+                        builder: (_) =>
                             DetalleRecetaScreen(nombreReceta: r['nombre']!),
                       ),
                     );
@@ -446,8 +445,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// Carrusel de recetas
-
+// ─────────────────────────────────────────────
+//  Card de receta
+// ─────────────────────────────────────────────
 class _RecetaCard extends StatelessWidget {
   final Map<String, String> receta;
   final Color verde;
@@ -489,7 +489,7 @@ class _RecetaCard extends StatelessWidget {
                   width: 150,
                   height: 110,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
+                  errorBuilder: (context, err, stackTrace) => Container(
                     width: 150,
                     height: 110,
                     color: const Color(0xFFE8E8E8),
@@ -569,8 +569,9 @@ class _RecetaCard extends StatelessWidget {
   }
 }
 
-// Pantalla: Ver todas las recetas
-
+// ─────────────────────────────────────────────
+//  Pantalla: Ver todas las recetas
+// ─────────────────────────────────────────────
 class _VerTodasRecetasScreen extends StatefulWidget {
   final List<Map<String, String>> recetas;
   final Color verde;
@@ -584,6 +585,12 @@ class _VerTodasRecetasScreen extends StatefulWidget {
 class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
   String _busqueda = '';
   final TextEditingController _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -600,7 +607,6 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
       ),
       body: Column(
         children: [
-          // Buscador
           Padding(
             padding: const EdgeInsets.all(16),
             child: TextField(
@@ -613,7 +619,6 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                   color: Colors.grey[400],
                   size: 20,
                 ),
-                // Botón de X también aquí para consistencia
                 suffixIcon: _busqueda.isNotEmpty
                     ? IconButton(
                         icon: const Icon(
@@ -645,8 +650,6 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
               ),
             ),
           ),
-
-          // Lista desde Firestore
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -688,8 +691,7 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                     vertical: 8,
                   ),
                   itemCount: docs.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 10),
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, i) {
                     final data = docs[i].data() as Map<String, dynamic>;
                     final nombre = data['nombre']?.toString() ?? 'Sin nombre';
@@ -705,7 +707,7 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
+                            builder: (_) =>
                                 DetalleRecetaScreen(nombreReceta: nombre),
                           ),
                         );
@@ -735,7 +737,7 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                                       height: 90,
                                       fit: BoxFit.cover,
                                       errorBuilder:
-                                          (context, error, stackTrace) =>
+                                          (context, err, stackTrace) =>
                                               _imgPlaceholder(),
                                     )
                                   : _imgPlaceholder(),

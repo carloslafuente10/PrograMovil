@@ -1,71 +1,90 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-class FavoritosProvider extends InheritedWidget {
-
-  final FavoritosState state;
-
+class FavoritosProvider extends InheritedNotifier<FavoritosState> {
   const FavoritosProvider({
-
     super.key,
-
-    required this.state,
-
+    required FavoritosState notifier,
     required super.child,
+  }) : super(notifier: notifier);
 
-  });
-
+  /// Registra dependencia — el widget se reconstruye
+  /// automáticamente cuando FavoritosState llama notifyListeners()
   static FavoritosState of(BuildContext context) {
-
-    final provider =
-        context.dependOnInheritedWidgetOfExactType<FavoritosProvider>();
-
-    assert(provider != null);
-
-    return provider!.state;
-
+    final notifier = context
+        .dependOnInheritedWidgetOfExactType<FavoritosProvider>()
+        ?.notifier;
+    assert(notifier != null, 'FavoritosProvider no encontrado en el árbol');
+    return notifier!;
   }
-
-  @override
-  bool updateShouldNotify(FavoritosProvider oldWidget) {
-
-    return true;
-
-  }
-
 }
 
+//  ChangeNotifier — maneja estado y sincroniza con Firestore
+
 class FavoritosState extends ChangeNotifier {
+  final Map<String, Map<String, dynamic>> _favoritos = {};
+  String? _userId;
 
-  final Map<String, Map<String, String>> _favoritos = {};
-
-  List<Map<String, String>> get lista {
-
-    return _favoritos.values.toList();
-
+  FavoritosState() {
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user != null) {
+        _userId = user.uid;
+        _descargarFavoritos();
+      } else {
+        _userId = null;
+        _favoritos.clear();
+        notifyListeners();
+      }
+    });
   }
 
-  bool esFavorito(String nombre) {
+  List<Map<String, dynamic>> get lista => _favoritos.values.toList();
 
-    return _favoritos.containsKey(nombre);
+  bool esFavorito(String nombre) => _favoritos.containsKey(nombre);
 
+  Future<void> _descargarFavoritos() async {
+    if (_userId == null) return;
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('app-usuarios')
+          .doc(_userId)
+          .collection('favoritos')
+          .get();
+
+      _favoritos.clear();
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final nombre = data['nombre']?.toString().trim() ?? '';
+        if (nombre.isNotEmpty) {
+          _favoritos[doc.id] = data;
+        } else {
+          await doc.reference.delete();
+        }
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error al descargar favoritos: $e');
+    }
   }
 
-  void toggle(Map<String, String> receta) {
-
-    final nombre = receta['nombre']!;
+  Future<void> toggle(Map<String, dynamic> receta) async {
+    if (_userId == null) return;
+    final nombre = receta['nombre'].toString();
+    final docRef = FirebaseFirestore.instance
+        .collection('app-usuarios')
+        .doc(_userId)
+        .collection('favoritos')
+        .doc(nombre);
 
     if (_favoritos.containsKey(nombre)) {
-
       _favoritos.remove(nombre);
-
+      notifyListeners();
+      await docRef.delete();
     } else {
-
       _favoritos[nombre] = receta;
-
+      notifyListeners();
+      await docRef.set(receta);
     }
-
-    notifyListeners();
-
   }
-
 }
