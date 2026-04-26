@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:programovil/screens/home_screen.dart';
 import 'package:programovil/screens/app_main_screen.dart';
+import 'dart:math'; // Para generar el número aleatorio
+import 'dart:convert'; // Para el json.encode
+import 'package:http/http.dart' as http; // Para la petición web
+import 'package:programovil/screens/reset_password_page.dart'; 
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -11,33 +14,35 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage>
-    with SingleTickerProviderStateMixin {
-  static const Color _naranja = Color(0xFF38A377);
-  static const Color _naranjaOscuro = Color(0xFF2E8560);
+class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixin {
+  // Paleta de la app
+  static const Color _verde = Color(0xFF38A377);
+  static const Color _verdeOscuro = Color(0xFF2E8560);
   static const Color _textoOscuro = Color(0xFF1A1A1A);
   static const Color _textoGris = Color(0xFF888888);
   static const Color _borde = Color(0xFFDDDDDD);
 
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _regNombreController = TextEditingController();
-  final _regEmailController = TextEditingController();
-  final _regPasswordController = TextEditingController();
-  final _regConfirmController = TextEditingController();
+  // Variable para el código OTP
+  String _codigoGenerado = ''; 
 
-  bool _mostrarRegistro = false;
-  bool _loginCargando = false;
-  bool _regCargando = false;
-  bool _ocultarPass = true;
-  bool _ocultarRegPass = true;
-  bool _ocultarRegConfirm = true;
+  // Controllers
+  final correoCtrl = TextEditingController();
+  final passCtrl = TextEditingController();
+  final regNombreCtrl = TextEditingController();
+  final regCorreoCtrl = TextEditingController();
+  final regPassCtrl = TextEditingController();
+  final regConfirmCtrl = TextEditingController();
+  final codigoOTPController = TextEditingController(); 
+
+  bool registrando = false;
+  bool loginCargando = false;
+  bool regCargando = false;
+  bool ocultarPass = true;
+  bool ocultarRegPass = true;
+  bool ocultarRegConfirm = true;
 
   final _regFormKey = GlobalKey<FormState>();
-
   late final AnimationController _animCtrl;
-  late final Animation<double> _expandAnim;
-  late final Animation<double> _fadeAnim;
 
   @override
   void initState() {
@@ -46,33 +51,30 @@ class _LoginPageState extends State<LoginPage>
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-    _expandAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeInOut);
-    _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeIn);
   }
 
   @override
   void dispose() {
     _animCtrl.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    _regNombreController.dispose();
-    _regEmailController.dispose();
-    _regPasswordController.dispose();
-    _regConfirmController.dispose();
+    correoCtrl.dispose();
+    passCtrl.dispose();
+    regNombreCtrl.dispose();
+    regCorreoCtrl.dispose();
+    regPassCtrl.dispose();
+    regConfirmCtrl.dispose();
+    codigoOTPController.dispose(); 
     super.dispose();
   }
 
+  // ── LÓGICA DE AUTENTICACIÓN ────────────────────────────────────────────────
+
   void _toggleRegistro() {
-    setState(() => _mostrarRegistro = !_mostrarRegistro);
-    _mostrarRegistro ? _animCtrl.forward() : _animCtrl.reverse();
+    setState(() => registrando = !registrando);
+    registrando ? _animCtrl.forward() : _animCtrl.reverse();
   }
 
-  // ✅ NUEVO: crea el documento del usuario en Firestore si no existe
-  Future<void> _crearDocumentoUsuario(User user, {String nombre = ''}) async {
-    final docRef = FirebaseFirestore.instance
-        .collection('app-usuarios')
-        .doc(user.uid);
-
+  Future<void> _guardarUsuario(User user, {String nombre = ''}) async {
+    final docRef = FirebaseFirestore.instance.collection('app-usuarios').doc(user.uid);
     final doc = await docRef.get();
     if (!doc.exists) {
       await docRef.set({
@@ -84,136 +86,178 @@ class _LoginPageState extends State<LoginPage>
   }
 
   Future<void> acceder() async {
-    if (_emailController.text.trim().isEmpty ||
-        _passwordController.text.trim().isEmpty) {
-      _snack('Completa todos los campos', esError: true);
-      return;
-    }
+  final email = correoCtrl.text.trim();
+  final password = passCtrl.text.trim();
 
-    setState(() => _loginCargando = true);
-
-    try {
-      final resultado = await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-
-      // ✅ NUEVO: por si el usuario existía antes de que agregaras esta lógica
-      await _crearDocumentoUsuario(resultado.user!);
-
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => AppMainScreen()),
-      );
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-
-      String mensaje = 'Algo salió mal, intenta de nuevo';
-      if (e.code == 'user-not-found') {
-        mensaje = 'No encontramos una cuenta con ese correo';
-      } else if (e.code == 'wrong-password') {
-        mensaje = 'La contraseña no es correcta';
-      } else if (e.code == 'invalid-email') {
-        mensaje = 'El correo no tiene un formato válido';
-      } else if (e.code == 'user-disabled') {
-        mensaje = 'Esta cuenta fue suspendida';
-      } else if (e.code == 'invalid-credential') {
-        mensaje = 'Correo o contraseña incorrectos';
-      }
-
-      _snack(mensaje, esError: true);
-    } finally {
-      if (mounted) setState(() => _loginCargando = false);
-    }
+  if (email.isEmpty || password.isEmpty) {
+    _snack('Completa todos los campos', esError: true);
+    return;
   }
+
+  setState(() => loginCargando = true);
+
+  try {
+    // ESTA ES LA FORMA CORRECTA:
+    await FirebaseAuth.instance.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+
+    if (!mounted) return;
+    _snack('¡Bienvenido!');
+    Navigator.pushReplacement(
+      context, 
+      MaterialPageRoute(builder: (_) => const AppMainScreen())
+    );
+  } on FirebaseAuthException catch (e) {
+    _snack('Error: Credenciales incorrectas', esError: true);
+  } catch (e) {
+    _snack('Error al conectar con el servidor', esError: true);
+  } finally {
+    if (mounted) setState(() => loginCargando = false);
+  }
+}
 
   Future<void> _crearCuenta() async {
-    if (_regNombreController.text.trim().isEmpty ||
-        _regEmailController.text.trim().isEmpty ||
-        _regPasswordController.text.trim().isEmpty ||
-        _regConfirmController.text.trim().isEmpty) {
-      _snack('Completa todos los campos', esError: true);
+    if (!_regFormKey.currentState!.validate()) return;
+    setState(() => regCargando = true);
+    try {
+      final resultado = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: regCorreoCtrl.text.trim(),
+        password: regPassCtrl.text.trim(),
+      );
+      await resultado.user?.updateDisplayName(regNombreCtrl.text.trim());
+      await _guardarUsuario(resultado.user!, nombre: regNombreCtrl.text.trim());
+      if (!mounted) return;
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AppMainScreen()));
+    } on FirebaseAuthException catch (e) {
+      _snack(e.code == 'email-already-in-use' ? 'El correo ya existe' : 'Error en registro', esError: true);
+    } finally {
+      if (mounted) setState(() => regCargando = false);
+    }
+  }
+
+  // ── LÓGICA DE ENVÍO DE CORREO (EMAILJS) ────────────────────────────────────
+
+   Future<void> _enviarCorreoReal(String emailUsuario) async {
+    final random = Random();
+    // Generamos el código de 6 dígitos
+    _codigoGenerado = (100000 + random.nextInt(900000)).toString();
+
+    // DATOS CONFIRMADOS SEGÚN TUS CAPTURAS
+    const serviceId = 'servicio_recetas'; 
+    const templateId = 'reset_password_template'; // El que acabas de poner
+    const publicKey = '2557bg-ii7G5aladA';         // Tu Public Key de la captura
+
+    final url = Uri.parse('https://api.emailjs.com/api/v1.0/email/send');
+    
+    final response = await http.post(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        'origin': 'http://localhost' // Esto ayuda a evitar bloqueos en algunos emuladores
+      },
+      body: json.encode({
+        'service_id': serviceId,
+        'template_id': templateId,
+        'user_id': publicKey,
+        'template_params': {
+          'User_email': emailUsuario, // Asegúrate de que en EmailJS esté igual (mayúscula/minúscula)
+          'my_code': _codigoGenerado,
+        },
+      }),
+    );
+
+    // Si la respuesta no es 200, imprimimos el error exacto en la consola
+    if (response.statusCode != 200) {
+      print('DETALLE DEL ERROR EMAILJS: ${response.body}');
+      throw Exception('Error: ${response.body}');
+    }
+  }
+  // ── UI Y MODALES ──────────────────────────────────────────────────────────
+
+  void _modalRecuperarContra() {
+    final correoParaRecuperar = correoCtrl.text.trim();
+    if (correoParaRecuperar.isEmpty || !correoParaRecuperar.contains('@')) {
+      _snack('Escribe un correo válido en el campo de inicio de sesión', esError: true);
       return;
     }
 
-    if (!_regFormKey.currentState!.validate()) return;
+    int pasoRecuperacion = 1; 
 
-    setState(() => _regCargando = true);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(pasoRecuperacion == 1 ? 'Verificación de cuenta' : 'Ingresa el código', textAlign: TextAlign.center),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (pasoRecuperacion == 1) ...[
+                const Icon(Icons.mark_email_read_outlined, size: 50, color: _verde),
+                const SizedBox(height: 15),
+                const Text('Enviaremos un código de seguridad a:', textAlign: TextAlign.center),
+                Text(correoParaRecuperar, style: const TextStyle(fontWeight: FontWeight.bold, color: _verde)),
+              ] else ...[
+                const Text('Escribe el código que recibiste:', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: _textoGris)),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: codigoOTPController,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 8),
+                  decoration: _buildInput('000000', Icons.lock_outline),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                codigoOTPController.clear();
+                Navigator.pop(ctx);
+              },
+              child: const Text('Cancelar', style: TextStyle(color: _textoGris)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: _verde, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+              onPressed: () async {
+                if (pasoRecuperacion == 1) {
+                  try {
+                    await _enviarCorreoReal(correoParaRecuperar);
+                    setModalState(() => pasoRecuperacion = 2);
+                    _snack('Código enviado con éxito');
+                  } catch (e) {
+                    _snack('Error al enviar el correo.', esError: true);
+                  }
+                } else {
+                  // DENTRO DEL MODAL (ElevatedButton de VERIFICAR)
+if (codigoOTPController.text == _codigoGenerado) {
+  _snack('¡Código correcto!');
+  
+  // Primero cerramos el modal
+  Navigator.pop(ctx); 
 
-    try {
-      final resultado = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(
-            email: _regEmailController.text.trim(),
-            password: _regPasswordController.text.trim(),
-          );
-
-      await resultado.user?.updateDisplayName(_regNombreController.text.trim());
-
-      // ✅ NUEVO: crea el documento en Firestore al registrarse
-      await _crearDocumentoUsuario(
-        resultado.user!,
-        nombre: _regNombreController.text.trim(),
-      );
-
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => AppMainScreen()),
-      );
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-
-      String mensaje = 'Algo salió mal al crear la cuenta';
-      if (e.code == 'email-already-in-use') {
-        mensaje = 'Este correo ya está registrado';
-      } else if (e.code == 'weak-password') {
-        mensaje = 'La contraseña es muy débil';
-      } else if (e.code == 'invalid-email') {
-        mensaje = 'El correo no es válido';
-      }
-
-      _snack(mensaje, esError: true);
-    } finally {
-      if (mounted) setState(() => _regCargando = false);
-    }
-  }
-
-  void _snack(String msg, {bool esError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: esError ? Colors.redAccent : _naranja,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+  // Ahora abrimos la nueva pantalla pasándole el correo
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => ResetPasswordPage(email: correoParaRecuperar),
+    ),
+  );
+} else {
+  _snack('Código incorrecto', esError: true);
+}
+                }
+              },
+              child: Text(pasoRecuperacion == 1 ? 'ENVIAR CÓDIGO' : 'VERIFICAR', style: const TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
       ),
-    );
-  }
-
-  InputDecoration _campo(String hint, IconData icono) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(color: _textoGris, fontSize: 15),
-      prefixIcon: Icon(icono, color: _textoGris, size: 20),
-      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: _borde),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: _naranja, width: 1.8),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Colors.redAccent),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Colors.redAccent, width: 1.8),
-      ),
-      filled: true,
-      fillColor: Colors.white,
     );
   }
 
@@ -227,23 +271,14 @@ class _LoginPageState extends State<LoginPage>
           child: Column(
             children: [
               const SizedBox(height: 64),
-              Icon(Icons.restaurant, size: 72, color: _naranja),
+              const Icon(Icons.restaurant, size: 72, color: _verde),
               const SizedBox(height: 18),
-              const Text(
-                'Recetas App',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: _textoOscuro,
-                  letterSpacing: 0.2,
-                ),
-              ),
+              const Text('Recetas App', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: _textoOscuro)),
               const SizedBox(height: 36),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
-                child: !_mostrarRegistro ? _panelLogin() : _panelRegistro(),
+                child: !registrando ? _panelLogin() : _panelRegistro(),
               ),
-              const SizedBox(height: 40),
             ],
           ),
         ),
@@ -256,103 +291,28 @@ class _LoginPageState extends State<LoginPage>
       key: const ValueKey('login'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        TextField(controller: correoCtrl, decoration: _buildInput('Correo electrónico', Icons.email_outlined)),
+        const SizedBox(height: 15),
         TextField(
-          controller: _emailController,
-          keyboardType: TextInputType.emailAddress,
-          textInputAction: TextInputAction.next,
-          decoration: _campo('Correo electrónico', Icons.email_outlined),
-        ),
-        const SizedBox(height: 14),
-        TextField(
-          controller: _passwordController,
-          obscureText: _ocultarPass,
-          textInputAction: TextInputAction.done,
-          onSubmitted: (_) => acceder(),
-          decoration: _campo('Contraseña', Icons.lock_outline).copyWith(
+          controller: passCtrl, 
+          obscureText: ocultarPass,
+          decoration: _buildInput('Contraseña', Icons.lock_outline).copyWith(
             suffixIcon: IconButton(
-              icon: Icon(
-                _ocultarPass
-                    ? Icons.visibility_off_outlined
-                    : Icons.visibility_outlined,
-                color: _textoGris,
-                size: 20,
-              ),
-              onPressed: () => setState(() => _ocultarPass = !_ocultarPass),
+              icon: Icon(ocultarPass ? Icons.visibility_off : Icons.visibility, color: _textoGris),
+              onPressed: () => setState(() => ocultarPass = !ocultarPass),
             ),
           ),
         ),
-        const SizedBox(height: 28),
-        SizedBox(
-          height: 52,
-          child: ElevatedButton(
-            onPressed: _loginCargando ? null : acceder,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _naranja,
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: _naranja.withOpacity(0.55),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-            ),
-            child: _loginCargando
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2.5,
-                    ),
-                  )
-                : const Text(
-                    'ENTRAR',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.4,
-                    ),
-                  ),
-          ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(onPressed: _modalRecuperarContra, child: const Text('¿Olvidaste tu contraseña?', style: TextStyle(color: _verde))),
         ),
-        const SizedBox(height: 24),
-        Row(
-          children: [
-            const Expanded(child: Divider(color: _borde)),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Text(
-                '¿No tienes cuenta?',
-                style: TextStyle(
-                  color: _textoGris.withOpacity(0.9),
-                  fontSize: 13,
-                ),
-              ),
-            ),
-            const Expanded(child: Divider(color: _borde)),
-          ],
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 52,
-          child: OutlinedButton(
-            onPressed: _toggleRegistro,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: _naranjaOscuro,
-              side: const BorderSide(color: _naranja, width: 1.6),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-            ),
-            child: const Text(
-              'CREAR CUENTA',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ),
-        ),
+        const SizedBox(height: 15),
+        _botonPrincipal(onPressed: acceder, texto: 'ENTRAR', cargando: loginCargando),
+        const SizedBox(height: 25),
+        _divisorSeparador(),
+        const SizedBox(height: 15),
+        _botonSecundario(onPressed: _toggleRegistro, texto: 'CREAR CUENTA'),
       ],
     );
   }
@@ -364,152 +324,61 @@ class _LoginPageState extends State<LoginPage>
         key: const ValueKey('registro'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              GestureDetector(
-                onTap: _toggleRegistro,
-                child: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  size: 18,
-                  color: _textoGris,
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                'Nueva cuenta',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: _textoOscuro,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          TextFormField(
-            controller: _regNombreController,
-            textCapitalization: TextCapitalization.words,
-            textInputAction: TextInputAction.next,
-            decoration: _campo('Nombre completo', Icons.person_outline_rounded),
-            validator: (v) {
-              if (v == null || v.trim().isEmpty) return 'Ingresa tu nombre';
-              if (v.trim().length < 3) return 'Mínimo 3 caracteres';
-              return null;
-            },
-          ),
+          TextFormField(controller: regNombreCtrl, decoration: _buildInput('Nombre completo', Icons.person_outline), validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null),
+          const SizedBox(height: 14),
+          TextFormField(controller: regCorreoCtrl, decoration: _buildInput('Correo electrónico', Icons.email_outlined), validator: (v) => (v == null || !v.contains('@')) ? 'Email inválido' : null),
           const SizedBox(height: 14),
           TextFormField(
-            controller: _regEmailController,
-            keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.next,
-            decoration: _campo('Correo electrónico', Icons.email_outlined),
-            validator: (v) {
-              if (v == null || v.trim().isEmpty) return 'Ingresa tu correo';
-              final ok = RegExp(
-                r'^[\w\.-]+@[\w\.-]+\.\w{2,4}$',
-              ).hasMatch(v.trim());
-              if (!ok) return 'Correo inválido';
-              return null;
-            },
-          ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _regPasswordController,
-            obscureText: _ocultarRegPass,
-            textInputAction: TextInputAction.next,
-            decoration: _campo('Contraseña', Icons.lock_outline).copyWith(
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _ocultarRegPass
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  color: _textoGris,
-                  size: 20,
-                ),
-                onPressed: () =>
-                    setState(() => _ocultarRegPass = !_ocultarRegPass),
-              ),
+            controller: regPassCtrl, 
+            obscureText: ocultarRegPass,
+            decoration: _buildInput('Contraseña', Icons.lock_outline).copyWith(
+              suffixIcon: IconButton(icon: Icon(ocultarRegPass ? Icons.visibility_off : Icons.visibility), onPressed: () => setState(() => ocultarRegPass = !ocultarRegPass)),
             ),
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'Ingresa una contraseña';
-              if (v.length < 6) return 'Mínimo 6 caracteres';
-              return null;
-            },
+            validator: (v) => (v != null && v.length < 6) ? 'Mínimo 6 caracteres' : null,
           ),
           const SizedBox(height: 14),
-          TextFormField(
-            controller: _regConfirmController,
-            obscureText: _ocultarRegConfirm,
-            textInputAction: TextInputAction.done,
-            onFieldSubmitted: (_) => _crearCuenta(),
-            decoration: _campo('Confirmar contraseña', Icons.lock_reset_rounded)
-                .copyWith(
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _ocultarRegConfirm
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      color: _textoGris,
-                      size: 20,
-                    ),
-                    onPressed: () => setState(
-                      () => _ocultarRegConfirm = !_ocultarRegConfirm,
-                    ),
-                  ),
-                ),
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'Confirma tu contraseña';
-              if (v != _regPasswordController.text)
-                return 'Las contraseñas no coinciden';
-              return null;
-            },
-          ),
+          TextFormField(controller: regConfirmCtrl, obscureText: ocultarRegConfirm, decoration: _buildInput('Confirmar contraseña', Icons.lock_reset), validator: (v) => v != regPassCtrl.text ? 'No coinciden' : null),
           const SizedBox(height: 28),
-          SizedBox(
-            height: 52,
-            child: ElevatedButton(
-              onPressed: _regCargando ? null : _crearCuenta,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _naranja,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: _naranja.withOpacity(0.55),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
-                ),
-              ),
-              child: _regCargando
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2.5,
-                      ),
-                    )
-                  : const Text(
-                      'CREAR CUENTA',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.4,
-                      ),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Center(
-            child: TextButton(
-              onPressed: _toggleRegistro,
-              style: TextButton.styleFrom(foregroundColor: _textoGris),
-              child: const Text(
-                '¿Ya tienes cuenta? Inicia sesión',
-                style: TextStyle(fontSize: 13),
-              ),
-            ),
-          ),
+          _botonPrincipal(onPressed: _crearCuenta, texto: 'REGISTRARME', cargando: regCargando),
+          TextButton(onPressed: _toggleRegistro, child: const Text('¿Ya tienes cuenta? Inicia sesión', style: TextStyle(color: _textoGris))),
         ],
       ),
     );
+  }
+
+  // --- Helpers UI ---
+  InputDecoration _buildInput(String hint, IconData icono) {
+    return InputDecoration(
+      hintText: hint,
+      prefixIcon: Icon(icono, color: _textoGris),
+      filled: true,
+      fillColor: Colors.white,
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _borde)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _verde)),
+    );
+  }
+
+  void _snack(String msg, {bool esError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: esError ? Colors.redAccent : _verde));
+  }
+
+  Widget _botonPrincipal({required VoidCallback onPressed, required String texto, bool cargando = false}) {
+    return ElevatedButton(
+      onPressed: cargando ? null : onPressed,
+      style: ElevatedButton.styleFrom(backgroundColor: _verde, shape: const StadiumBorder()),
+      child: cargando ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : Text(texto, style: const TextStyle(color: Colors.white)),
+    );
+  }
+
+  Widget _botonSecundario({required VoidCallback onPressed, required String texto}) {
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(side: const BorderSide(color: _verde), shape: const StadiumBorder()),
+      child: Text(texto, style: const TextStyle(color: _verde)),
+    );
+  }
+
+  Widget _divisorSeparador() {
+    return const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 10), child: Text('O')), Expanded(child: Divider())]);
   }
 }
