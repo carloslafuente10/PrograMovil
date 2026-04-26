@@ -62,7 +62,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
         break;
       }
     }
-
     if (decimal < 0.05) return '$parteEntera';
     if (fraccion != null && parteEntera == 0) return fraccion;
     if (fraccion != null && parteEntera > 0) return '$parteEntera $fraccion';
@@ -72,12 +71,11 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   String _pluralizarSeguro(double cantidad, String texto) {
     String limpio = texto.trim();
     if (cantidad <= 1 || limpio.isEmpty) return limpio;
-
     List<String> partes = limpio.split(' ');
     String primera = partes[0];
     String lower = primera.toLowerCase();
-
     if (lower.endsWith('s') || lower.endsWith('x')) {
+      
     } else if (lower.endsWith('z')) {
       partes[0] = '${primera.substring(0, primera.length - 1)}ces';
     } else if (RegExp(r'[aeiouáéóíú]$').hasMatch(lower)) {
@@ -85,7 +83,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     } else {
       partes[0] = '${primera}es';
     }
-
     return partes.join(' ');
   }
 
@@ -128,22 +125,26 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     }
 
     if (receta == null) throw Exception('Receta no encontrada');
+
     final List<dynamic> rawIngredientes = receta['ingredientes'] ?? [];
     final List<_IngredienteCompleto> ingredientes = [];
+
     for (final item in rawIngredientes) {
       if (item is! Map) continue;
       final String id =
           item['ingrediente_id']?.toString() ??
           item['ingrediente']?.toString() ??
           '';
-      final double cantidad = (item['cantidad'] is num)
-          ? (item['cantidad'] as num).toDouble()
-          : 0.0;
+      final double cantidad =
+          (item['cantidad'] is num)
+              ? (item['cantidad'] as num).toDouble()
+              : 0.0;
       final String unidad = item['unidad']?.toString() ?? '';
 
       String nombre = id;
       String foto = '';
       String sustituto = '';
+
       if (id.isNotEmpty) {
         try {
           final maestroDoc = await FirebaseFirestore.instance
@@ -155,10 +156,11 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
             nombre = m['nombre']?.toString().trim() ?? id;
             foto = m['foto']?.toString() ?? '';
             final raw = m['sustitutos'];
-            if (raw is String)
+            if (raw is String) {
               sustituto = raw;
-            else if (raw is List)
-              sustituto = raw.join(', ');
+            } else if (raw is List) {
+              sustituto = raw.where((e) => e.toString().isNotEmpty).join(', ');
+            }
           }
         } catch (_) {}
       }
@@ -178,12 +180,77 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
         ),
       );
     }
+
     return {'receta': receta, 'ingredientes': ingredientes};
+  }
+
+  
+  Widget _buildInfoSection({
+    required double caloriasBase,
+    required int caloriasTotales,
+    required int tiempoAjustado,
+    required String rating,
+    required int resenasNum,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.local_fire_department,
+              size: 15,
+              color: Colors.orange[400],
+            ),
+            const SizedBox(width: 4),
+            RichText(
+              text: TextSpan(
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                children: [
+                  TextSpan(text: '${caloriasBase.round()} cal por porción'),
+                  TextSpan(
+                    text: '\n(Total: $caloriasTotales cal)',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Icon(Icons.access_time, size: 15, color: Colors.grey[400]),
+            const SizedBox(width: 4),
+            Text(
+              tiempoAjustado > 0 ? '🕑 $tiempoAjustado min aprox' : '—',
+              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+        if (rating.isNotEmpty && rating != '0' && rating != '0.0') ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.star_rounded, size: 15, color: Colors.amber),
+              const SizedBox(width: 4),
+              Text(
+                resenasNum > 0
+                    ? '$rating/5 ($resenasNum reseñas)'
+                    : '$rating/5',
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final favState = FavoritosProvider.of(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F5),
       body: FutureBuilder<Map<String, dynamic>>(
@@ -192,23 +259,40 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(
               backgroundColor: Color(0xFFF7F7F5),
-              body: Center(child: CircularProgressIndicator(color: _verde)),
+              body: Center(
+                child: CircularProgressIndicator(color: _verde),
+              ),
             );
           }
 
-          if (snapshot.hasError)
-            return Scaffold(appBar: AppBar(title: Text(widget.nombreReceta)));
+          if (snapshot.hasError) {
+            return Scaffold(
+              appBar: AppBar(title: Text(widget.nombreReceta)),
+              body: const Center(child: Text('Error al cargar la receta')),
+            );
+          }
 
-          final receta = snapshot.data!['receta'] as Map<String, dynamic>;
+          final receta =
+              snapshot.data!['receta'] as Map<String, dynamic>;
           final ingredientes =
               snapshot.data!['ingredientes'] as List<_IngredienteCompleto>;
 
+         
           if (_isFirstLoad) {
-            _porcionesBase =
-                int.tryParse(receta['porcion_base']?.toString() ?? '1') ?? 1;
-            _porciones = _porcionesBase;
-            _checks = List.filled(ingredientes.length, false);
-            _isFirstLoad = false;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                setState(() {
+                  _porcionesBase =
+                      int.tryParse(
+                        receta['porcion_base']?.toString() ?? '1',
+                      ) ??
+                      1;
+                  _porciones = _porcionesBase;
+                  _checks = List.filled(ingredientes.length, false);
+                  _isFirstLoad = false;
+                });
+              }
+            });
           }
 
           final String imagenPrincipal = receta['imagen'] ?? '';
@@ -226,10 +310,12 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
           final int tiempoBase =
               int.tryParse(receta['tiempo']?.toString() ?? '0') ?? 0;
 
-          int tiempoAjustado = tiempoBase > 0
+         
+          final int tiempoAjustado = tiempoBase > 0
               ? (tiempoBase *
-                        (1 + (0.15 * ((_porciones / _porcionesBase) - 1))))
-                    .round()
+                      (1 + (0.15 * ((_porciones / _porcionesBase) - 1))))
+                  .round()
+                  .clamp(tiempoBase, tiempoBase * 4)
               : 0;
 
           String rating = '';
@@ -238,10 +324,16 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
           });
 
           final int resenasNum =
-              int.tryParse(receta['reseña']?.toString() ?? '0') ?? 0;
+              int.tryParse(
+                (receta['reseña'] ?? receta['reseñas'])?.toString() ?? '0',
+              ) ??
+              0;
+
+          final bool esFav = favState.esFavorito(nombre);
 
           return CustomScrollView(
             slivers: [
+              
               SliverAppBar(
                 expandedHeight: 260,
                 pinned: true,
@@ -264,7 +356,18 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                 ),
                 flexibleSpace: FlexibleSpaceBar(
                   background: imagenPrincipal.isNotEmpty
-                      ? Image.network(imagenPrincipal, fit: BoxFit.cover)
+                      ? Image.network(
+                          imagenPrincipal,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: _verde.withValues(alpha: 0.2),
+                            child: const Icon(
+                              Icons.restaurant,
+                              size: 80,
+                              color: Colors.white54,
+                            ),
+                          ),
+                        )
                       : Container(
                           color: _verde.withValues(alpha: 0.2),
                           child: const Icon(
@@ -286,67 +389,109 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            nombre,
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1A1A1A),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
                           Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(
-                                Icons.local_fire_department,
-                                size: 15,
-                                color: Colors.orange[400],
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${caloriasBase.round()} Calorías por plato (Total: $caloriasTotales)',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Icon(
-                                Icons.access_time,
-                                size: 15,
-                                color: Colors.grey[400],
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                tiempoAjustado > 0
-                                    ? '~$tiempoAjustado min aprox'
-                                    : '—',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                              if (rating.isNotEmpty &&
-                                  rating != '0' &&
-                                  rating != '0.0') ...[
-                                const SizedBox(width: 14),
-                                const Icon(
-                                  Icons.star_rounded,
-                                  size: 15,
-                                  color: Colors.amber,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  resenasNum > 0
-                                      ? '$rating/5 ($resenasNum Reseñas)'
-                                      : '$rating/5',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey[600],
+                              Expanded(
+                                child: Text(
+                                  nombre,
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1A1A1A),
                                   ),
                                 ),
-                              ],
+                              ),
+                              const SizedBox(width: 12),
+                              GestureDetector(
+                                onTap: () {
+                                  favState.toggle({
+                                    'nombre': nombre,
+                                    'img': imagenPrincipal,
+                                    'calorias':
+                                        caloriasBase.round().toString(),
+                                    'tiempo': tiempoBase.toString(),
+                                    'categoria':
+                                        receta['categoria']?.toString() ?? '',
+                                  });
+                                },
+                                child: AnimatedContainer(
+                                  duration:
+                                      const Duration(milliseconds: 200),
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: esFav
+                                        ? Colors.red.withValues(alpha: 0.1)
+                                        : const Color(0xFFF7F7F5),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: esFav
+                                          ? Colors.redAccent
+                                          : Colors.grey[300]!,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    esFav
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: esFav
+                                        ? Colors.redAccent
+                                        : Colors.grey[400],
+                                    size: 22,
+                                  ),
+                                ),
+                              ),
                             ],
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          _buildInfoSection(
+                            caloriasBase: caloriasBase,
+                            caloriasTotales: caloriasTotales,
+                            tiempoAjustado: tiempoAjustado,
+                            rating: rating,
+                            resenasNum: resenasNum,
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: ElevatedButton.icon(
+                              onPressed: () =>
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text('¡A cocinar! 👨‍🍳'),
+                                  backgroundColor: _verde,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              ),
+                              icon: const Icon(
+                                Icons.play_arrow_rounded,
+                                size: 22,
+                              ),
+                              label: const Text(
+                                'Empezar a cocinar',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _verde,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -376,8 +521,9 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                   _ContadorBtn(
                                     icon: Icons.remove,
                                     onTap: () {
-                                      if (_porciones > 1)
+                                      if (_porciones > 1) {
                                         setState(() => _porciones--);
+                                      }
                                     },
                                   ),
                                   Padding(
@@ -395,14 +541,18 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                   ),
                                   _ContadorBtn(
                                     icon: Icons.add,
-                                    onTap: () => setState(() => _porciones++),
+                                    onTap: () =>
+                                        setState(() => _porciones++),
                                   ),
                                 ],
                               ),
                             ],
                           ),
                           Padding(
-                            padding: const EdgeInsets.only(top: 4, bottom: 14),
+                            padding: const EdgeInsets.only(
+                              top: 4,
+                              bottom: 14,
+                            ),
                             child: Text(
                               '¿Cuántas porciones deseas preparar?\nMarca lo que ya tienes en casa',
                               style: TextStyle(
@@ -412,7 +562,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                               ),
                             ),
                           ),
-
                           if (ingredientes.isEmpty)
                             Text(
                               'No hay ingredientes disponibles',
@@ -424,17 +573,21 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                               physics: const NeverScrollableScrollPhysics(),
                               itemCount: ingredientes.length,
                               separatorBuilder: (context, index) =>
-                                  Divider(height: 1, color: Colors.grey[100]),
+                                  Divider(
+                                    height: 1,
+                                    color: Colors.grey[100],
+                                  ),
                               itemBuilder: (context, i) {
                                 final ing = ingredientes[i];
-                                final marcado = _checks.length > i
-                                    ? _checks[i]
-                                    : false;
-                                final String textoCompleto = _textoIngrediente(
+                                final marcado =
+                                    _checks.length > i ? _checks[i] : false;
+                                final String textoCompleto =
+                                    _textoIngrediente(
                                   ing.cantidad,
                                   ing.unidad,
                                   ing.nombre,
                                 );
+
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 12,
@@ -460,7 +613,11 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                                       width: 44,
                                                       height: 44,
                                                       fit: BoxFit.cover,
-                                                      errorBuilder: (c, e, s) =>
+                                                      errorBuilder: (
+                                                        c,
+                                                        e,
+                                                        s,
+                                                      ) =>
                                                           _IngPlaceholder(),
                                                     )
                                                   : _IngPlaceholder(),
@@ -471,13 +628,16 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                                 textoCompleto,
                                                 style: TextStyle(
                                                   fontSize: 14,
-                                                  fontWeight: FontWeight.w500,
+                                                  fontWeight:
+                                                      FontWeight.w500,
                                                   color: marcado
                                                       ? Colors.grey[400]
-                                                      : const Color(0xFF1A1A1A),
+                                                      : const Color(
+                                                          0xFF1A1A1A,
+                                                        ),
                                                   decoration: marcado
                                                       ? TextDecoration
-                                                            .lineThrough
+                                                          .lineThrough
                                                       : null,
                                                 ),
                                               ),
@@ -489,17 +649,20 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                               ),
                                               padding:
                                                   const EdgeInsets.symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 6,
-                                                  ),
+                                                horizontal: 12,
+                                                vertical: 6,
+                                              ),
                                               decoration: BoxDecoration(
                                                 color: marcado
                                                     ? _verde
-                                                    : Colors.orange.withValues(
-                                                        alpha: 0.1,
-                                                      ),
+                                                    : Colors.orange
+                                                        .withValues(
+                                                          alpha: 0.1,
+                                                        ),
                                                 borderRadius:
-                                                    BorderRadius.circular(20),
+                                                    BorderRadius.circular(
+                                                  20,
+                                                ),
                                                 border: Border.all(
                                                   color: marcado
                                                       ? _verde
@@ -508,10 +671,13 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                                 ),
                                               ),
                                               child: Text(
-                                                marcado ? 'Tengo ✓' : 'Falta',
+                                                marcado
+                                                    ? 'Tengo ✓'
+                                                    : 'Falta',
                                                 style: TextStyle(
                                                   fontSize: 11,
-                                                  fontWeight: FontWeight.w600,
+                                                  fontWeight:
+                                                      FontWeight.w600,
                                                   color: marcado
                                                       ? Colors.white
                                                       : Colors.orange[700],
@@ -521,7 +687,8 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                           ],
                                         ),
                                       ),
-                                      if (ing.sustituto.isNotEmpty && !marcado)
+                                      if (ing.sustituto.isNotEmpty &&
+                                          !marcado)
                                         Container(
                                           margin: const EdgeInsets.only(
                                             top: 12,
@@ -530,9 +697,8 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                           padding: const EdgeInsets.all(12),
                                           decoration: BoxDecoration(
                                             color: const Color(0xFFF4F5F7),
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
+                                            borderRadius:
+                                                BorderRadius.circular(10),
                                           ),
                                           child: Column(
                                             crossAxisAlignment:
@@ -542,7 +708,8 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                                 children: [
                                                   Icon(
                                                     Icons.lightbulb_outline,
-                                                    color: Colors.orange[400],
+                                                    color:
+                                                        Colors.orange[400],
                                                     size: 16,
                                                   ),
                                                   const SizedBox(width: 6),
@@ -552,7 +719,9 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                                       fontWeight:
                                                           FontWeight.bold,
                                                       fontSize: 13,
-                                                      color: Color(0xFF1A1A1A),
+                                                      color: Color(
+                                                        0xFF1A1A1A,
+                                                      ),
                                                     ),
                                                   ),
                                                 ],
@@ -592,7 +761,9 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                                         ),
                                                       ),
                                                     ),
-                                                    const TextSpan(text: '.'),
+                                                    const TextSpan(
+                                                      text: '.',
+                                                    ),
                                                   ],
                                                 ),
                                               ),
@@ -607,113 +778,14 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 100),
+
+                    const SizedBox(height: 32),
                   ],
                 ),
               ),
             ],
           );
         },
-      ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 12,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: FutureBuilder<Map<String, dynamic>>(
-          future: _futureDatos,
-          builder: (context, snapshot) {
-            // Extraemos nombre e imagen del snapshot si ya cargó
-            final receta = snapshot.data?['receta'] as Map<String, dynamic>?;
-            final String nombre = receta?['nombre'] ?? widget.nombreReceta;
-            final String imagenPrincipal = receta?['imagen'] ?? '';
-            final double caloriasBase =
-                double.tryParse(
-                  (receta?['calorías'] ?? receta?['calorias'])?.toString() ??
-                      '0',
-                ) ??
-                0;
-            final int tiempoBase =
-                int.tryParse(receta?['tiempo']?.toString() ?? '0') ?? 0;
-
-            final bool esFav = favState.esFavorito(nombre);
-            return Row(
-              children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 52,
-                    child: ElevatedButton.icon(
-                      onPressed: () =>
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('¡A cocinar! 👨‍🍳'),
-                              backgroundColor: _verde,
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          ),
-                      icon: const Icon(Icons.play_arrow_rounded, size: 22),
-                      label: const Text(
-                        'Empezar a cocinar',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _verde,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // toggle conectado al provider con datos reales
-                GestureDetector(
-                  onTap: snapshot.hasData
-                      ? () {
-                          favState.toggle({
-                            'nombre': nombre,
-                            'img': imagenPrincipal,
-                            'calorias': caloriasBase.round().toString(),
-                            'tiempo': tiempoBase.toString(),
-                            'categoria': receta?['categoria']?.toString() ?? '',
-                          });
-                        }
-                      : null,
-                  child: Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: esFav
-                          ? Colors.red.withValues(alpha: 0.1)
-                          : const Color(0xFFF7F7F5),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: esFav ? Colors.redAccent : Colors.grey[300]!,
-                      ),
-                    ),
-                    child: Icon(
-                      esFav ? Icons.favorite : Icons.favorite_border,
-                      color: esFav ? Colors.redAccent : Colors.grey[400],
-                      size: 22,
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
       ),
     );
   }
