@@ -21,88 +21,88 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<Map<String, String>> _recetas = [
     {
-      "nombre": "Arepas rellenas",
-      "img": "assets/images/platos/Arepas rellenas.jpg",
-      "calorias": "320",
-      "tiempo": "15",
-      "categoria": "Almuerzo",
+      'nombre': 'Arepas rellenas',
+      'img': 'assets/images/platos/Arepas rellenas.jpg',
+      'calorias': '320',
+      'tiempo': '15',
+      'categoria': 'Almuerzo',
     },
     {
-      "nombre": "Ceviche Peruano",
-      "img": "assets/images/platos/Ceviche peruano.webp",
-      "calorias": "210",
-      "tiempo": "20",
-      "categoria": "Almuerzo",
+      'nombre': 'Ceviche Peruano',
+      'img': 'assets/images/platos/Ceviche peruano.webp',
+      'calorias': '210',
+      'tiempo': '20',
+      'categoria': 'Almuerzo',
     },
     {
-      "nombre": "Ensalada César",
-      "img": "assets/images/platos/Ensalada César.jpg",
-      "calorias": "180",
-      "tiempo": "10",
-      "categoria": "Almuerzo",
+      'nombre': 'Ensalada César',
+      'img': 'assets/images/platos/Ensalada César.jpg',
+      'calorias': '180',
+      'tiempo': '10',
+      'categoria': 'Almuerzo',
     },
     {
-      "nombre": "Majadito",
-      "img": "assets/images/platos/Majadito.jpg",
-      "calorias": "450",
-      "tiempo": "35",
-      "categoria": "Almuerzo",
+      'nombre': 'Majadito',
+      'img': 'assets/images/platos/Majadito.jpg',
+      'calorias': '450',
+      'tiempo': '35',
+      'categoria': 'Almuerzo',
     },
     {
-      "nombre": "Pique macho",
-      "img": "assets/images/platos/Pique macho.jpg",
-      "calorias": "600",
-      "tiempo": "40",
-      "categoria": "Cena",
+      'nombre': 'Pique macho',
+      'img': 'assets/images/platos/Pique macho.jpg',
+      'calorias': '600',
+      'tiempo': '40',
+      'categoria': 'Cena',
     },
     {
-      "nombre": "Quesadillas",
-      "img": "assets/images/platos/Quesadillas.webp",
-      "calorias": "350",
-      "tiempo": "15",
-      "categoria": "Cena",
+      'nombre': 'Quesadillas',
+      'img': 'assets/images/platos/Quesadillas.webp',
+      'calorias': '350',
+      'tiempo': '15',
+      'categoria': 'Cena',
     },
     {
-      "nombre": "Salteña",
-      "img": "assets/images/platos/Salteña.jpg",
-      "calorias": "280",
-      "tiempo": "25",
-      "categoria": "Desayuno",
+      'nombre': 'Salteña',
+      'img': 'assets/images/platos/Salteña.jpg',
+      'calorias': '280',
+      'tiempo': '25',
+      'categoria': 'Desayuno',
     },
     {
-      "nombre": "Silpancho",
-      "img": "assets/images/platos/Silpancho.jpg",
-      "calorias": "520",
-      "tiempo": "30",
-      "categoria": "Almuerzo",
+      'nombre': 'Silpancho',
+      'img': 'assets/images/platos/Silpancho.jpg',
+      'calorias': '520',
+      'tiempo': '30',
+      'categoria': 'Almuerzo',
     },
     {
-      "nombre": "Sopa de maní",
-      "img": "assets/images/platos/Sopa de mani.jpg",
-      "calorias": "390",
-      "tiempo": "45",
-      "categoria": "Almuerzo",
+      'nombre': 'Sopa de maní',
+      'img': 'assets/images/platos/Sopa de mani.jpg',
+      'calorias': '390',
+      'tiempo': '45',
+      'categoria': 'Almuerzo',
     },
     {
-      "nombre": "Tacos al pastor",
-      "img": "assets/images/platos/Tacos al pastor.jpg",
-      "calorias": "250",
-      "tiempo": "20",
-      "categoria": "Cena",
+      'nombre': 'Tacos al pastor',
+      'img': 'assets/images/platos/Tacos al pastor.jpg',
+      'calorias': '250',
+      'tiempo': '20',
+      'categoria': 'Cena',
     },
     {
-      "nombre": "Trancapecho",
-      "img": "assets/images/platos/Trancapecho.jpg",
-      "calorias": "480",
-      "tiempo": "10",
-      "categoria": "Desayuno",
+      'nombre': 'Trancapecho',
+      'img': 'assets/images/platos/Trancapecho.jpg',
+      'calorias': '480',
+      'tiempo': '10',
+      'categoria': 'Desayuno',
     },
     {
-      "nombre": "Anticucho",
-      "img": "assets/images/platos/Anticucho.webp",
-      "calorias": "310",
-      "tiempo": "25",
-      "categoria": "Cena",
+      'nombre': 'Anticucho',
+      'img': 'assets/images/platos/Anticucho.webp',
+      'calorias': '310',
+      'tiempo': '25',
+      'categoria': 'Cena',
     },
   ];
 
@@ -137,7 +137,8 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: _verde,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -218,10 +219,12 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: InputDecoration(
           hintText: 'Buscar recetas...',
           hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-          prefixIcon: Icon(Icons.search, color: Colors.grey[400], size: 20),
+          prefixIcon:
+              Icon(Icons.search, color: Colors.grey[400], size: 20),
           suffixIcon: _busqueda.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.clear, color: Colors.grey, size: 20),
+                  icon:
+                      const Icon(Icons.clear, color: Colors.grey, size: 20),
                   onPressed: _limpiarBusqueda,
                 )
               : null,
@@ -347,11 +350,14 @@ class _HomeScreenState extends State<HomeScreen> {
             onTap: () => setState(() => _categoriaSeleccionada = cat),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
               decoration: BoxDecoration(
                 color: activo ? _verde : Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: activo ? _verde : Colors.grey[300]!),
+                border: Border.all(
+                  color: activo ? _verde : Colors.grey[300]!,
+                ),
               ),
               child: Text(
                 cat,
@@ -387,8 +393,10 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                      _VerTodasRecetasScreen(recetas: _recetas, verde: _verde),
+                  builder: (_) => _VerTodasRecetasScreen(
+                    recetas: _recetas,
+                    verde: _verde,
+                  ),
                 ),
               );
             },
@@ -445,7 +453,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-//  Card de receta
 
 class _RecetaCard extends StatelessWidget {
   final Map<String, String> receta;
@@ -480,9 +487,8 @@ class _RecetaCard extends StatelessWidget {
           Stack(
             children: [
               ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(14),
-                ),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(14)),
                 child: Image.asset(
                   receta['img']!,
                   width: 150,
@@ -548,14 +554,20 @@ class _RecetaCard extends StatelessWidget {
                     const SizedBox(width: 2),
                     Text(
                       '${receta['calorias']} Cal',
-                      style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+                      style:
+                          TextStyle(fontSize: 10, color: Colors.grey[500]),
                     ),
                     const SizedBox(width: 8),
-                    Icon(Icons.access_time, size: 12, color: Colors.grey[400]),
+                    Icon(
+                      Icons.access_time,
+                      size: 12,
+                      color: Colors.grey[400],
+                    ),
                     const SizedBox(width: 2),
                     Text(
                       '${receta['tiempo']} Min',
-                      style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+                      style:
+                          TextStyle(fontSize: 10, color: Colors.grey[500]),
                     ),
                   ],
                 ),
@@ -568,7 +580,6 @@ class _RecetaCard extends StatelessWidget {
   }
 }
 
-//  Pantalla: Ver todas las recetas
 
 class _VerTodasRecetasScreen extends StatefulWidget {
   final List<Map<String, String>> recetas;
@@ -577,7 +588,8 @@ class _VerTodasRecetasScreen extends StatefulWidget {
   const _VerTodasRecetasScreen({required this.recetas, required this.verde});
 
   @override
-  State<_VerTodasRecetasScreen> createState() => _VerTodasRecetasScreenState();
+  State<_VerTodasRecetasScreen> createState() =>
+      _VerTodasRecetasScreenState();
 }
 
 class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
@@ -612,11 +624,8 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
               onChanged: (v) => setState(() => _busqueda = v),
               decoration: InputDecoration(
                 hintText: 'Buscar...',
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: Colors.grey[400],
-                  size: 20,
-                ),
+                prefixIcon:
+                    Icon(Icons.search, color: Colors.grey[400], size: 20),
                 suffixIcon: _busqueda.isNotEmpty
                     ? IconButton(
                         icon: const Icon(
@@ -643,7 +652,8 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: widget.verde, width: 1.5),
+                  borderSide:
+                      BorderSide(color: widget.verde, width: 1.5),
                 ),
               ),
             ),
@@ -668,9 +678,8 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
 
                 final docs = snapshot.data!.docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
-                  final nombre = (data['nombre'] ?? '')
-                      .toString()
-                      .toLowerCase();
+                  final nombre =
+                      (data['nombre'] ?? '').toString().toLowerCase();
                   return nombre.contains(_busqueda.toLowerCase());
                 }).toList();
 
@@ -691,14 +700,17 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                   itemCount: docs.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, i) {
-                    final data = docs[i].data() as Map<String, dynamic>;
-                    final nombre = data['nombre']?.toString() ?? 'Sin nombre';
+                    final data =
+                        docs[i].data() as Map<String, dynamic>;
+                    final nombre =
+                        data['nombre']?.toString() ?? 'Sin nombre';
                     final imagen = data['imagen']?.toString() ?? '';
                     final calorias =
                         data['calorias']?.toString() ??
                         data['calorías']?.toString() ??
                         '—';
-                    final tiempo = data['tiempo']?.toString() ?? '—';
+                    final tiempo =
+                        data['tiempo']?.toString() ?? '—';
 
                     return GestureDetector(
                       onTap: () {
@@ -743,7 +755,8 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                             const SizedBox(width: 14),
                             Expanded(
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     nombre,

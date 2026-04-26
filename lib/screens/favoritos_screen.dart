@@ -82,13 +82,43 @@ class _FavoritoTile extends StatelessWidget {
   final FavoritosState favState;
   const _FavoritoTile({required this.receta, required this.favState});
 
+  
+  Widget _buildImage(String img) {
+    const double w = 90;
+    const double h = 80;
+
+    if (img.isEmpty) return _placeholder();
+
+    if (img.startsWith('http://') || img.startsWith('https://')) {
+      return Image.network(
+        img,
+        width: w,
+        height: h,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholder(),
+      );
+    }
+
+    
+    return Image.asset(
+      img,
+      width: w,
+      height: h,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => _placeholder(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final String img = receta['img']?.toString() ?? '';
+
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => DetalleRecetaScreen(nombreReceta: receta['nombre']!),
+          builder: (_) =>
+              DetalleRecetaScreen(nombreReceta: receta['nombre']!),
         ),
       ),
       child: Container(
@@ -105,23 +135,15 @@ class _FavoritoTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Imagen
+            
             ClipRRect(
               borderRadius: const BorderRadius.horizontal(
                 left: Radius.circular(14),
               ),
-              child: (receta['img'] ?? '').isNotEmpty
-                  ? Image.network(
-                      receta['img']!,
-                      width: 90,
-                      height: 80,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _placeholder(),
-                    )
-                  : _placeholder(),
+              child: _buildImage(img),
             ),
 
-            // Datos
+            
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -199,7 +221,7 @@ class _FavoritoTile extends StatelessWidget {
               ),
             ),
 
-            // ✅ Basurero en lugar del corazón
+           
             Padding(
               padding: const EdgeInsets.only(right: 14),
               child: GestureDetector(
@@ -225,7 +247,6 @@ class _FavoritoTile extends StatelessWidget {
     );
   }
 
-  // Diálogo de confirmación antes de eliminar
   void _confirmarEliminar(BuildContext context) {
     showDialog(
       context: context,
@@ -242,7 +263,8 @@ class _FavoritoTile extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancelar', style: TextStyle(color: Colors.grey[600])),
+            child:
+                Text('Cancelar', style: TextStyle(color: Colors.grey[600])),
           ),
           TextButton(
             onPressed: () {
@@ -263,9 +285,9 @@ class _FavoritoTile extends StatelessWidget {
   }
 
   Widget _placeholder() => Container(
-    width: 90,
-    height: 80,
-    color: const Color(0xFFE8E8E8),
-    child: const Icon(Icons.fastfood, size: 32, color: Colors.white70),
-  );
+        width: 90,
+        height: 80,
+        color: const Color(0xFFE8E8E8),
+        child: const Icon(Icons.fastfood, size: 32, color: Colors.white70),
+      );
 }

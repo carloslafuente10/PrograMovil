@@ -9,8 +9,6 @@ class FavoritosProvider extends InheritedNotifier<FavoritosState> {
     required super.child,
   }) : super(notifier: notifier);
 
-  /// Registra dependencia — el widget se reconstruye
-  /// automáticamente cuando FavoritosState llama notifyListeners()
   static FavoritosState of(BuildContext context) {
     final notifier = context
         .dependOnInheritedWidgetOfExactType<FavoritosProvider>()
@@ -19,8 +17,6 @@ class FavoritosProvider extends InheritedNotifier<FavoritosState> {
     return notifier!;
   }
 }
-
-//  ChangeNotifier — maneja estado y sincroniza con Firestore
 
 class FavoritosState extends ChangeNotifier {
   final Map<String, Map<String, dynamic>> _favoritos = {};
@@ -70,7 +66,9 @@ class FavoritosState extends ChangeNotifier {
 
   Future<void> toggle(Map<String, dynamic> receta) async {
     if (_userId == null) return;
-    final nombre = receta['nombre'].toString();
+    final nombre = receta['nombre'].toString().trim();
+    if (nombre.isEmpty) return;
+
     final docRef = FirebaseFirestore.instance
         .collection('app-usuarios')
         .doc(_userId)

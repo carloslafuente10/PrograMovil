@@ -8,10 +8,9 @@ class AppMainScreen extends StatefulWidget {
   const AppMainScreen({super.key});
 
   @override
-  State<AppMainScreen> createState() => AppMainScreenState(); // <- Sin guión bajo (público)
+  State<AppMainScreen> createState() => AppMainScreenState();
 }
 
-// IMPORTANTE: El nombre NO tiene guión bajo para que HomeScreen pueda encontrarlo
 class AppMainScreenState extends State<AppMainScreen> {
   int selectedIndex = 0;
 
@@ -23,8 +22,8 @@ class AppMainScreenState extends State<AppMainScreen> {
     page = [
       HomeScreen(),
       const FavoritosScreen(),
-      const Center(child: Text("Plan")),
-      const _AjustesScreen(), // <- Pantalla de perfil con Firebase Auth
+      const _PlanScreen(),
+      const _AjustesScreen(),
     ];
   }
 
@@ -43,18 +42,18 @@ class AppMainScreenState extends State<AppMainScreen> {
           setState(() => selectedIndex = value);
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Inicio"),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
           BottomNavigationBarItem(
             icon: Icon(Icons.favorite_border),
-            label: "Favoritos",
+            label: 'Favoritos',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.calendar_month_outlined),
-            label: "Plan",
+            label: 'Plan',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings_outlined),
-            label: "Ajustes",
+            label: 'Ajustes',
           ),
         ],
       ),
@@ -63,9 +62,45 @@ class AppMainScreenState extends State<AppMainScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Pantalla de Perfil / Ajustes con datos reales de Firebase Auth
-// ─────────────────────────────────────────────────────────────────────────────
+
+class _PlanScreen extends StatelessWidget {
+  const _PlanScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F7F5),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        title: const Text(
+          'Plan semanal',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF1A1A1A),
+          ),
+        ),
+      ),
+      body: const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.calendar_month_outlined, size: 64, color: Colors.grey),
+            SizedBox(height: 12),
+            Text(
+              'Próximamente',
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
 class _AjustesScreen extends StatelessWidget {
   static const Color _verde = Color(0xFF2D9E73);
 
@@ -97,8 +132,6 @@ class _AjustesScreen extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         children: [
           const SizedBox(height: 20),
-
-          // ── Avatar + nombre ──────────────────────────────────────────────
           Center(
             child: Column(
               children: [
@@ -131,17 +164,14 @@ class _AjustesScreen extends StatelessWidget {
               ],
             ),
           ),
-
           const SizedBox(height: 32),
-
-          // ── Tarjeta de info ──────────────────────────────────────────────
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -163,10 +193,7 @@ class _AjustesScreen extends StatelessWidget {
               ],
             ),
           ),
-
           const SizedBox(height: 32),
-
-          // ── Botón cerrar sesión ──────────────────────────────────────────
           SizedBox(
             height: 50,
             child: ElevatedButton.icon(
