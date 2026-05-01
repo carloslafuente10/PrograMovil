@@ -181,7 +181,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     return {'receta': receta, 'ingredientes': ingredientes};
   }
 
-  // ── NUEVO: calcula si se puede cocinar (≥80 % marcados) ──────────────────
   bool get _puedecocinar {
     if (_checks.isEmpty) return false;
     final marcados = _checks.where((c) => c).length;
@@ -247,7 +246,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
           final int resenasNum =
               int.tryParse(receta['reseña']?.toString() ?? '0') ?? 0;
 
-          // ── progreso para mostrar en el botón ────────────────────────────
           final int totalIng = _checks.length;
           final int marcados = _checks.where((c) => c).length;
           final int porcentaje = totalIng > 0
@@ -314,7 +312,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              // ── Botón favorito junto al título ──
                               Builder(
                                 builder: (context) {
                                   final favStateLocal = FavoritosProvider.of(
@@ -444,7 +441,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                               ),
                               Row(
                                 children: [
-                                  // ── CAMBIO: reinicia checks al bajar porciones ──
                                   _ContadorBtn(
                                     icon: Icons.remove,
                                     onTap: () {
@@ -472,7 +468,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                       ),
                                     ),
                                   ),
-                                  // ── CAMBIO: reinicia checks al subir porciones ──
+
                                   _ContadorBtn(
                                     icon: Icons.add,
                                     onTap: () {
@@ -571,7 +567,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                               ),
                                             ),
                                             const SizedBox(width: 10),
-                                            // ── CAMBIO: "Falta" ahora es rojo ──
                                             AnimatedContainer(
                                               duration: const Duration(
                                                 milliseconds: 200,
@@ -705,7 +700,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
         },
       ),
 
-      // ── CAMBIO: bottomNavigationBar rediseñado ────────────────────────────
       bottomNavigationBar: Container(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         decoration: BoxDecoration(
@@ -723,7 +717,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
           builder: (context, snapshot) {
             final receta = snapshot.data?['receta'] as Map<String, dynamic>?;
             final String nombre = receta?['nombre'] ?? widget.nombreReceta;
-            // ── progreso ─────────────────────────────────────────────────
             final int totalIng = _checks.length;
             final int marcados = _checks.where((c) => c).length;
             final int porcentaje = totalIng > 0
@@ -734,7 +727,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // ── indicador de progreso ────────────────────────────────
                 if (totalIng > 0) ...[
                   Row(
                     children: [
@@ -765,7 +757,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                   const SizedBox(height: 10),
                 ],
 
-                // ── botón principal ──────────────────────────────────────
+
                 SizedBox(
                   width: double.infinity,
                   height: 52,
