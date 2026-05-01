@@ -17,111 +17,43 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   final Color _verde = const Color(0xFF2D9E73);
-  final List<String> _categorias = ['Todo', 'Desayuno', 'Almuerzo', 'Cena'];
+  // Se cargan desde Firestore en initState
+  List<String> _categorias = ['Todo'];
 
-  final List<Map<String, String>> _recetas = [
-    {
-      'nombre': 'Arepas rellenas',
-      'img': 'assets/images/platos/Arepas rellenas.jpg',
-      'calorias': '320',
-      'tiempo': '15',
-      'categoria': 'Almuerzo',
-    },
-    {
-      'nombre': 'Ceviche Peruano',
-      'img': 'assets/images/platos/Ceviche peruano.webp',
-      'calorias': '210',
-      'tiempo': '20',
-      'categoria': 'Almuerzo',
-    },
-    {
-      'nombre': 'Ensalada César',
-      'img': 'assets/images/platos/Ensalada César.jpg',
-      'calorias': '180',
-      'tiempo': '10',
-      'categoria': 'Almuerzo',
-    },
-    {
-      'nombre': 'Majadito',
-      'img': 'assets/images/platos/Majadito.jpg',
-      'calorias': '450',
-      'tiempo': '35',
-      'categoria': 'Almuerzo',
-    },
-    {
-      'nombre': 'Pique macho',
-      'img': 'assets/images/platos/Pique macho.jpg',
-      'calorias': '600',
-      'tiempo': '40',
-      'categoria': 'Cena',
-    },
-    {
-      'nombre': 'Quesadillas',
-      'img': 'assets/images/platos/Quesadillas.webp',
-      'calorias': '350',
-      'tiempo': '15',
-      'categoria': 'Cena',
-    },
-    {
-      'nombre': 'Salteña',
-      'img': 'assets/images/platos/Salteña.jpg',
-      'calorias': '280',
-      'tiempo': '25',
-      'categoria': 'Desayuno',
-    },
-    {
-      'nombre': 'Silpancho',
-      'img': 'assets/images/platos/Silpancho.jpg',
-      'calorias': '520',
-      'tiempo': '30',
-      'categoria': 'Almuerzo',
-    },
-    {
-      'nombre': 'Sopa de maní',
-      'img': 'assets/images/platos/Sopa de mani.jpg',
-      'calorias': '390',
-      'tiempo': '45',
-      'categoria': 'Almuerzo',
-    },
-    {
-      'nombre': 'Tacos al pastor',
-      'img': 'assets/images/platos/Tacos al pastor.jpg',
-      'calorias': '250',
-      'tiempo': '20',
-      'categoria': 'Cena',
-    },
-    {
-      'nombre': 'Trancapecho',
-      'img': 'assets/images/platos/Trancapecho.jpg',
-      'calorias': '480',
-      'tiempo': '10',
-      'categoria': 'Desayuno',
-    },
-    {
-      'nombre': 'Anticucho',
-      'img': 'assets/images/platos/Anticucho.webp',
-      'calorias': '310',
-      'tiempo': '25',
-      'categoria': 'Cena',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _cargarCategorias();
+  }
+
+  /// Lee la colección app-Categorías y construye la lista de filtros
+  Future<void> _cargarCategorias() async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('app-Categorías')
+          .get();
+      final nombres =
+          snap.docs
+              .map((d) => (d.data()['nombre'] ?? '').toString().trim())
+              .where(
+                (n) => n.isNotEmpty && n != 'Todas',
+              ) // excluye "Todas" del Firebase
+              .toList()
+            ..sort(); // orden alfabético
+      if (mounted) {
+        setState(() {
+          _categorias = ['Todo', ...nombres];
+        });
+      }
+    } catch (_) {
+      // Si falla, se queda con ['Todo'] y no rompe nada
+    }
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  List<Map<String, String>> get _recetasFiltradas {
-    return _recetas.where((r) {
-      final coincideCategoria =
-          _categoriaSeleccionada == 'Todo' ||
-          r['categoria'] == _categoriaSeleccionada;
-      final coincideBusqueda = r['nombre']!.toLowerCase().contains(
-        _busqueda.toLowerCase(),
-      );
-      return coincideCategoria && coincideBusqueda;
-    }).toList();
   }
 
   void _limpiarBusqueda() {
@@ -137,8 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: _verde,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -169,7 +100,8 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 20),
             _buildHeaderRecetasRapidas(context),
             const SizedBox(height: 12),
-            _buildCarruselRecetas(favState),
+            // ── CAMBIO: carrusel ahora lee de Firestore en tiempo real ──
+            _buildCarruselDesdeFirestore(favState),
             const SizedBox(height: 24),
           ],
         ),
@@ -219,12 +151,10 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: InputDecoration(
           hintText: 'Buscar recetas...',
           hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-          prefixIcon:
-              Icon(Icons.search, color: Colors.grey[400], size: 20),
+          prefixIcon: Icon(Icons.search, color: Colors.grey[400], size: 20),
           suffixIcon: _busqueda.isNotEmpty
               ? IconButton(
-                  icon:
-                      const Icon(Icons.clear, color: Colors.grey, size: 20),
+                  icon: const Icon(Icons.clear, color: Colors.grey, size: 20),
                   onPressed: _limpiarBusqueda,
                 )
               : null,
@@ -350,14 +280,11 @@ class _HomeScreenState extends State<HomeScreen> {
             onTap: () => setState(() => _categoriaSeleccionada = cat),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
               decoration: BoxDecoration(
                 color: activo ? _verde : Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: activo ? _verde : Colors.grey[300]!,
-                ),
+                border: Border.all(color: activo ? _verde : Colors.grey[300]!),
               ),
               child: Text(
                 cat,
@@ -393,10 +320,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => _VerTodasRecetasScreen(
-                    recetas: _recetas,
-                    verde: _verde,
-                  ),
+                  builder: (_) => _VerTodasRecetasScreen(verde: _verde),
                 ),
               );
             },
@@ -414,45 +338,114 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCarruselRecetas(FavoritosState favState) {
+  // ── NUEVO: carrusel que lee de Firestore en tiempo real ───────────────────
+  Widget _buildCarruselDesdeFirestore(FavoritosState favState) {
     return SizedBox(
       height: 200,
-      child: _recetasFiltradas.isEmpty
-          ? Center(
+      child: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('app-recetas-completas')
+            .snapshots(),
+        builder: (context, snapshot) {
+          // Cargando
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator(color: _verde));
+          }
+
+          // Sin datos
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return Center(
+              child: Text(
+                'No hay recetas disponibles',
+                style: TextStyle(color: Colors.grey[500]),
+              ),
+            );
+          }
+
+          // Filtrar por categoría y búsqueda
+          final docs =
+              snapshot.data!.docs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final nombre = (data['nombre'] ?? '').toString();
+                  // ── CORRECCIÓN: el campo en Firebase usa tilde "categoría" ──
+                  final categoria =
+                      (data['categoría'] ?? data['categoria'] ?? '').toString();
+
+                  final coincideCategoria =
+                      _categoriaSeleccionada == 'Todo' ||
+                      categoria == _categoriaSeleccionada;
+                  final coincideBusqueda = nombre.toLowerCase().contains(
+                    _busqueda.toLowerCase(),
+                  );
+
+                  return coincideCategoria && coincideBusqueda;
+                }).toList()
+                // ── NUEVO: orden alfabético por nombre ──
+                ..sort((a, b) {
+                  final na = ((a.data() as Map)['nombre'] ?? '')
+                      .toString()
+                      .toLowerCase();
+                  final nb = ((b.data() as Map)['nombre'] ?? '')
+                      .toString()
+                      .toLowerCase();
+                  return na.compareTo(nb);
+                });
+
+          if (docs.isEmpty) {
+            return Center(
               child: Text(
                 'No se encontraron recetas',
                 style: TextStyle(color: Colors.grey[500]),
               ),
-            )
-          : ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: _recetasFiltradas.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (context, i) {
-                final r = _recetasFiltradas[i];
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            DetalleRecetaScreen(nombreReceta: r['nombre']!),
+            );
+          }
+
+          return ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: docs.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, i) {
+              final data = docs[i].data() as Map<String, dynamic>;
+
+              // Lee siempre los valores frescos de Firestore
+              final recetaMap = {
+                'nombre': data['nombre']?.toString() ?? '',
+                'img': data['imagen']?.toString() ?? '',
+                'calorias':
+                    (data['calorías'] ?? data['calorias'])?.toString() ?? '—',
+                'tiempo': data['tiempo']?.toString() ?? '—',
+                // ── CORRECCIÓN: leer campo con y sin tilde ──
+                'categoria':
+                    (data['categoría'] ?? data['categoria'])?.toString() ?? '',
+              };
+
+              return GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => DetalleRecetaScreen(
+                        nombreReceta: recetaMap['nombre']!,
                       ),
-                    );
-                  },
-                  child: _RecetaCard(
-                    receta: r,
-                    verde: _verde,
-                    favState: favState,
-                  ),
-                );
-              },
-            ),
+                    ),
+                  );
+                },
+                child: _RecetaCard(
+                  receta: recetaMap,
+                  verde: _verde,
+                  favState: favState,
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _RecetaCard extends StatelessWidget {
   final Map<String, String> receta;
@@ -468,6 +461,9 @@ class _RecetaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final esFav = favState.esFavorito(receta['nombre']!);
+    final String img = receta['img'] ?? '';
+    final bool esNetwork = img.startsWith('http');
+
     return Container(
       width: 150,
       decoration: BoxDecoration(
@@ -487,24 +483,26 @@ class _RecetaCard extends StatelessWidget {
           Stack(
             children: [
               ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(14)),
-                child: Image.asset(
-                  receta['img']!,
-                  width: 150,
-                  height: 110,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, err, stackTrace) => Container(
-                    width: 150,
-                    height: 110,
-                    color: const Color(0xFFE8E8E8),
-                    child: const Icon(
-                      Icons.fastfood,
-                      size: 40,
-                      color: Colors.white70,
-                    ),
-                  ),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(14),
                 ),
+                child: img.isNotEmpty
+                    ? (esNetwork
+                          ? Image.network(
+                              img,
+                              width: 150,
+                              height: 110,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _placeholder(),
+                            )
+                          : Image.asset(
+                              img,
+                              width: 150,
+                              height: 110,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _placeholder(),
+                            ))
+                    : _placeholder(),
               ),
               Positioned(
                 top: 8,
@@ -554,20 +552,14 @@ class _RecetaCard extends StatelessWidget {
                     const SizedBox(width: 2),
                     Text(
                       '${receta['calorias']} Cal',
-                      style:
-                          TextStyle(fontSize: 10, color: Colors.grey[500]),
+                      style: TextStyle(fontSize: 10, color: Colors.grey[500]),
                     ),
                     const SizedBox(width: 8),
-                    Icon(
-                      Icons.access_time,
-                      size: 12,
-                      color: Colors.grey[400],
-                    ),
+                    Icon(Icons.access_time, size: 12, color: Colors.grey[400]),
                     const SizedBox(width: 2),
                     Text(
                       '${receta['tiempo']} Min',
-                      style:
-                          TextStyle(fontSize: 10, color: Colors.grey[500]),
+                      style: TextStyle(fontSize: 10, color: Colors.grey[500]),
                     ),
                   ],
                 ),
@@ -578,18 +570,25 @@ class _RecetaCard extends StatelessWidget {
       ),
     );
   }
+
+  Widget _placeholder() {
+    return Container(
+      width: 150,
+      height: 110,
+      color: const Color(0xFFE8E8E8),
+      child: const Icon(Icons.fastfood, size: 40, color: Colors.white70),
+    );
+  }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _VerTodasRecetasScreen extends StatefulWidget {
-  final List<Map<String, String>> recetas;
   final Color verde;
-
-  const _VerTodasRecetasScreen({required this.recetas, required this.verde});
+  const _VerTodasRecetasScreen({required this.verde});
 
   @override
-  State<_VerTodasRecetasScreen> createState() =>
-      _VerTodasRecetasScreenState();
+  State<_VerTodasRecetasScreen> createState() => _VerTodasRecetasScreenState();
 }
 
 class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
@@ -624,8 +623,11 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
               onChanged: (v) => setState(() => _busqueda = v),
               decoration: InputDecoration(
                 hintText: 'Buscar...',
-                prefixIcon:
-                    Icon(Icons.search, color: Colors.grey[400], size: 20),
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: Colors.grey[400],
+                  size: 20,
+                ),
                 suffixIcon: _busqueda.isNotEmpty
                     ? IconButton(
                         icon: const Icon(
@@ -652,8 +654,7 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      BorderSide(color: widget.verde, width: 1.5),
+                  borderSide: BorderSide(color: widget.verde, width: 1.5),
                 ),
               ),
             ),
@@ -678,8 +679,9 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
 
                 final docs = snapshot.data!.docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
-                  final nombre =
-                      (data['nombre'] ?? '').toString().toLowerCase();
+                  final nombre = (data['nombre'] ?? '')
+                      .toString()
+                      .toLowerCase();
                   return nombre.contains(_busqueda.toLowerCase());
                 }).toList();
 
@@ -700,17 +702,13 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                   itemCount: docs.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, i) {
-                    final data =
-                        docs[i].data() as Map<String, dynamic>;
-                    final nombre =
-                        data['nombre']?.toString() ?? 'Sin nombre';
+                    final data = docs[i].data() as Map<String, dynamic>;
+                    final nombre = data['nombre']?.toString() ?? 'Sin nombre';
                     final imagen = data['imagen']?.toString() ?? '';
                     final calorias =
-                        data['calorias']?.toString() ??
-                        data['calorías']?.toString() ??
+                        (data['calorías'] ?? data['calorias'])?.toString() ??
                         '—';
-                    final tiempo =
-                        data['tiempo']?.toString() ?? '—';
+                    final tiempo = data['tiempo']?.toString() ?? '—';
 
                     return GestureDetector(
                       onTap: () {
@@ -746,17 +744,15 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                                       width: 90,
                                       height: 90,
                                       fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, err, stackTrace) =>
-                                              _imgPlaceholder(),
+                                      errorBuilder: (_, __, ___) =>
+                                          _imgPlaceholder(),
                                     )
                                   : _imgPlaceholder(),
                             ),
                             const SizedBox(width: 14),
                             Expanded(
                               child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     nombre,
