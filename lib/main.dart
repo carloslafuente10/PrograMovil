@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:provider/provider.dart'; 
 import 'firebase_options.dart';
 import 'screens/login_page.dart';
-import 'screens/favoritos_provider.dart';
+import 'screens/favoritos_provider.dart'; 
+import 'screens/Pasos de preparacion/ingredient_progress_provider.dart';
+import 'screens/Pasos de preparacion/recipe_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,13 +18,23 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FavoritosProvider(
+    return FavoritosProvider( 
       notifier: FavoritosState(),
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'App Recetas',
-        theme: ThemeData(primarySwatch: Colors.orange, useMaterial3: true),
-        home: const LoginPage(),
+      child: MultiProvider( 
+        providers: [
+          ChangeNotifierProvider(
+            create: (_) => IngredientProgressProvider(service: RecipeService()),
+          ),
+        ],
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'App Recetas',
+          theme: ThemeData(
+            primarySwatch: Colors.orange, 
+            useMaterial3: true,
+          ),
+          home: const LoginPage(), 
+        ),
       ),
     );
   }

@@ -117,10 +117,12 @@ class _FavoritoTile extends StatelessWidget {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) =>
-              DetalleRecetaScreen(nombreReceta: receta['nombre']!),
-        ),
-      ),
+         builder: (context) => DetalleRecetaScreen(
+          nombreReceta: receta['nombre']!, // Parámetro 1
+          recetaId: receta['id']!,         // Parámetro 2 
+        ), 
+     ), 
+    ),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
