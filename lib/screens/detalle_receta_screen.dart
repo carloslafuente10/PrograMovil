@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'favoritos_provider.dart';
+import 'cocina_pasos_screen.dart';
 
 class _IngredienteCompleto {
   final String id;
@@ -21,22 +22,28 @@ class _IngredienteCompleto {
 }
 
 class DetalleRecetaScreen extends StatefulWidget {
+  // 1. Declaramos ambas variables como campos de la clase
+  final String recetaId;
   final String nombreReceta;
-  const DetalleRecetaScreen({super.key, required this.nombreReceta});
+
+  // 2. Las inicializamos correctamente en el constructor
+  const DetalleRecetaScreen({
+    super.key, 
+    required this.recetaId, 
+    required this.nombreReceta,
+  });
 
   @override
   State<DetalleRecetaScreen> createState() => _DetalleRecetaScreenState();
 }
 
 class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
-  static const Color _verde = Color(0xFF2D9E73);
-
+  late Future<Map<String, dynamic>> _futureDatos;
   int _porciones = 1;
   int _porcionesBase = 1;
-  bool _isFirstLoad = true;
   List<bool> _checks = [];
-
-  late Future<Map<String, dynamic>> _futureDatos;
+  bool _isFirstLoad = true;
+  final Color _verde = const Color(0xFF2E7D32);
 
   @override
   void initState() {
@@ -72,11 +79,9 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   String _pluralizarSeguro(double cantidad, String texto) {
     String limpio = texto.trim();
     if (cantidad <= 1 || limpio.isEmpty) return limpio;
-
     List<String> partes = limpio.split(' ');
     String primera = partes[0];
     String lower = primera.toLowerCase();
-
     if (lower.endsWith('s') || lower.endsWith('x')) {
     } else if (lower.endsWith('z')) {
       partes[0] = '${primera.substring(0, primera.length - 1)}ces';
@@ -115,35 +120,31 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   }
 
   Future<Map<String, dynamic>> _cargarTodo() async {
-    final recetasSnap = await FirebaseFirestore.instance
-        .collection('app-recetas-completas')
-        .get();
-    Map<String, dynamic>? receta;
-    for (final doc in recetasSnap.docs) {
-      if ((doc.data()['nombre'] ?? '').toString().trim() ==
-          widget.nombreReceta.trim()) {
-        receta = doc.data();
-        break;
-      }
-    }
+  final docSnapshot = await FirebaseFirestore.instance
+      .collection('app-recetas-completas')
+      .doc(widget.recetaId) 
+      .get();
 
-    if (receta == null) throw Exception('Receta no encontrada');
-    final List<dynamic> rawIngredientes = receta['ingredientes'] ?? [];
-    final List<_IngredienteCompleto> ingredientes = [];
-    for (final item in rawIngredientes) {
-      if (item is! Map) continue;
-      final String id =
-          item['ingrediente_id']?.toString() ??
-          item['ingrediente']?.toString() ??
-          '';
-      final double cantidad = (item['cantidad'] is num)
+  if (!docSnapshot.exists) {
+    throw Exception("No se encontró la receta");
+  }
+  final receta = docSnapshot.data()!;
+  final List<dynamic> rawIngredientes = receta['ingredientes'] ?? [];
+  final List<_IngredienteCompleto> ingredientes = [];
+
+  for (final item in rawIngredientes) {
+    if (item is! Map) continue;
+    final String id = item['ingrediente_id']?.toString() ??
+        item['ingrediente']?.toString() ?? '';
+    final double cantidad = (item['cantidad'] is num)
           ? (item['cantidad'] as num).toDouble()
           : 0.0;
-      final String unidad = item['unidad']?.toString() ?? '';
+    final String unidad = item['unidad']?.toString() ?? '';
 
       String nombre = id;
       String foto = '';
       String sustituto = '';
+
       if (id.isNotEmpty) {
         try {
           final maestroDoc = await FirebaseFirestore.instance
@@ -155,10 +156,8 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
             nombre = m['nombre']?.toString().trim() ?? id;
             foto = m['foto']?.toString() ?? '';
             final raw = m['sustitutos'];
-            if (raw is String)
-              sustituto = raw;
-            else if (raw is List)
-              sustituto = raw.join(', ');
+            if (raw is String) sustituto = raw;
+            else if (raw is List) sustituto = raw.join(', ');
           }
         } catch (_) {}
       }
@@ -196,7 +195,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
         future: _futureDatos,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
+            return Scaffold(
               backgroundColor: Color(0xFFF7F7F5),
               body: Center(child: CircularProgressIndicator(color: _verde)),
             );
@@ -725,76 +724,76 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
             final bool activo = _puedecocinar;
 
             return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (totalIng > 0) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: totalIng > 0 ? marcados / totalIng : 0,
-                            minHeight: 6,
-                            backgroundColor: Colors.grey[200],
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              activo ? _verde : Colors.orange,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        '$porcentaje%',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: activo ? _verde : Colors.grey[500],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                ],
-
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton.icon(
-                    onPressed: activo
-                        ? () => ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('¡A cocinar! 👨‍🍳'),
-                              backgroundColor: _verde,
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          )
-                        : null,
-                    icon: const Icon(Icons.play_arrow_rounded, size: 22),
-                    label: Text(
-                      activo
-                          ? 'Empezar a cocinar'
-                          : 'Marca el 80% de ingredientes ($porcentaje%)',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _verde,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey[300],
-                      disabledForegroundColor: Colors.grey[500],
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
+  mainAxisSize: MainAxisSize.min,
+  children: [
+    if (totalIng > 0) ...[
+      Row(
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                // Calculamos el progreso de 0.0 a 1.0
+                value: marcados / totalIng,
+                minHeight: 6,
+                backgroundColor: Colors.grey[200],
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  activo ? _verde : Colors.orange,
                 ),
-              ],
-            );
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            // Mostramos el porcentaje sin decimales
+            '${porcentaje.toStringAsFixed(0)}%',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: activo ? _verde : Colors.grey[500],
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 10),
+    ],
+
+    SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton.icon(
+      onPressed: activo 
+  ? () => Navigator.push(
+      context, 
+      MaterialPageRoute(
+        builder: (context) => CocinaPasosScreen(recetaId: widget.recetaId) 
+      )
+    ) 
+  : null,
+        icon: const Icon(Icons.play_arrow_rounded, size: 22),
+        label: Text(
+          activo
+              ? 'Empezar a cocinar'
+              : 'Marca el 80% de ingredientes (${porcentaje.toStringAsFixed(0)}%)',
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _verde,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.grey[300],
+          disabledForegroundColor: Colors.grey[500],
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+    ),
+  ],
+);
           },
         ),
       ),

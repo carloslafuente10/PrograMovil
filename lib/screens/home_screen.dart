@@ -442,6 +442,7 @@ class _HomeScreenState extends State<HomeScreen>
                     MaterialPageRoute(
                       builder: (_) => DetalleRecetaScreen(
                         nombreReceta: recetaMap['nombre']!,
+                        recetaId: docs[i].id,
                       ),
                     ),
                   );
@@ -736,7 +737,7 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                           context,
                           MaterialPageRoute(
                             builder: (_) =>
-                                DetalleRecetaScreen(nombreReceta: nombre),
+                                DetalleRecetaScreen(nombreReceta: nombre, recetaId: docs[i].id,),
                           ),
                         );
                       },
