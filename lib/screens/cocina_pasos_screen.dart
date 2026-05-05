@@ -1,6 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// Mapa global de sustitutos
+const Map<String, String> _sustitutosConfig = {
+  'cebolla morada': 'Cebolla blanca',
+  'cebolla roja': 'Cebolla blanca',
+  'aceite de girasol': 'Manteca',
+  'tortilla de maiz': 'Tortilla de harina de trigo',
+  'manteca de cerdo': 'Aceite',
+  'urucu': 'Pimienta dulce',
+  'achlote': 'Pimienta dulce',
+  'carne de res': 'Carne de pollo desmenuzado',
+  'caldo de res': 'Caldo de pollo',
+  'filete de carne': 'Filete de pechuga de pollo',
+  'fideo corbata': 'Macarrón',
+};
+
 class CocinaPasosScreen extends StatefulWidget {
   final String recetaId;
   const CocinaPasosScreen({super.key, required this.recetaId});
@@ -136,48 +151,100 @@ class _CocinaPasosScreenState extends State<CocinaPasosScreen> {
   }
 
   Widget _buildStepCard(Map<String, dynamic> paso, int numeroPaso) {
-    return Container(
-      margin: const EdgeInsets.all(25),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            height: 200,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.green[50],
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Icon(Icons.restaurant, size: 60, color: Colors.green),
-          ),
-          const SizedBox(height: 30),
-          Text(
-            "PASO $numeroPaso",
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green, letterSpacing: 1.5),
-          ),
-          const SizedBox(height: 15),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Text(
-                paso['instruccion'] ?? "Sin instrucción",
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 18, height: 1.5, color: Colors.black87),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  final String instruccion = paso['instruccion'] ?? "Sin instrucción";
+  
+  // Lógica de detección: busca si alguna clave del mapa está en la instrucción
+  String? ingredienteDetectado;
+  String? sustitutoSugerido;
 
+  _sustitutosConfig.forEach((key, value) {
+    if (instruccion.toLowerCase().contains(key)) {
+      ingredienteDetectado = key;
+      sustitutoSugerido = value;
+    }
+  });
+
+  return Container(
+    margin: const EdgeInsets.all(25),
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(30),
+      boxShadow: [
+        BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))
+      ],
+    ),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          height: 180, // Reduje un poco para dar espacio al aviso
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.green[50],
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Icon(Icons.restaurant, size: 60, color: Colors.green),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          "PASO $numeroPaso",
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green, letterSpacing: 1.5),
+        ),
+        const SizedBox(height: 10),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                Text(
+                  instruccion,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 18, height: 1.5, color: Colors.black87),
+                ),
+                if (sustitutoSugerido != null) ...[
+                  const SizedBox(height: 25),
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF9E7),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFFFE082)),
+                    ),
+                    child: Column(
+                      children: [
+                        const Icon(Icons.favorite_border, color: Colors.green, size: 20),
+                        const SizedBox(height: 8),
+                        RichText(
+                          textAlign: TextAlign.center,
+                          text: TextSpan(
+                            style: const TextStyle(color: Colors.brown, fontSize: 15),
+                            children: [
+                              const TextSpan(text: "Recuerda que si no tienes "),
+                              TextSpan(
+                                text: ingredienteDetectado,
+                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple),
+                              ),
+                              const TextSpan(text: " puedes usar "),
+                              TextSpan(
+                                text: sustitutoSugerido,
+                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+              
   Widget _buildBottomBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(25, 0, 25, 40),
