@@ -6,6 +6,7 @@ import 'dart:math'; // Para generar el número aleatorio
 import 'dart:convert'; // Para el json.encode
 import 'package:http/http.dart' as http; // Para la petición web
 import 'package:programovil/screens/reset_password_page.dart'; 
+import 'admin_screen.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -84,7 +85,6 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       });
     }
   }
-
   Future<void> acceder() async {
   final email = correoCtrl.text.trim();
   final password = passCtrl.text.trim();
@@ -97,18 +97,35 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   setState(() => loginCargando = true);
 
   try {
-    // ESTA ES LA FORMA CORRECTA:
-    await FirebaseAuth.instance.signInWithEmailAndPassword(
+    final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
       email: email,
       password: password,
     );
 
+    final uid = cred.user!.uid;
+    final doc = await FirebaseFirestore.instance
+        .collection('app-usuarios')
+        .doc(uid)
+        .get();
+    final data = doc.data();
+    String rol = "user"; // default
+    if (data != null && data.containsKey('rol')) {
+      rol = data['rol'];
+    }
     if (!mounted) return;
     _snack('¡Bienvenido!');
-    Navigator.pushReplacement(
-      context, 
-      MaterialPageRoute(builder: (_) => const AppMainScreen())
-    );
+    if (rol == "admin") {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const AdminScreen()),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const AppMainScreen()),
+      );
+    }
+
   } on FirebaseAuthException catch (e) {
     _snack('Error: Credenciales incorrectas', esError: true);
   } catch (e) {
@@ -117,7 +134,6 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     if (mounted) setState(() => loginCargando = false);
   }
 }
-
   Future<void> _crearCuenta() async {
     if (!_regFormKey.currentState!.validate()) return;
     setState(() => regCargando = true);
