@@ -10,6 +10,7 @@ class _IngredienteCompleto {
   final String nombre;
   final String foto;
   final String sustituto;
+  final bool es_primordial; // <-- 1. Añadimos la variable
 
   const _IngredienteCompleto({
     required this.id,
@@ -18,6 +19,7 @@ class _IngredienteCompleto {
     required this.nombre,
     required this.foto,
     required this.sustituto,
+    this.es_primordial = false, // <-- 2. La incluimos en el constructor
   });
 }
 
@@ -28,8 +30,8 @@ class DetalleRecetaScreen extends StatefulWidget {
 
   // 2. Las inicializamos correctamente en el constructor
   const DetalleRecetaScreen({
-    super.key, 
-    required this.recetaId, 
+    super.key,
+    required this.recetaId,
     required this.nombreReceta,
   });
 
@@ -120,26 +122,30 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   }
 
   Future<Map<String, dynamic>> _cargarTodo() async {
-  final docSnapshot = await FirebaseFirestore.instance
-      .collection('app-recetas-completas')
-      .doc(widget.recetaId) 
-      .get();
+    final docSnapshot = await FirebaseFirestore.instance
+        .collection('app-recetas-completas')
+        .doc(widget.recetaId)
+        .get();
 
-  if (!docSnapshot.exists) {
-    throw Exception("No se encontró la receta");
-  }
-  final receta = docSnapshot.data()!;
-  final List<dynamic> rawIngredientes = receta['ingredientes'] ?? [];
-  final List<_IngredienteCompleto> ingredientes = [];
+    if (!docSnapshot.exists) {
+      throw Exception("No se encontró la receta");
+    }
+    final receta = docSnapshot.data()!;
+    final List<dynamic> rawIngredientes = receta['ingredientes'] ?? [];
+    final List<_IngredienteCompleto> ingredientes = [];
 
-  for (final item in rawIngredientes) {
-    if (item is! Map) continue;
-    final String id = item['ingrediente_id']?.toString() ??
-        item['ingrediente']?.toString() ?? '';
-    final double cantidad = (item['cantidad'] is num)
+    for (final item in rawIngredientes) {
+      if (item is! Map) continue;
+      final String id =
+          item['ingrediente_id']?.toString() ??
+          item['ingrediente']?.toString() ??
+          '';
+      final double cantidad = (item['cantidad'] is num)
           ? (item['cantidad'] as num).toDouble()
           : 0.0;
-    final String unidad = item['unidad']?.toString() ?? '';
+      final String unidad = item['unidad']?.toString() ?? '';
+      final bool esPrimordial =
+          item['es_primordial'] ?? false; // <-- EXTRAEMOS EL DATO
 
       String nombre = id;
       String foto = '';
@@ -156,8 +162,10 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
             nombre = m['nombre']?.toString().trim() ?? id;
             foto = m['foto']?.toString() ?? '';
             final raw = m['sustitutos'];
-            if (raw is String) sustituto = raw;
-            else if (raw is List) sustituto = raw.join(', ');
+            if (raw is String)
+              sustituto = raw;
+            else if (raw is List)
+              sustituto = raw.join(', ');
           }
         } catch (_) {}
       }
@@ -174,6 +182,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
           nombre: nombre,
           foto: foto,
           sustituto: sustituto,
+          es_primordial: esPrimordial, // <-- CONECTAMOS EL CABLE AL MOLDE
         ),
       );
     }
@@ -182,8 +191,18 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
 
   bool get _puedecocinar {
     if (_checks.isEmpty) return false;
-    final marcados = _checks.where((c) => c).length;
-    return marcados / _checks.length >= 0.8;
+
+    // 1. Calculamos el porcentaje (el 80% que ya tenías)
+    final marcadosCount = _checks.where((c) => c).length;
+    final bool tieneOchentaPorciento = (marcadosCount / _checks.length) >= 0.8;
+
+    // 2. NUEVA LÓGICA: Verificar ingredientes primordiales
+    // Necesitamos acceder a la lista de ingredientes que cargamos en el Future
+    // Para esto, buscaremos si algún primordial NO está marcado.
+
+    // Nota: Esta lógica es más robusta si se hace dentro del builder,
+    // pero para no romper tu estructura, vamos a usar una validación directa.
+    return tieneOchentaPorciento;
   }
 
   @override
@@ -362,57 +381,77 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                             ],
                           ),
                           const SizedBox(height: 10),
-                          Row(
+                          Wrap(
+                            spacing:
+                                14.0, // Espacio horizontal entre los grupos
+                            runSpacing:
+                                8.0, // Espacio vertical si se llega a saltar de línea
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              Icon(
-                                Icons.local_fire_department,
-                                size: 15,
-                                color: Colors.orange[400],
+                              // Grupo 1: Calorías
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.local_fire_department,
+                                    size: 15,
+                                    color: Colors.orange[400],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${caloriasBase.round()} Cal. (Total: $caloriasTotales)',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${caloriasBase.round()} Calorías por plato (Total: $caloriasTotales)',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey[600],
-                                ),
+                              // Grupo 2: Tiempo
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.access_time,
+                                    size: 15,
+                                    color: Colors.grey[400],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    tiempoAjustado > 0
+                                        ? '~$tiempoAjustado min'
+                                        : '—',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 14),
-                              Icon(
-                                Icons.access_time,
-                                size: 15,
-                                color: Colors.grey[400],
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                tiempoAjustado > 0
-                                    ? '~$tiempoAjustado min aprox'
-                                    : '—',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
+                              // Grupo 3: Rating (Condicional)
                               if (rating.isNotEmpty &&
                                   rating != '0' &&
-                                  rating != '0.0') ...[
-                                const SizedBox(width: 14),
-                                const Icon(
-                                  Icons.star_rounded,
-                                  size: 15,
-                                  color: Colors.amber,
+                                  rating != '0.0')
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.star_rounded,
+                                      size: 15,
+                                      color: Colors.amber,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      resenasNum > 0
+                                          ? '$rating ($resenasNum)'
+                                          : '$rating',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  resenasNum > 0
-                                      ? '$rating/5 ($resenasNum Reseñas)'
-                                      : '$rating/5',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
                             ],
                           ),
                         ],
@@ -715,85 +754,105 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
           future: _futureDatos,
           builder: (context, snapshot) {
             final receta = snapshot.data?['receta'] as Map<String, dynamic>?;
+            final ingredientes =
+                snapshot.data?['ingredientes'] as List<_IngredienteCompleto>? ??
+                [];
             final String nombre = receta?['nombre'] ?? widget.nombreReceta;
+
             final int totalIng = _checks.length;
             final int marcados = _checks.where((c) => c).length;
             final int porcentaje = totalIng > 0
                 ? ((marcados / totalIng) * 100).round()
                 : 0;
-            final bool activo = _puedecocinar;
+
+            // --- LÓGICA DE BLOQUEO POR INGREDIENTES PRIMORDIALES ---
+            bool faltaAlgunPrimordial = false;
+            for (int i = 0; i < ingredientes.length; i++) {
+              // Si en Firebase marcaste 'es_primordial' y en la app NO tiene el check
+              if (ingredientes[i].es_primordial &&
+                  (i >= _checks.length || !_checks[i])) {
+                faltaAlgunPrimordial = true;
+                break;
+              }
+            }
+
+            // El botón solo se activa si tiene el 80% Y no falta ningún primordial
+            final bool activo = _puedecocinar && !faltaAlgunPrimordial;
 
             return Column(
-  mainAxisSize: MainAxisSize.min,
-  children: [
-    if (totalIng > 0) ...[
-      Row(
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                // Calculamos el progreso de 0.0 a 1.0
-                value: marcados / totalIng,
-                minHeight: 6,
-                backgroundColor: Colors.grey[200],
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  activo ? _verde : Colors.orange,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            // Mostramos el porcentaje sin decimales
-            '${porcentaje.toStringAsFixed(0)}%',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: activo ? _verde : Colors.grey[500],
-            ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 10),
-    ],
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (totalIng > 0) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            // Calculamos el progreso de 0.0 a 1.0
+                            value: marcados / totalIng,
+                            minHeight: 6,
+                            backgroundColor: Colors.grey[200],
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              activo ? _verde : Colors.orange,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        // Mostramos el porcentaje sin decimales
+                        '${porcentaje.toStringAsFixed(0)}%',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: activo ? _verde : Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
 
-    SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: ElevatedButton.icon(
-      onPressed: activo 
-  ? () => Navigator.push(
-      context, 
-      MaterialPageRoute(
-        builder: (context) => CocinaPasosScreen(recetaId: widget.recetaId) 
-      )
-    ) 
-  : null,
-        icon: const Icon(Icons.play_arrow_rounded, size: 22),
-        label: Text(
-          activo
-              ? 'Empezar a cocinar'
-              : 'Marca el 80% de ingredientes (${porcentaje.toStringAsFixed(0)}%)',
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _verde,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: Colors.grey[300],
-          disabledForegroundColor: Colors.grey[500],
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-      ),
-    ),
-  ],
-);
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: activo
+                        ? () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  CocinaPasosScreen(recetaId: widget.recetaId),
+                            ),
+                          )
+                        : null,
+                    icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                    label: Text(
+                      activo
+                          ? 'Empezar a cocinar'
+                          : (faltaAlgunPrimordial
+                                ? 'Faltan ingredientes obligatorios'
+                                : 'Marca el 80% de ingredientes (${porcentaje.toStringAsFixed(0)}%)'),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _verde,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey[300],
+                      disabledForegroundColor: Colors.grey[500],
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
           },
         ),
       ),
