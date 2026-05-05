@@ -6,10 +6,13 @@ import 'recipe_service.dart';
 class RecipeIngredient {
   final String masterIngredientId;
   final String displayName;
+  final bool es_primordial; // <-- ¡ESTE ES EL NUEVO VIGÍA!
 
   const RecipeIngredient({
     required this.masterIngredientId,
     required this.displayName,
+    this.es_primordial =
+        false, // Por defecto falso para no romper código antiguo
   });
 }
 
@@ -17,7 +20,7 @@ class IngredientProgressProvider extends ChangeNotifier {
   final RecipeService _service;
 
   IngredientProgressProvider({RecipeService? service})
-      : _service = service ?? RecipeService();
+    : _service = service ?? RecipeService();
 
   // Ingredientes que el usuario fue marcando en pantalla
   final Set<String> _checkedIngredientIds = {};
@@ -53,7 +56,8 @@ class IngredientProgressProvider extends ChangeNotifier {
   /// Recalcula qué porcentaje de la receta puede cubrirse con los
   /// ingredientes marcados (originales o sustitutos válidos).
   Future<void> _recalculateProgress(
-      List<RecipeIngredient> allRecipeIngredients) async {
+    List<RecipeIngredient> allRecipeIngredients,
+  ) async {
     if (allRecipeIngredients.isEmpty) {
       _progressRatio = 0.0;
       _isReadyToCook = false;
@@ -65,8 +69,9 @@ class IngredientProgressProvider extends ChangeNotifier {
 
     for (final ingredient in allRecipeIngredients) {
       // Caso 1: El usuario marcó exactamente el ingrediente original
-      final hasOriginal =
-          _checkedIngredientIds.contains(ingredient.masterIngredientId);
+      final hasOriginal = _checkedIngredientIds.contains(
+        ingredient.masterIngredientId,
+      );
 
       if (hasOriginal) {
         coveredCount++;
@@ -74,11 +79,14 @@ class IngredientProgressProvider extends ChangeNotifier {
       }
 
       // Caso 2: Verificamos si algún ingrediente marcado es sustituto válido
-      final substitutes = await _getSubstitutesFor(ingredient.masterIngredientId);
+      final substitutes = await _getSubstitutesFor(
+        ingredient.masterIngredientId,
+      );
 
       // ¿Alguno de los IDs marcados por el usuario está en la lista de sustitutos?
-      final hasValidSubstitute = substitutes
-          .any((substitute) => _checkedIngredientIds.contains(substitute));
+      final hasValidSubstitute = substitutes.any(
+        (substitute) => _checkedIngredientIds.contains(substitute),
+      );
 
       if (hasValidSubstitute) {
         coveredCount++;
