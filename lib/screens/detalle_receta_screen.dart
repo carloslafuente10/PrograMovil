@@ -418,11 +418,10 @@ void _agregarIngrediente() {
                                 ),
                               ),
                               const SizedBox(width: 12),
+                              if (!widget.isAdmin)
                               Builder(
-                                builder: (context) {
-                                  final favStateLocal = FavoritosProvider.of(
-                                    context,
-                                  );
+                              builder: (context) {
+                              final favStateLocal = FavoritosProvider.of(context);
                                   final bool esFavLocal = favStateLocal
                                       .esFavorito(nombre);
                                   return GestureDetector(
@@ -546,56 +545,50 @@ void _agregarIngrediente() {
       ),
     ),
 
-    // 👉 TODO A LA DERECHA (ordenado)
     Row(
-      children: [
-        if (widget.isAdmin)
-          IconButton(
-            icon: const Icon(Icons.add, color: Colors.green),
-            onPressed: _agregarIngrediente,
-          ),
+  children: [
+    if (widget.isAdmin)
+      IconButton(
+        icon: const Icon(Icons.add, color: Colors.green),
+        onPressed: _agregarIngrediente,
+      ),
 
-        _ContadorBtn(
-          icon: Icons.remove,
-          onTap: () {
-            if (_porciones > 1) {
-              setState(() {
-                _porciones--;
-                _checks = List.filled(
-                  _ingredientesEditables.length,
-                  false,
-                );
-              });
-            }
-          },
-        ),
-
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Text(
-            '$_porciones',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1A1A1A),
-            ),
-          ),
-        ),
-
-        _ContadorBtn(
-          icon: Icons.add,
-          onTap: () {
+    if (!widget.isAdmin) ...[
+      _ContadorBtn(
+        icon: Icons.remove,
+        onTap: () {
+          if (_porciones > 1) {
             setState(() {
-              _porciones++;
+              _porciones--;
               _checks = List.filled(
                 _ingredientesEditables.length,
                 false,
               );
             });
-          },
-        ),
-      ],
-    ),
+          }
+        },
+      ),
+
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Text('$_porciones'),
+      ),
+
+      _ContadorBtn(
+        icon: Icons.add,
+        onTap: () {
+          setState(() {
+            _porciones++;
+            _checks = List.filled(
+              _ingredientesEditables.length,
+              false,
+            );
+          });
+        },
+      ),
+    ]
+  ],
+),
   ],
 ),
                           //if (ingredientes.isEmpty)
@@ -632,8 +625,10 @@ void _agregarIngrediente() {
                                         CrossAxisAlignment.start,
                                     children: [
                                       GestureDetector(
-                                        onTap: () => setState(
-                                          () => _checks[i] = !_checks[i],
+                                        onTap: widget.isAdmin
+                                        ? null
+                                        : () => setState(
+                                        () => _checks[i] = !_checks[i],
                                         ),
                                         child: Row(
                                           crossAxisAlignment:
@@ -709,7 +704,7 @@ void _agregarIngrediente() {
                                             widget.isAdmin
     ? Row(
         children: [
-          // ✏️ EDITAR
+          //  EDITAR
           IconButton(
             icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
             onPressed: () {
@@ -719,7 +714,7 @@ void _agregarIngrediente() {
           ),
          
 
-          // 🗑 ELIMINAR
+          //ELIMINAR
           IconButton(
             icon: const Icon(Icons.delete, color: Colors.red, size: 18),
             onPressed: () {
@@ -850,7 +845,6 @@ void _agregarIngrediente() {
           );
         },
       ),
-
       bottomNavigationBar: Container(
   padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
   decoration: BoxDecoration(
@@ -867,34 +861,36 @@ void _agregarIngrediente() {
     mainAxisSize: MainAxisSize.min,
     children: [
 
-      // 🔹 BOTÓN USUARIO
-      
-    SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: ElevatedButton.icon(
-        onPressed: _puedecocinar
-            ? () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        CocinaPasosScreen(recetaId: widget.recetaId),
-                  ),
-                )
-            : null,
-        icon: const Icon(Icons.play_arrow),
-        label: Text(
-          _puedecocinar
-              ? 'Empezar a cocinar'
-              : 'Marca el 80% de ingredientes',
+      // 👤 SOLO USUARIO
+      if (!widget.isAdmin)
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton.icon(
+            onPressed: _puedecocinar
+                ? () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CocinaPasosScreen(
+                          recetaId: widget.recetaId,
+                        ),
+                      ),
+                    )
+                : null,
+            icon: const Icon(Icons.play_arrow),
+            label: Text(
+              _puedecocinar
+                  ? 'Empezar a cocinar'
+                  : 'Marca el 80% de ingredientes',
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _verde,
+              foregroundColor: Colors.white,
+            ),
+          ),
         ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _verde,
-        ),
-      ),
-    ),
 
-      // 🔥 BOTÓN ADMIN
+      // 👨‍💼 SOLO ADMIN
       if (widget.isAdmin)
         Padding(
           padding: const EdgeInsets.only(top: 10),
@@ -929,8 +925,7 @@ void _agregarIngrediente() {
         ),
     ],
   ),
-),
-      
+),   
     );
   }
 }
