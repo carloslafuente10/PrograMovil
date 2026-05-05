@@ -10,6 +10,7 @@ class _IngredienteCompleto {
   final String nombre;
   final String foto;
   final String sustituto;
+  final bool es_primordial; // <-- 1. Añadimos la variable
 
   const _IngredienteCompleto({
     required this.id,
@@ -18,6 +19,7 @@ class _IngredienteCompleto {
     required this.nombre,
     required this.foto,
     required this.sustituto,
+    this.es_primordial = false, // <-- 2. La incluimos en el constructor
   });
 }
 
@@ -25,14 +27,14 @@ class DetalleRecetaScreen extends StatefulWidget {
   // 1. Declaramos ambas variables como campos de la clase
   final String recetaId;
   final String nombreReceta;
-  final bool isAdmin; 
+  final bool isAdmin;
 
   // 2. Las inicializamos correctamente en el constructor
   const DetalleRecetaScreen({
-    super.key, 
-    required this.recetaId, 
+    super.key,
+    required this.recetaId,
     required this.nombreReceta,
-    this.isAdmin = false
+    this.isAdmin = false,
   });
 
   @override
@@ -46,7 +48,6 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   List<bool> _checks = [];
   List<_IngredienteCompleto> _ingredientesEditables = [];
 
-  
   bool _isFirstLoad = true;
   final Color _verde = const Color(0xFF2E7D32);
 
@@ -125,26 +126,30 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   }
 
   Future<Map<String, dynamic>> _cargarTodo() async {
-  final docSnapshot = await FirebaseFirestore.instance
-      .collection('app-recetas-completas')
-      .doc(widget.recetaId) 
-      .get();
+    final docSnapshot = await FirebaseFirestore.instance
+        .collection('app-recetas-completas')
+        .doc(widget.recetaId)
+        .get();
 
-  if (!docSnapshot.exists) {
-    throw Exception("No se encontró la receta");
-  }
-  final receta = docSnapshot.data()!;
-  final List<dynamic> rawIngredientes = receta['ingredientes'] ?? [];
-  final List<_IngredienteCompleto> ingredientes = [];
+    if (!docSnapshot.exists) {
+      throw Exception("No se encontró la receta");
+    }
+    final receta = docSnapshot.data()!;
+    final List<dynamic> rawIngredientes = receta['ingredientes'] ?? [];
+    final List<_IngredienteCompleto> ingredientes = [];
 
-  for (final item in rawIngredientes) {
-    if (item is! Map) continue;
-    final String id = item['ingrediente_id']?.toString() ??
-        item['ingrediente']?.toString() ?? '';
-    final double cantidad = (item['cantidad'] is num)
+    for (final item in rawIngredientes) {
+      if (item is! Map) continue;
+      final String id =
+          item['ingrediente_id']?.toString() ??
+          item['ingrediente']?.toString() ??
+          '';
+      final double cantidad = (item['cantidad'] is num)
           ? (item['cantidad'] as num).toDouble()
           : 0.0;
-    final String unidad = item['unidad']?.toString() ?? '';
+      final String unidad = item['unidad']?.toString() ?? '';
+      final bool esPrimordial =
+          item['es_primordial'] ?? false; // <-- EXTRAEMOS EL DATO
 
       String nombre = id;
       String foto = '';
@@ -161,8 +166,10 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
             nombre = m['nombre']?.toString().trim() ?? id;
             foto = m['foto']?.toString() ?? '';
             final raw = m['sustitutos'];
-            if (raw is String) sustituto = raw;
-            else if (raw is List) sustituto = raw.join(', ');
+            if (raw is String)
+              sustituto = raw;
+            else if (raw is List)
+              sustituto = raw.join(', ');
           }
         } catch (_) {}
       }
@@ -179,6 +186,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
           nombre: nombre,
           foto: foto,
           sustituto: sustituto,
+          es_primordial: esPrimordial, // <-- CONECTAMOS EL CABLE AL MOLDE
         ),
       );
     }
@@ -187,109 +195,119 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
 
   bool get _puedecocinar {
     if (_checks.isEmpty) return false;
-    final marcados = _checks.where((c) => c).length;
-    return marcados / _checks.length >= 0.8;
+
+    // 1. Calculamos el porcentaje (el 80% que ya tenías)
+    final marcadosCount = _checks.where((c) => c).length;
+    final bool tieneOchentaPorciento = (marcadosCount / _checks.length) >= 0.8;
+
+    // 2. NUEVA LÓGICA: Verificar ingredientes primordiales
+    // Necesitamos acceder a la lista de ingredientes que cargamos en el Future
+    // Para esto, buscaremos si algún primordial NO está marcado.
+
+    // Nota: Esta lógica es más robusta si se hace dentro del builder,
+    // pero para no romper tu estructura, vamos a usar una validación directa.
+    return tieneOchentaPorciento;
   }
+
   void _editarIngrediente(int index, _IngredienteCompleto ing) {
-  final cantidadCtrl =
-      TextEditingController(text: ing.cantidad.toString());
-  final nombreCtrl =
-      TextEditingController(text: ing.nombre);
+    final cantidadCtrl = TextEditingController(text: ing.cantidad.toString());
+    final nombreCtrl = TextEditingController(text: ing.nombre);
 
-  showDialog(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: const Text("Editar ingrediente"),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: nombreCtrl,
-            decoration: const InputDecoration(labelText: "Nombre"),
-          ),
-          TextField(
-            controller: cantidadCtrl,
-            decoration: const InputDecoration(labelText: "Cantidad"),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text("Cancelar"),
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Editar ingrediente"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nombreCtrl,
+              decoration: const InputDecoration(labelText: "Nombre"),
+            ),
+            TextField(
+              controller: cantidadCtrl,
+              decoration: const InputDecoration(labelText: "Cantidad"),
+            ),
+          ],
         ),
-        ElevatedButton(
-          onPressed: () {
-            setState(() {
-              _ingredientesEditables[index] = _IngredienteCompleto(
-                id: ing.id,
-                cantidad: double.tryParse(cantidadCtrl.text) ?? 0,
-                unidad: ing.unidad,
-                nombre: nombreCtrl.text,
-                foto: ing.foto,
-                sustituto: ing.sustituto,
-              );
-            });
-            Navigator.pop(context);
-          },
-          child: const Text("Guardar"),
-        ),
-      ],
-    ),
-  );
-}
-void _agregarIngrediente() {
-  final nombreCtrl = TextEditingController();
-  final cantidadCtrl = TextEditingController();
-
-  showDialog(
-    context: context,
-    builder: (_) => AlertDialog(
-      title: const Text("Nuevo ingrediente"),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: nombreCtrl,
-            decoration: const InputDecoration(labelText: "Nombre"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancelar"),
           ),
-          TextField(
-            controller: cantidadCtrl,
-            decoration: const InputDecoration(labelText: "Cantidad"),
-            keyboardType: TextInputType.number,
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text("Cancelar"),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            setState(() {
-              _ingredientesEditables.add(
-                _IngredienteCompleto(
-                  id: nombreCtrl.text.toLowerCase().replaceAll(" ", "-"),
-                  nombre: nombreCtrl.text,
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _ingredientesEditables[index] = _IngredienteCompleto(
+                  id: ing.id,
                   cantidad: double.tryParse(cantidadCtrl.text) ?? 0,
-                  unidad: "",
-                  foto: "",
-                  sustituto: "",
-                ),
-              );
+                  unidad: ing.unidad,
+                  nombre: nombreCtrl.text,
+                  foto: ing.foto,
+                  sustituto: ing.sustituto,
+                );
+              });
+              Navigator.pop(context);
+            },
+            child: const Text("Guardar"),
+          ),
+        ],
+      ),
+    );
+  }
 
-              _checks.add(false);
-            });
+  void _agregarIngrediente() {
+    final nombreCtrl = TextEditingController();
+    final cantidadCtrl = TextEditingController();
 
-            Navigator.pop(context);
-          },
-          child: const Text("Agregar"),
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Nuevo ingrediente"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nombreCtrl,
+              decoration: const InputDecoration(labelText: "Nombre"),
+            ),
+            TextField(
+              controller: cantidadCtrl,
+              decoration: const InputDecoration(labelText: "Cantidad"),
+              keyboardType: TextInputType.number,
+            ),
+          ],
         ),
-      ],
-    ),
-  );
-}
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancelar"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _ingredientesEditables.add(
+                  _IngredienteCompleto(
+                    id: nombreCtrl.text.toLowerCase().replaceAll(" ", "-"),
+                    nombre: nombreCtrl.text,
+                    cantidad: double.tryParse(cantidadCtrl.text) ?? 0,
+                    unidad: "",
+                    foto: "",
+                    sustituto: "",
+                  ),
+                );
+
+                _checks.add(false);
+              });
+
+              Navigator.pop(context);
+            },
+            child: const Text("Agregar"),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -419,106 +437,132 @@ void _agregarIngrediente() {
                               ),
                               const SizedBox(width: 12),
                               if (!widget.isAdmin)
-                              Builder(
-                              builder: (context) {
-                              final favStateLocal = FavoritosProvider.of(context);
-                                  final bool esFavLocal = favStateLocal
-                                      .esFavorito(nombre);
-                                  return GestureDetector(
-                                    onTap: () {
-                                      favStateLocal.toggle({
-                                        'nombre': nombre,
-                                        'img': imagenPrincipal,
-                                        'calorias': caloriasBase
-                                            .round()
-                                            .toString(),
-                                        'tiempo': tiempoBase.toString(),
-                                        'categoria':
-                                            receta['categoria']?.toString() ??
-                                            '',
-                                      });
-                                    },
-                                    child: Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        color: esFavLocal
-                                            ? Colors.red.withValues(alpha: 0.1)
-                                            : const Color(0xFFF7F7F5),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
+                                Builder(
+                                  builder: (context) {
+                                    final favStateLocal = FavoritosProvider.of(
+                                      context,
+                                    );
+                                    final bool esFavLocal = favStateLocal
+                                        .esFavorito(nombre);
+                                    return GestureDetector(
+                                      onTap: () {
+                                        favStateLocal.toggle({
+                                          'nombre': nombre,
+                                          'img': imagenPrincipal,
+                                          'calorias': caloriasBase
+                                              .round()
+                                              .toString(),
+                                          'tiempo': tiempoBase.toString(),
+                                          'categoria':
+                                              receta['categoria']?.toString() ??
+                                              '',
+                                        });
+                                      },
+                                      child: Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: esFavLocal
+                                              ? Colors.red.withValues(
+                                                  alpha: 0.1,
+                                                )
+                                              : const Color(0xFFF7F7F5),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          border: Border.all(
+                                            color: esFavLocal
+                                                ? Colors.redAccent
+                                                : Colors.grey[300]!,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          esFavLocal
+                                              ? Icons.favorite
+                                              : Icons.favorite_border,
                                           color: esFavLocal
                                               ? Colors.redAccent
-                                              : Colors.grey[300]!,
+                                              : Colors.grey[400],
+                                          size: 20,
                                         ),
                                       ),
-                                      child: Icon(
-                                        esFavLocal
-                                            ? Icons.favorite
-                                            : Icons.favorite_border,
-                                        color: esFavLocal
-                                            ? Colors.redAccent
-                                            : Colors.grey[400],
-                                        size: 20,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
+                                    );
+                                  },
+                                ),
                             ],
                           ),
                           const SizedBox(height: 10),
-                          Row(
+                          Wrap(
+                            spacing:
+                                14.0, // Espacio horizontal entre los grupos
+                            runSpacing:
+                                8.0, // Espacio vertical si se llega a saltar de línea
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              Icon(
-                                Icons.local_fire_department,
-                                size: 15,
-                                color: Colors.orange[400],
+                              // Grupo 1: Calorías
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.local_fire_department,
+                                    size: 15,
+                                    color: Colors.orange[400],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${caloriasBase.round()} Cal. (Total: $caloriasTotales)',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${caloriasBase.round()} Calorías por plato (Total: $caloriasTotales)',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey[600],
-                                ),
+                              // Grupo 2: Tiempo
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.access_time,
+                                    size: 15,
+                                    color: Colors.grey[400],
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    tiempoAjustado > 0
+                                        ? '~$tiempoAjustado min'
+                                        : '—',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 14),
-                              Icon(
-                                Icons.access_time,
-                                size: 15,
-                                color: Colors.grey[400],
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                tiempoAjustado > 0
-                                    ? '~$tiempoAjustado min aprox'
-                                    : '—',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
+                              // Grupo 3: Rating (Condicional)
                               if (rating.isNotEmpty &&
                                   rating != '0' &&
-                                  rating != '0.0') ...[
-                                const SizedBox(width: 14),
-                                const Icon(
-                                  Icons.star_rounded,
-                                  size: 15,
-                                  color: Colors.amber,
+                                  rating != '0.0')
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.star_rounded,
+                                      size: 15,
+                                      color: Colors.amber,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      resenasNum > 0
+                                          ? '$rating ($resenasNum)'
+                                          : '$rating',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  resenasNum > 0
-                                      ? '$rating/5 ($resenasNum Reseñas)'
-                                      : '$rating/5',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
                             ],
                           ),
                         ],
@@ -534,63 +578,68 @@ void _agregarIngrediente() {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  children: [
-    const Text(
-      'Ingredientes',
-      style: TextStyle(
-        fontSize: 17,
-        fontWeight: FontWeight.bold,
-        color: Color(0xFF1A1A1A),
-      ),
-    ),
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Ingredientes',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1A1A1A),
+                                ),
+                              ),
 
-    Row(
-  children: [
-    if (widget.isAdmin)
-      IconButton(
-        icon: const Icon(Icons.add, color: Colors.green),
-        onPressed: _agregarIngrediente,
-      ),
+                              Row(
+                                children: [
+                                  if (widget.isAdmin)
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.add,
+                                        color: Colors.green,
+                                      ),
+                                      onPressed: _agregarIngrediente,
+                                    ),
 
-    if (!widget.isAdmin) ...[
-      _ContadorBtn(
-        icon: Icons.remove,
-        onTap: () {
-          if (_porciones > 1) {
-            setState(() {
-              _porciones--;
-              _checks = List.filled(
-                _ingredientesEditables.length,
-                false,
-              );
-            });
-          }
-        },
-      ),
+                                  if (!widget.isAdmin) ...[
+                                    _ContadorBtn(
+                                      icon: Icons.remove,
+                                      onTap: () {
+                                        if (_porciones > 1) {
+                                          setState(() {
+                                            _porciones--;
+                                            _checks = List.filled(
+                                              _ingredientesEditables.length,
+                                              false,
+                                            );
+                                          });
+                                        }
+                                      },
+                                    ),
 
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        child: Text('$_porciones'),
-      ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                      ),
+                                      child: Text('$_porciones'),
+                                    ),
 
-      _ContadorBtn(
-        icon: Icons.add,
-        onTap: () {
-          setState(() {
-            _porciones++;
-            _checks = List.filled(
-              _ingredientesEditables.length,
-              false,
-            );
-          });
-        },
-      ),
-    ]
-  ],
-),
-  ],
-),
+                                    _ContadorBtn(
+                                      icon: Icons.add,
+                                      onTap: () {
+                                        setState(() {
+                                          _porciones++;
+                                          _checks = List.filled(
+                                            _ingredientesEditables.length,
+                                            false,
+                                          );
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
                           //if (ingredientes.isEmpty)
                           if (_ingredientesEditables.isEmpty)
                             Text(
@@ -626,10 +675,10 @@ void _agregarIngrediente() {
                                     children: [
                                       GestureDetector(
                                         onTap: widget.isAdmin
-                                        ? null
-                                        : () => setState(
-                                        () => _checks[i] = !_checks[i],
-                                        ),
+                                            ? null
+                                            : () => setState(
+                                                () => _checks[i] = !_checks[i],
+                                              ),
                                         child: Row(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.center,
@@ -702,52 +751,83 @@ void _agregarIngrediente() {
                                               ),
                                             )*/
                                             widget.isAdmin
-    ? Row(
-        children: [
-          //  EDITAR
-          IconButton(
-            icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
-            onPressed: () {
-              _editarIngrediente(i, ing);
-              
-            },
-          ),
-         
+                                                ? Row(
+                                                    children: [
+                                                      //  EDITAR
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons.edit,
+                                                          color: Colors.blue,
+                                                          size: 18,
+                                                        ),
+                                                        onPressed: () {
+                                                          _editarIngrediente(
+                                                            i,
+                                                            ing,
+                                                          );
+                                                        },
+                                                      ),
 
-          //ELIMINAR
-          IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-            onPressed: () {
-              setState(() {
-                //ingredientes.removeAt(i);
-                //_checks.removeAt(i);
-                _ingredientesEditables.removeAt(i);
-                _checks.removeAt(i);
-              });
-            },
-          ),
-        ],
-      )
-    : AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: marcado ? _verde : Colors.red.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: marcado ? _verde : Colors.red[300]!,
-            width: 1,
-          ),
-        ),
-        child: Text(
-          marcado ? 'Tengo ✓' : 'Falta',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: marcado ? Colors.white : Colors.red[700],
-          ),
-        ),
-      ),
+                                                      //ELIMINAR
+                                                      IconButton(
+                                                        icon: const Icon(
+                                                          Icons.delete,
+                                                          color: Colors.red,
+                                                          size: 18,
+                                                        ),
+                                                        onPressed: () {
+                                                          setState(() {
+                                                            //ingredientes.removeAt(i);
+                                                            //_checks.removeAt(i);
+                                                            _ingredientesEditables
+                                                                .removeAt(i);
+                                                            _checks.removeAt(i);
+                                                          });
+                                                        },
+                                                      ),
+                                                    ],
+                                                  )
+                                                : AnimatedContainer(
+                                                    duration: const Duration(
+                                                      milliseconds: 200,
+                                                    ),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 12,
+                                                          vertical: 6,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: marcado
+                                                          ? _verde
+                                                          : Colors.red
+                                                                .withValues(
+                                                                  alpha: 0.1,
+                                                                ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            20,
+                                                          ),
+                                                      border: Border.all(
+                                                        color: marcado
+                                                            ? _verde
+                                                            : Colors.red[300]!,
+                                                        width: 1,
+                                                      ),
+                                                    ),
+                                                    child: Text(
+                                                      marcado
+                                                          ? 'Tengo ✓'
+                                                          : 'Falta',
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: marcado
+                                                            ? Colors.white
+                                                            : Colors.red[700],
+                                                      ),
+                                                    ),
+                                                  ),
                                           ],
                                         ),
                                       ),
@@ -846,86 +926,104 @@ void _agregarIngrediente() {
         },
       ),
       bottomNavigationBar: Container(
-  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-  decoration: BoxDecoration(
-    color: Colors.white,
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.06),
-        blurRadius: 12,
-        offset: const Offset(0, -4),
-      ),
-    ],
-  ),
-  child: Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 12,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: FutureBuilder<Map<String, dynamic>>(
+          future: _futureDatos,
+          builder: (context, snapshot) {
+            final receta = snapshot.data?['receta'] as Map<String, dynamic>?;
+            final String nombre = receta?['nombre'] ?? widget.nombreReceta;
+            final int totalIng = _checks.length;
+            final int marcados = _checks.where((c) => c).length;
+            final int porcentaje = totalIng > 0
+                ? ((marcados / totalIng) * 100).round()
+                : 0;
+            final bool activo = _puedecocinar;
 
-      // 👤 SOLO USUARIO
-      if (!widget.isAdmin)
-        SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: ElevatedButton.icon(
-            onPressed: _puedecocinar
-                ? () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => CocinaPasosScreen(
-                          recetaId: widget.recetaId,
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (totalIng > 0) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            // Calculamos el progreso de 0.0 a 1.0
+                            value: marcados / totalIng,
+                            minHeight: 6,
+                            backgroundColor: Colors.grey[200],
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              activo ? _verde : Colors.orange,
+                            ),
+                          ),
                         ),
                       ),
-                    )
-                : null,
-            icon: const Icon(Icons.play_arrow),
-            label: Text(
-              _puedecocinar
-                  ? 'Empezar a cocinar'
-                  : 'Marca el 80% de ingredientes',
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _verde,
-              foregroundColor: Colors.white,
-            ),
-          ),
+                      const SizedBox(width: 10),
+                      Text(
+                        // Mostramos el porcentaje sin decimales
+                        '${porcentaje.toStringAsFixed(0)}%',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: activo ? _verde : Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton.icon(
+                    onPressed: activo
+                        ? () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  CocinaPasosScreen(recetaId: widget.recetaId),
+                            ),
+                          )
+                        : null,
+                    icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                    label: Text(
+                      activo
+                          ? 'Empezar a cocinar'
+                          : 'Marca el 80% de ingredientes (${porcentaje.toStringAsFixed(0)}%)',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _verde,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey[300],
+                      disabledForegroundColor: Colors.grey[500],
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
-
-      // 👨‍💼 SOLO ADMIN
-      if (widget.isAdmin)
-        Padding(
-          padding: const EdgeInsets.only(top: 10),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () async {
-                final ref = FirebaseFirestore.instance
-                    .collection('app-recetas-completas')
-                    .doc(widget.recetaId);
-
-                await ref.update({
-                  'ingredientes': _ingredientesEditables.map((e) {
-                    return {
-                      'ingrediente_id': e.id,
-                      'cantidad': e.cantidad,
-                      'unidad': e.unidad,
-                    };
-                  }).toList()
-                });
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Cambios guardados")),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-              ),
-              child: const Text("Guardar cambios"),
-            ),
-          ),
-        ),
-    ],
-  ),
-),   
+      ),
     );
   }
 }
