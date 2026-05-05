@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'favoritos_provider.dart';
+import 'cocina_pasos_screen.dart';
 
 class _IngredienteCompleto {
   final String id;
@@ -20,34 +21,34 @@ class _IngredienteCompleto {
   });
 }
 
-//class DetalleRecetaScreen extends StatefulWidget {
-//  final String nombreReceta;
-  class DetalleRecetaScreen extends StatefulWidget {
+class DetalleRecetaScreen extends StatefulWidget {
+  // 1. Declaramos ambas variables como campos de la clase
+  final String recetaId;
   final String nombreReceta;
-  final bool isAdmin;
+  final bool isAdmin; 
 
+  // 2. Las inicializamos correctamente en el constructor
   const DetalleRecetaScreen({
-    super.key,
+    super.key, 
+    required this.recetaId, 
     required this.nombreReceta,
-    this.isAdmin = false,
+    this.isAdmin = false
   });
-
-  //const DetalleRecetaScreen({super.key, required this.nombreReceta});
 
   @override
   State<DetalleRecetaScreen> createState() => _DetalleRecetaScreenState();
 }
 
 class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
-  static const Color _verde = Color(0xFF2D9E73);
-
+  late Future<Map<String, dynamic>> _futureDatos;
   int _porciones = 1;
   int _porcionesBase = 1;
-  bool _isFirstLoad = true;
   List<bool> _checks = [];
   List<_IngredienteCompleto> _ingredientesEditables = [];
 
-  late Future<Map<String, dynamic>> _futureDatos;
+  
+  bool _isFirstLoad = true;
+  final Color _verde = const Color(0xFF2E7D32);
 
   @override
   void initState() {
@@ -83,11 +84,9 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   String _pluralizarSeguro(double cantidad, String texto) {
     String limpio = texto.trim();
     if (cantidad <= 1 || limpio.isEmpty) return limpio;
-
     List<String> partes = limpio.split(' ');
     String primera = partes[0];
     String lower = primera.toLowerCase();
-
     if (lower.endsWith('s') || lower.endsWith('x')) {
     } else if (lower.endsWith('z')) {
       partes[0] = '${primera.substring(0, primera.length - 1)}ces';
@@ -126,35 +125,31 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   }
 
   Future<Map<String, dynamic>> _cargarTodo() async {
-    final recetasSnap = await FirebaseFirestore.instance
-        .collection('app-recetas-completas')
-        .get();
-    Map<String, dynamic>? receta;
-    for (final doc in recetasSnap.docs) {
-      if ((doc.data()['nombre'] ?? '').toString().trim() ==
-          widget.nombreReceta.trim()) {
-        receta = doc.data();
-        break;
-      }
-    }
+  final docSnapshot = await FirebaseFirestore.instance
+      .collection('app-recetas-completas')
+      .doc(widget.recetaId) 
+      .get();
 
-    if (receta == null) throw Exception('Receta no encontrada');
-    final List<dynamic> rawIngredientes = receta['ingredientes'] ?? [];
-    final List<_IngredienteCompleto> ingredientes = [];
-    for (final item in rawIngredientes) {
-      if (item is! Map) continue;
-      final String id =
-          item['ingrediente_id']?.toString() ??
-          item['ingrediente']?.toString() ??
-          '';
-      final double cantidad = (item['cantidad'] is num)
+  if (!docSnapshot.exists) {
+    throw Exception("No se encontró la receta");
+  }
+  final receta = docSnapshot.data()!;
+  final List<dynamic> rawIngredientes = receta['ingredientes'] ?? [];
+  final List<_IngredienteCompleto> ingredientes = [];
+
+  for (final item in rawIngredientes) {
+    if (item is! Map) continue;
+    final String id = item['ingrediente_id']?.toString() ??
+        item['ingrediente']?.toString() ?? '';
+    final double cantidad = (item['cantidad'] is num)
           ? (item['cantidad'] as num).toDouble()
           : 0.0;
-      final String unidad = item['unidad']?.toString() ?? '';
+    final String unidad = item['unidad']?.toString() ?? '';
 
       String nombre = id;
       String foto = '';
       String sustituto = '';
+
       if (id.isNotEmpty) {
         try {
           final maestroDoc = await FirebaseFirestore.instance
@@ -166,10 +161,8 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
             nombre = m['nombre']?.toString().trim() ?? id;
             foto = m['foto']?.toString() ?? '';
             final raw = m['sustitutos'];
-            if (raw is String)
-              sustituto = raw;
-            else if (raw is List)
-              sustituto = raw.join(', ');
+            if (raw is String) sustituto = raw;
+            else if (raw is List) sustituto = raw.join(', ');
           }
         } catch (_) {}
       }
@@ -307,7 +300,7 @@ void _agregarIngrediente() {
         future: _futureDatos,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
+            return Scaffold(
               backgroundColor: Color(0xFFF7F7F5),
               body: Center(child: CircularProgressIndicator(color: _verde)),
             );
@@ -859,119 +852,61 @@ void _agregarIngrediente() {
       ),
 
       bottomNavigationBar: Container(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 12,
-              offset: const Offset(0, -4),
-            ),
-          ],
-        ),
-        child: FutureBuilder<Map<String, dynamic>>(
-          future: _futureDatos,
-          builder: (context, snapshot) {
-            final receta = snapshot.data?['receta'] as Map<String, dynamic>?;
-            final String nombre = receta?['nombre'] ?? widget.nombreReceta;
-            final int totalIng = _checks.length;
-            final int marcados = _checks.where((c) => c).length;
-            final int porcentaje = totalIng > 0
-                ? ((marcados / totalIng) * 100).round()
-                : 0;
-            final bool activo = _puedecocinar;
+  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+  decoration: BoxDecoration(
+    color: Colors.white,
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.06),
+        blurRadius: 12,
+        offset: const Offset(0, -4),
+      ),
+    ],
+  ),
+  child: Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
 
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (totalIng > 0) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: totalIng > 0 ? marcados / totalIng : 0,
-                            minHeight: 6,
-                            backgroundColor: Colors.grey[200],
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              activo ? _verde : Colors.orange,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        '$porcentaje%',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: activo ? _verde : Colors.grey[500],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                ],
-
-
-                SizedBox(
+      // 🔹 BOTÓN USUARIO
+      
+    SizedBox(
       width: double.infinity,
       height: 52,
       child: ElevatedButton.icon(
-        onPressed: activo
-            ? () => ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('¡A cocinar! 👨‍🍳'),
-                    backgroundColor: _verde,
-                    behavior: SnackBarBehavior.floating,
+        onPressed: _puedecocinar
+            ? () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        CocinaPasosScreen(recetaId: widget.recetaId),
                   ),
                 )
             : null,
-        icon: const Icon(Icons.play_arrow_rounded, size: 22),
+        icon: const Icon(Icons.play_arrow),
         label: Text(
-          activo
+          _puedecocinar
               ? 'Empezar a cocinar'
-              : 'Marca el 80% de ingredientes ($porcentaje%)',
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
+              : 'Marca el 80% de ingredientes',
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: _verde,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: Colors.grey[300],
-          disabledForegroundColor: Colors.grey[500],
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
         ),
       ),
     ),
 
-    // 🔥 BOTÓN ADMIN (SEPARADO)
-    if (widget.isAdmin)
-      Padding(
-        padding: const EdgeInsets.only(top: 10),
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () async {
-              final ref = FirebaseFirestore.instance
-                  .collection('app-recetas-completas');
+      // 🔥 BOTÓN ADMIN
+      if (widget.isAdmin)
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () async {
+                final ref = FirebaseFirestore.instance
+                    .collection('app-recetas-completas')
+                    .doc(widget.recetaId);
 
-              final query = await ref
-                  .where('nombre', isEqualTo: widget.nombreReceta)
-                  .limit(1)
-                  .get();
-
-              if (query.docs.isNotEmpty) {
-                final docId = query.docs.first.id;
-
-                await ref.doc(docId).update({
+                await ref.update({
                   'ingredientes': _ingredientesEditables.map((e) {
                     return {
                       'ingrediente_id': e.id,
@@ -984,21 +919,17 @@ void _agregarIngrediente() {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text("Cambios guardados")),
                 );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+              ),
+              child: const Text("Guardar cambios"),
             ),
-            child: const Text("Guardar cambios"),
           ),
         ),
-      
-                ),//
-              ],
-            );
-          },
-        ),
-      ),
+    ],
+  ),
+),
       
     );
   }

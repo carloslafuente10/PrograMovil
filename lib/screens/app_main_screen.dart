@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'home_screen.dart';
 import 'favoritos_screen.dart';
 import 'login_page.dart';
+import 'sugerencias_chat_screen.dart';
 
 class AppMainScreen extends StatefulWidget {
   const AppMainScreen({super.key});
@@ -13,12 +14,12 @@ class AppMainScreen extends StatefulWidget {
 
 class AppMainScreenState extends State<AppMainScreen> {
   int selectedIndex = 0;
-
   late final List<Widget> page;
 
   @override
   void initState() {
     super.initState();
+    // Las páginas ahora son widgets simples que se inyectan en el body
     page = [
       HomeScreen(),
       const FavoritosScreen(),
@@ -31,76 +32,102 @@ class AppMainScreenState extends State<AppMainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F5),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: selectedIndex,
-        selectedItemColor: const Color(0xFF2D9E73),
-        unselectedItemColor: Colors.grey,
-        backgroundColor: Colors.white,
-        elevation: 10,
-        type: BottomNavigationBarType.fixed,
-        onTap: (value) {
-          setState(() => selectedIndex = value);
-        },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.favorite_border),
-            label: 'Favoritos',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_month_outlined),
-            label: 'Plan',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
-            label: 'Ajustes',
-          ),
-        ],
-      ),
+      // El body cambia según el índice seleccionado
       body: page[selectedIndex],
-    );
-  }
-}
 
-
-class _PlanScreen extends StatelessWidget {
-  const _PlanScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F5),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: const Text(
-          'Plan semanal',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF1A1A1A),
-          ),
+      // --- CORRECCIÓN: El FAB y la ubicación van en el Scaffold principal ---
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF2D9E73),
+        shape: const CircleBorder(),
+        elevation: 4,
+        child: const Icon(Icons.smart_toy_outlined, color: Colors.white, size: 30),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const SugerenciasChatScreen(),
+             ), 
+            );
+          }, 
         ),
-      ),
-      body: const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.calendar_month_outlined, size: 64, color: Colors.grey),
-            SizedBox(height: 12),
-            Text(
-              'Próximamente',
-              style: TextStyle(color: Colors.grey, fontSize: 16),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+
+      // --- CORRECCIÓN: Reemplazo de BottomNavigationBar por BottomAppBar para el diseño con "Notch" ---
+      bottomNavigationBar: BottomAppBar(
+        padding: const EdgeInsets.symmetric(horizontal: 5),
+        height: 65,
+        color: Colors.white,
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 6,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            // Grupo Izquierdo
+            Row(
+              children: [
+                _buildNavItem(0, Icons.home, 'Inicio'),
+                const SizedBox(width: 5),
+                _buildNavItem(1, Icons.favorite_border, 'Favoritos'),
+              ],
+            ),
+            // Espacio central para el botón flotante
+            const SizedBox(width: 60),
+            // Grupo Derecho
+            Row(
+              children: [
+                _buildNavItem(2, Icons.calendar_month_outlined, 'Plan'),
+                const SizedBox(width: 5),
+                _buildNavItem(3, Icons.settings_outlined, 'Ajustes'),
+              ],
             ),
           ],
         ),
       ),
     );
   }
+
+  // Método para construir los items de navegación con setState centralizado
+  Widget _buildNavItem(int index, IconData icon, String label) {
+    bool isSelected = selectedIndex == index;
+    return MaterialButton(
+      minWidth: 40,
+      onPressed: () => setState(() => selectedIndex = index),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            color: isSelected ? const Color(0xFF2D9E73) : Colors.grey,
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: isSelected ? const Color(0xFF2D9E73) : Colors.grey,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
+// --- PANTALLA DE PLAN (Limpia) ---
+class _PlanScreen extends StatelessWidget {
+  const _PlanScreen();
 
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Text(
+        'Contenido de Planes',
+        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+}
+
+// --- PANTALLA DE AJUSTES ---
 class _AjustesScreen extends StatelessWidget {
   static const Color _verde = Color(0xFF2D9E73);
 
@@ -171,7 +198,7 @@ class _AjustesScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
+                  color: Colors.black.withOpacity(0.05),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
