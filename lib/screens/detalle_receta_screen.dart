@@ -20,9 +20,19 @@ class _IngredienteCompleto {
   });
 }
 
-class DetalleRecetaScreen extends StatefulWidget {
+//class DetalleRecetaScreen extends StatefulWidget {
+//  final String nombreReceta;
+  class DetalleRecetaScreen extends StatefulWidget {
   final String nombreReceta;
-  const DetalleRecetaScreen({super.key, required this.nombreReceta});
+  final bool isAdmin;
+
+  const DetalleRecetaScreen({
+    super.key,
+    required this.nombreReceta,
+    this.isAdmin = false,
+  });
+
+  //const DetalleRecetaScreen({super.key, required this.nombreReceta});
 
   @override
   State<DetalleRecetaScreen> createState() => _DetalleRecetaScreenState();
@@ -35,6 +45,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   int _porcionesBase = 1;
   bool _isFirstLoad = true;
   List<bool> _checks = [];
+  List<_IngredienteCompleto> _ingredientesEditables = [];
 
   late Future<Map<String, dynamic>> _futureDatos;
 
@@ -186,6 +197,106 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     final marcados = _checks.where((c) => c).length;
     return marcados / _checks.length >= 0.8;
   }
+  void _editarIngrediente(int index, _IngredienteCompleto ing) {
+  final cantidadCtrl =
+      TextEditingController(text: ing.cantidad.toString());
+  final nombreCtrl =
+      TextEditingController(text: ing.nombre);
+
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text("Editar ingrediente"),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: nombreCtrl,
+            decoration: const InputDecoration(labelText: "Nombre"),
+          ),
+          TextField(
+            controller: cantidadCtrl,
+            decoration: const InputDecoration(labelText: "Cantidad"),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancelar"),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            setState(() {
+              _ingredientesEditables[index] = _IngredienteCompleto(
+                id: ing.id,
+                cantidad: double.tryParse(cantidadCtrl.text) ?? 0,
+                unidad: ing.unidad,
+                nombre: nombreCtrl.text,
+                foto: ing.foto,
+                sustituto: ing.sustituto,
+              );
+            });
+            Navigator.pop(context);
+          },
+          child: const Text("Guardar"),
+        ),
+      ],
+    ),
+  );
+}
+void _agregarIngrediente() {
+  final nombreCtrl = TextEditingController();
+  final cantidadCtrl = TextEditingController();
+
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text("Nuevo ingrediente"),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: nombreCtrl,
+            decoration: const InputDecoration(labelText: "Nombre"),
+          ),
+          TextField(
+            controller: cantidadCtrl,
+            decoration: const InputDecoration(labelText: "Cantidad"),
+            keyboardType: TextInputType.number,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancelar"),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            setState(() {
+              _ingredientesEditables.add(
+                _IngredienteCompleto(
+                  id: nombreCtrl.text.toLowerCase().replaceAll(" ", "-"),
+                  nombre: nombreCtrl.text,
+                  cantidad: double.tryParse(cantidadCtrl.text) ?? 0,
+                  unidad: "",
+                  foto: "",
+                  sustituto: "",
+                ),
+              );
+
+              _checks.add(false);
+            });
+
+            Navigator.pop(context);
+          },
+          child: const Text("Agregar"),
+        ),
+      ],
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -213,7 +324,9 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
             _porcionesBase =
                 int.tryParse(receta['porcion_base']?.toString() ?? '1') ?? 1;
             _porciones = _porcionesBase;
-            _checks = List.filled(ingredientes.length, false);
+            //_checks = List.filled(ingredientes.length, false);
+            _ingredientesEditables = List.from(ingredientes);
+            _checks = List.filled(_ingredientesEditables.length, false);
             _isFirstLoad = false;
           }
 
@@ -429,75 +542,71 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Ingredientes',
-                                style: TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1A1A1A),
-                                ),
-                              ),
-                              Row(
-                                children: [
-                                  _ContadorBtn(
-                                    icon: Icons.remove,
-                                    onTap: () {
-                                      if (_porciones > 1) {
-                                        setState(() {
-                                          _porciones--;
-                                          _checks = List.filled(
-                                            ingredientes.length,
-                                            false,
-                                          );
-                                        });
-                                      }
-                                    },
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                    ),
-                                    child: Text(
-                                      '$_porciones',
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF1A1A1A),
-                                      ),
-                                    ),
-                                  ),
+  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  children: [
+    const Text(
+      'Ingredientes',
+      style: TextStyle(
+        fontSize: 17,
+        fontWeight: FontWeight.bold,
+        color: Color(0xFF1A1A1A),
+      ),
+    ),
 
-                                  _ContadorBtn(
-                                    icon: Icons.add,
-                                    onTap: () {
-                                      setState(() {
-                                        _porciones++;
-                                        _checks = List.filled(
-                                          ingredientes.length,
-                                          false,
-                                        );
-                                      });
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4, bottom: 14),
-                            child: Text(
-                              '¿Cuántas porciones deseas preparar?\nMarca lo que ya tienes en casa',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[400],
-                                height: 1.5,
-                              ),
-                            ),
-                          ),
+    // 👉 TODO A LA DERECHA (ordenado)
+    Row(
+      children: [
+        if (widget.isAdmin)
+          IconButton(
+            icon: const Icon(Icons.add, color: Colors.green),
+            onPressed: _agregarIngrediente,
+          ),
 
-                          if (ingredientes.isEmpty)
+        _ContadorBtn(
+          icon: Icons.remove,
+          onTap: () {
+            if (_porciones > 1) {
+              setState(() {
+                _porciones--;
+                _checks = List.filled(
+                  _ingredientesEditables.length,
+                  false,
+                );
+              });
+            }
+          },
+        ),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Text(
+            '$_porciones',
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1A1A),
+            ),
+          ),
+        ),
+
+        _ContadorBtn(
+          icon: Icons.add,
+          onTap: () {
+            setState(() {
+              _porciones++;
+              _checks = List.filled(
+                _ingredientesEditables.length,
+                false,
+              );
+            });
+          },
+        ),
+      ],
+    ),
+  ],
+),
+                          //if (ingredientes.isEmpty)
+                          if (_ingredientesEditables.isEmpty)
                             Text(
                               'No hay ingredientes disponibles',
                               style: TextStyle(color: Colors.grey[500]),
@@ -506,11 +615,13 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                             ListView.separated(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
-                              itemCount: ingredientes.length,
+                              //itemCount: ingredientes.length,
+                              itemCount: _ingredientesEditables.length,
                               separatorBuilder: (context, index) =>
                                   Divider(height: 1, color: Colors.grey[100]),
                               itemBuilder: (context, i) {
-                                final ing = ingredientes[i];
+                                //final ing = ingredientes[i];
+                                final ing = _ingredientesEditables[i];
                                 final marcado = _checks.length > i
                                     ? _checks[i]
                                     : false;
@@ -567,7 +678,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                               ),
                                             ),
                                             const SizedBox(width: 10),
-                                            AnimatedContainer(
+                                            /*AnimatedContainer(//
                                               duration: const Duration(
                                                 milliseconds: 200,
                                               ),
@@ -601,7 +712,54 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                                       : Colors.red[700],
                                                 ),
                                               ),
-                                            ),
+                                            )*/
+                                            widget.isAdmin
+    ? Row(
+        children: [
+          // ✏️ EDITAR
+          IconButton(
+            icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
+            onPressed: () {
+              _editarIngrediente(i, ing);
+              
+            },
+          ),
+         
+
+          // 🗑 ELIMINAR
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+            onPressed: () {
+              setState(() {
+                //ingredientes.removeAt(i);
+                //_checks.removeAt(i);
+                _ingredientesEditables.removeAt(i);
+                _checks.removeAt(i);
+              });
+            },
+          ),
+        ],
+      )
+    : AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: marcado ? _verde : Colors.red.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: marcado ? _verde : Colors.red[300]!,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          marcado ? 'Tengo ✓' : 'Falta',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: marcado ? Colors.white : Colors.red[700],
+          ),
+        ),
+      ),
                                           ],
                                         ),
                                       ),
@@ -759,45 +917,89 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
 
 
                 SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton.icon(
-                    onPressed: activo
-                        ? () => ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: const Text('¡A cocinar! 👨‍🍳'),
-                              backgroundColor: _verde,
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          )
-                        : null,
-                    icon: const Icon(Icons.play_arrow_rounded, size: 22),
-                    label: Text(
-                      activo
-                          ? 'Empezar a cocinar'
-                          : 'Marca el 80% de ingredientes ($porcentaje%)',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _verde,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey[300],
-                      disabledForegroundColor: Colors.grey[500],
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton.icon(
+        onPressed: activo
+            ? () => ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('¡A cocinar! 👨‍🍳'),
+                    backgroundColor: _verde,
+                    behavior: SnackBarBehavior.floating,
                   ),
-                ),
+                )
+            : null,
+        icon: const Icon(Icons.play_arrow_rounded, size: 22),
+        label: Text(
+          activo
+              ? 'Empezar a cocinar'
+              : 'Marca el 80% de ingredientes ($porcentaje%)',
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _verde,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.grey[300],
+          disabledForegroundColor: Colors.grey[500],
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+    ),
+
+    // 🔥 BOTÓN ADMIN (SEPARADO)
+    if (widget.isAdmin)
+      Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () async {
+              final ref = FirebaseFirestore.instance
+                  .collection('app-recetas-completas');
+
+              final query = await ref
+                  .where('nombre', isEqualTo: widget.nombreReceta)
+                  .limit(1)
+                  .get();
+
+              if (query.docs.isNotEmpty) {
+                final docId = query.docs.first.id;
+
+                await ref.doc(docId).update({
+                  'ingredientes': _ingredientesEditables.map((e) {
+                    return {
+                      'ingrediente_id': e.id,
+                      'cantidad': e.cantidad,
+                      'unidad': e.unidad,
+                    };
+                  }).toList()
+                });
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Cambios guardados")),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+            ),
+            child: const Text("Guardar cambios"),
+          ),
+        ),
+      
+                ),//
               ],
             );
           },
         ),
       ),
+      
     );
   }
 }
