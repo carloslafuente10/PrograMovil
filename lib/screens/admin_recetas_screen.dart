@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'detalle_receta_screen.dart';
 class AdminRecetasScreen extends StatelessWidget {
   const AdminRecetasScreen({super.key});
 
@@ -209,7 +209,18 @@ class AdminRecetaCard extends StatelessWidget {
       shadowColor: Colors.black12,
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: () => _editarReceta(context),
+        //onTap: () => _editarReceta(context),
+        onTap: () {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => DetalleRecetaScreen(
+        nombreReceta: receta['nombre'] ?? '',
+        isAdmin: true,
+      ),
+    ),
+  );
+},
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
