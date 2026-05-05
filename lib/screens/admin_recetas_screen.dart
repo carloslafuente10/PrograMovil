@@ -215,6 +215,7 @@ class AdminRecetaCard extends StatelessWidget {
     context,
     MaterialPageRoute(
       builder: (_) => DetalleRecetaScreen(
+        recetaId: docId,
         nombreReceta: receta['nombre'] ?? '',
         isAdmin: true,
       ),
