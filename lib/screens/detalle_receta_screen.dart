@@ -410,6 +410,8 @@ void _agregarIngrediente() {
                               Expanded(
                                 child: Text(
                                   nombre,
+                                  maxLines: 1,
+overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     fontSize: 22,
                                     fontWeight: FontWeight.bold,
@@ -439,8 +441,8 @@ void _agregarIngrediente() {
                                       });
                                     },
                                     child: Container(
-                                      width: 40,
-                                      height: 40,
+                                      width: 34,
+                                      height: 34,
                                       decoration: BoxDecoration(
                                         color: esFavLocal
                                             ? Colors.red.withValues(alpha: 0.1)
@@ -468,7 +470,10 @@ void _agregarIngrediente() {
                             ],
                           ),
                           const SizedBox(height: 10),
-                          Row(
+                          Wrap(
+                            spacing: 14,
+runSpacing: 8,
+crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               Icon(
                                 Icons.local_fire_department,
@@ -545,7 +550,12 @@ void _agregarIngrediente() {
       ),
     ),
 
-    Row(
+   // Row(
+  //children: [
+  Wrap(
+  spacing: 14,
+  runSpacing: 8,
+  crossAxisAlignment: WrapCrossAlignment.center,
   children: [
     if (widget.isAdmin)
       IconButton(
@@ -652,6 +662,8 @@ void _agregarIngrediente() {
                                             Expanded(
                                               child: Text(
                                                 textoCompleto,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
                                                 style: TextStyle(
                                                   fontSize: 14,
                                                   fontWeight: FontWeight.w500,
@@ -706,7 +718,10 @@ void _agregarIngrediente() {
         children: [
           //  EDITAR
           IconButton(
-            icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
+          constraints: const BoxConstraints(),
+           padding: EdgeInsets.zero,
+            iconSize: 18,
+             icon: const Icon(Icons.edit, color: Colors.blue),
             onPressed: () {
               _editarIngrediente(i, ing);
               
@@ -716,7 +731,10 @@ void _agregarIngrediente() {
 
           //ELIMINAR
           IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+  constraints: const BoxConstraints(),
+  padding: EdgeInsets.zero,
+  iconSize: 18,
+  icon: const Icon(Icons.delete, color: Colors.red),
             onPressed: () {
               setState(() {
                 //ingredientes.removeAt(i);

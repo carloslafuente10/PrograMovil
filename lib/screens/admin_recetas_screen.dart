@@ -134,7 +134,7 @@ class AdminRecetasScreen extends StatelessWidget {
                     crossAxisCount: 3, // 3 columnas
                     crossAxisSpacing: 10,
                     mainAxisSpacing: 10,
-                    mainAxisExtent: 180, // altura fija por tarjeta
+                    mainAxisExtent: 215, // altura fija por tarjeta
                   ),
                   itemCount: docs.length,
                   itemBuilder: (context, i) {
@@ -272,13 +272,14 @@ class AdminRecetaCard extends StatelessWidget {
                       ),
                     Text(
                       nombre,
+                      maxLines: 2,
+overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 11.5,
                         color: Color(0xFF1A1A2E),
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                      
                     ),
                     const Spacer(),
                     Row(
