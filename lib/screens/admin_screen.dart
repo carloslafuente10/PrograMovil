@@ -21,7 +21,7 @@ class AdminScreen extends StatelessWidget {
         backgroundColor: _verde,
         elevation: 0,
         title: const Text(
-          'Panel Administrador',
+          'Panel de administración',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w700,
@@ -134,9 +134,9 @@ class AdminScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(14, 6, 14, 20),
               child: Column(
                 children: [
-                  // Fila 1: Gestionar Recetas (ancho completo)
+                  // Fila 1: Gestionar Recetas
                   _AdminCard(
-                    titulo: 'Gestionar Recetas',
+                    titulo: 'Gestionar recetas',
                     subtitulo: 'Añadir, editar o eliminar tus platos',
                     icono: Icons.restaurant_menu_rounded,
                     fullWidth: true,
@@ -263,7 +263,6 @@ class _AdminCard extends StatelessWidget {
                 ],
               ),
             ),
-            // Acento verde esquina inferior derecha
             Positioned(
               bottom: 0,
               right: 0,
