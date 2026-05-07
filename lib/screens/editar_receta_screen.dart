@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  MODELOS
-// ─────────────────────────────────────────────────────────────────────────────
 class _IngReceta {
   String ingredienteId;
   String nombre;
@@ -37,9 +34,8 @@ class _Paso {
   Map<String, dynamic> toMap() => {'instruccion': instruccion, 'orden': orden};
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 //  SCREEN PRINCIPAL
-// ─────────────────────────────────────────────────────────────────────────────
+
 class EditarRecetaScreen extends StatefulWidget {
   final String? docId;
   final Map<String, dynamic>? datosIniciales;
@@ -198,7 +194,7 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
     super.dispose();
   }
 
-  // ── Confirmación antes de guardar ─────────────────────────────────────────
+  // Confirmación antes de guardar
   Future<void> _mostrarConfirmacion() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -441,7 +437,7 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
     );
   }
 
-  // ── SOLO LECTURA ──────────────────────────────────────────────────────────
+  //  SOLO LECTURA
   Widget _buildSoloLectura() {
     final d = widget.datosIniciales ?? {};
     final img = _imagenCtrl.text;
@@ -696,7 +692,7 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
     ),
   );
 
-  // ── TAB INGREDIENTES ──────────────────────────────────────────────────────
+  // TABLA INGREDIENTES
   Widget _tabIngredientes() => Column(
     children: [
       Padding(
@@ -776,7 +772,7 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
     );
   }
 
-  // ── TAB PASOS ─────────────────────────────────────────────────────────────
+  // TAB PASOS
   Widget _tabPasos() => Column(
     children: [
       Padding(
@@ -854,9 +850,8 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  DIÁLOGO INGREDIENTE — sin image_picker, con URL
-// ─────────────────────────────────────────────────────────────────────────────
+//  INGREDIENTE
+
 class _DialogoIngrediente extends StatefulWidget {
   final List<Map<String, dynamic>> maestros;
   final bool cargandoMaestros;
@@ -1115,7 +1110,7 @@ class _DialogoIngredienteState extends State<_DialogoIngrediente> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Libre ────────────────────────────────────────────────────
+                    // Ingrediente libre
                     if (_esLibre) ...[
                       const _Label('Nombre libre'),
                       const SizedBox(height: 8),
@@ -1177,7 +1172,7 @@ class _DialogoIngredienteState extends State<_DialogoIngrediente> {
                         ),
                       ),
                     ] else ...[
-                      // ── Maestro ─────────────────────────────────────────────
+                      // Ingrediente maestro
                       const _Label('Buscar en ingredientes maestros'),
                       const SizedBox(height: 8),
                       TextField(
@@ -1501,9 +1496,8 @@ class _DialogoIngredienteState extends State<_DialogoIngrediente> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 //  DIÁLOGO CREAR MAESTRO
-// ─────────────────────────────────────────────────────────────────────────────
+
 class _DialogoCrearMaestro extends StatefulWidget {
   final String nombreInicial;
   final ValueChanged<Map<String, dynamic>> onCrear;
@@ -1711,9 +1705,8 @@ class _DialogoCrearMaestroState extends State<_DialogoCrearMaestro> {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 //  DIÁLOGO PASO
-// ─────────────────────────────────────────────────────────────────────────────
+
 class _DialogoPaso extends StatefulWidget {
   final _Paso? pasoInicial;
   final List<_IngReceta> ingredientes;
@@ -1939,9 +1932,8 @@ class _DialogoPasoState extends State<_DialogoPaso> {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 //  ITEMS DE LISTA
-// ─────────────────────────────────────────────────────────────────────────────
+
 class _IngredienteItemEditor extends StatelessWidget {
   final _IngReceta ing;
   final VoidCallback onEditar, onEliminar, onTogglePrimordial;
@@ -2153,9 +2145,8 @@ class _PasoItemEditor extends StatelessWidget {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 //  SELECTOR CATEGORÍA
-// ─────────────────────────────────────────────────────────────────────────────
+
 class _SelectorCategoria extends StatelessWidget {
   final String seleccionada;
   final ValueChanged<String> onSeleccionar;
@@ -2223,9 +2214,8 @@ class _SelectorCategoria extends StatelessWidget {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 //  WIDGETS AUXILIARES
-// ─────────────────────────────────────────────────────────────────────────────
+
 class _Label extends StatelessWidget {
   final String texto;
   const _Label(this.texto);
