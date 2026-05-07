@@ -194,19 +194,24 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   }
 
   bool get _puedecocinar {
-    if (_checks.isEmpty) return false;
+    if (_checks.isEmpty || _ingredientesEditables.isEmpty) return false;
 
-    // 1. Calculamos el porcentaje (el 80% que ya tenías)
+    // 1. Condición del 80%
     final marcadosCount = _checks.where((c) => c).length;
     final bool tieneOchentaPorciento = (marcadosCount / _checks.length) >= 0.8;
 
-    // 2. NUEVA LÓGICA: Verificar ingredientes primordiales
-    // Necesitamos acceder a la lista de ingredientes que cargamos en el Future
-    // Para esto, buscaremos si algún primordial NO está marcado.
+    // 2. Condición del Ingrediente Primordial
+    bool faltaPrimordial = false;
+    for (int i = 0; i < _ingredientesEditables.length; i++) {
+      // Si el ingrediente es primordial en la BD y NO tiene el check marcado...
+      if (_ingredientesEditables[i].es_primordial && !_checks[i]) {
+        faltaPrimordial = true;
+        break;
+      }
+    }
 
-    // Nota: Esta lógica es más robusta si se hace dentro del builder,
-    // pero para no romper tu estructura, vamos a usar una validación directa.
-    return tieneOchentaPorciento;
+    // El botón solo sirve si tiene el 80% Y NO falta ningún primordial
+    return tieneOchentaPorciento && !faltaPrimordial;
   }
 
   void _editarIngrediente(int index, _IngredienteCompleto ing) {
@@ -1001,7 +1006,9 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                     label: Text(
                       activo
                           ? 'Empezar a cocinar'
-                          : 'Marca el 80% de ingredientes (${porcentaje.toStringAsFixed(0)}%)',
+                          : (porcentaje < 80
+                                ? 'Marca el 80% de ingredientes ($porcentaje%)'
+                                : 'Falta ingrediente obligatorio'), // <--- Aviso extra
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
