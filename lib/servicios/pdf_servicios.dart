@@ -81,4 +81,11 @@ class PdfService {
 
     html.Url.revokeObjectUrl(url);
   }
+  
+
+  static Future<void> generarReporteGeneral() async {
+
+    await generarReporteUsuarios();
+
+  }
 }

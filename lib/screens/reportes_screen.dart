@@ -2,9 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../servicios/pdf_servicios.dart';
 
-class ReportesScreen extends StatelessWidget {
+class ReportesScreen extends StatefulWidget {
   const ReportesScreen({super.key});
 
+  @override
+  State<ReportesScreen> createState() =>
+      _ReportesScreenState();
+}
+
+class _ReportesScreenState
+    extends State<ReportesScreen> {
+  
+  String seccion = 'usuarios';
   @override
   Widget build(BuildContext context) {
     final Color verde = const Color(0xFF2FA36B);
@@ -91,9 +100,75 @@ class ReportesScreen extends StatelessWidget {
             ),
 
             const SizedBox(height: 24),
+                        Row(
+              children: [
+
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        seccion = 'usuarios';
+                      });
+                    },
+
+                    child: const Text(
+                      'Usuarios',
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        seccion = 'favoritos';
+                      });
+                    },
+
+                    child: const Text(
+                      'Favoritos',
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        seccion = 'recetas';
+                      });
+                    },
+
+                    child: const Text(
+                      'Recetas',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            ElevatedButton.icon(
+              onPressed: () {
+                PdfService.generarReporteGeneral();
+              },
+
+              icon: const Icon(Icons.picture_as_pdf),
+
+              label: const Text(
+                'PDF GENERAL',
+              ),
+            ),
+
+            const SizedBox(height: 24),
 
          //los usuarios /users/admins
-
+if (seccion == 'usuarios') ...[
            Row(
   mainAxisAlignment:
       MainAxisAlignment.spaceBetween,
@@ -115,6 +190,8 @@ class ReportesScreen extends StatelessWidget {
     ),
   ],
 ),
+//const SizedBox(height: 30),
+
 
             const SizedBox(height: 12),
 
@@ -209,9 +286,9 @@ class ReportesScreen extends StatelessWidget {
             ),
 
             const SizedBox(height: 30),
-
+],
       //las recetas
-
+if (seccion == 'recetas') ...[
             _titulo('Recetas registradas'),
 
             const SizedBox(height: 12),
@@ -312,11 +389,7 @@ class ReportesScreen extends StatelessWidget {
                 );
               },
             ),
-            const SizedBox(height: 30),
-
-//las categorías
-
-_titulo('Categorías registradas'),
+            _titulo('Categorías registradas'),
 
 const SizedBox(height: 12),
 
@@ -387,10 +460,20 @@ StreamBuilder<QuerySnapshot>(
 ),
 const SizedBox(height: 30),
 
+
+
+
+            
+            const SizedBox(height: 30),
+],
+//las categorías
+
+
+
 // =========================
 // FAVORITOS POR USUARIO
 // =========================
-
+if (seccion == 'favoritos') ...[
 _titulo('Favoritos por usuario'),
 
 const SizedBox(height: 12),
@@ -599,6 +682,7 @@ StreamBuilder<QuerySnapshot>(
     );
   },
 ),
+],
           ],
         ),
       ),
