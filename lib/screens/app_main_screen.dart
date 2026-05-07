@@ -4,6 +4,7 @@ import 'home_screen.dart';
 import 'favoritos_screen.dart';
 import 'login_page.dart';
 import 'sugerencias_chat_screen.dart';
+import 'package:lottie/lottie.dart';
 
 class AppMainScreen extends StatefulWidget {
   const AppMainScreen({super.key});
@@ -15,6 +16,7 @@ class AppMainScreen extends StatefulWidget {
 class AppMainScreenState extends State<AppMainScreen> {
   int selectedIndex = 0;
   late final List<Widget> page;
+  bool _showLlamaAnimation = true;
 
   @override
   void initState() {
@@ -32,33 +34,59 @@ class AppMainScreenState extends State<AppMainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F5),
-      // El body cambia según el índice seleccionado
       body: page[selectedIndex],
+floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
 
-      // --- CORRECCIÓN: El FAB y la ubicación van en el Scaffold principal ---
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF2D9E73),
-        shape: const CircleBorder(),
-        elevation: 4,
-        child: const Icon(Icons.smart_toy_outlined, color: Colors.white, size: 30),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const SugerenciasChatScreen(),
-             ), 
-            );
-          }, 
+floatingActionButton: TweenAnimationBuilder<double>(
+  duration: const Duration(milliseconds: 2500),
+  tween: Tween(begin: 0.0, end: 1.0),
+  curve: Curves.elasticOut,
+  builder: (context, value, child) {
+    return Transform.scale(
+      scale: value, // Aquí usamos el valor de la animación para la entrada suave
+      child: GestureDetector(
+        onTap: () => Navigator.push(
+          context, 
+          MaterialPageRoute(builder: (context) => const SugerenciasChatScreen())
         ),
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-
-      // --- CORRECCIÓN: Reemplazo de BottomNavigationBar por BottomAppBar para el diseño con "Notch" ---
+        child: Container(
+          width: 80, // Un poco más grande para que luzca mejor
+          height: 80,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white, 
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2D9E73).withOpacity(0.3),
+                blurRadius: 15,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: ClipOval(
+            child: OverflowBox(
+              minWidth: 0.0,
+              minHeight: 0.0,
+              maxWidth: 160, // El doble del ancho para hacer zoom
+              maxHeight: 160,
+              child: Lottie.network(
+                'assets/animations/animation.json', 
+                fit: BoxFit.cover,
+                alignment: const Alignment(0, -0.5), // Ajusta este eje Y para centrar la cara
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  },
+),
       bottomNavigationBar: BottomAppBar(
         padding: const EdgeInsets.symmetric(horizontal: 5),
         height: 65,
         color: Colors.white,
         shape: const CircularNotchedRectangle(),
-        notchMargin: 6,
+        notchMargin: 12,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: <Widget>[

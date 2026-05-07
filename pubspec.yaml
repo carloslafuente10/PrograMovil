@@ -30,6 +30,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  lottie: ^3.1.0
 
   cupertino_icons: ^1.0.8
 
@@ -40,10 +41,12 @@ dependencies:
   http: ^1.2.0
   iconsax: ^0.0.8
   provider: ^6.1.5+1
+  google_generative_ai: ^0.4.7
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  video_player: ^2.8.1
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -62,9 +65,13 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
   assets:
-  - assets/images/platos/
-  - assets/images/ingredientes/
+    - assets/images/platos/
+    - assets/images/ingredientes/
+    - assets/animations/
+    - assets/videos/
+    - assets/images/fondo.webp
 
   # To add assets to your application, add an assets section, like this:
   # assets:
