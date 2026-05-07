@@ -130,17 +130,15 @@ class AdminScreen extends StatelessWidget {
               ),
             ),
 
-            // Grid 3 tarjetas
+            // Tarjetas en columna
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 6, 14, 20),
               child: Column(
                 children: [
-                  // Fila 1: Gestionar Recetas
                   _AdminCard(
                     titulo: 'Gestionar recetas',
                     subtitulo: 'Añadir, editar o eliminar tus platos',
                     icono: Icons.restaurant_menu_rounded,
-                    fullWidth: true,
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -149,41 +147,36 @@ class AdminScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // Fila 2: Categorías y Reportes
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _AdminCard(
-                          titulo: 'Categorías',
-                          subtitulo: 'Organizar por tipo de comida',
-                          icono: Icons.grid_view_rounded,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const AdminCategoriasScreen(),
-                            ),
-                          ),
-                        ),
+                    _AdminCard(
+                    titulo: 'Categorías',
+                    subtitulo: 'Organizar por tipo de comida',
+                    icono: Icons.grid_view_rounded,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const AdminCategoriasScreen(),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _AdminCard(
-                          titulo: 'Reportes',
-                          subtitulo: 'Estadísticas y actividad',
-                          icono: Icons.bar_chart_rounded,
-                          onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => const ReportesScreen(),
-    ),
-  );
-}
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ],
+
+                  const SizedBox(height: 12),
+
+                  _AdminCard(
+                    titulo: 'Reportes',
+                    subtitulo: 'Estadísticas y actividad',
+                    icono: Icons.bar_chart_rounded,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              const ReportesScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  ],
               ),
             ),
           ],
@@ -198,14 +191,12 @@ class _AdminCard extends StatelessWidget {
   final String subtitulo;
   final IconData icono;
   final VoidCallback onTap;
-  final bool fullWidth;
 
   const _AdminCard({
     required this.titulo,
     required this.subtitulo,
     required this.icono,
     required this.onTap,
-    this.fullWidth = false,
   });
 
   static const Color _verde = Color(0xFF2D9E73);
@@ -234,11 +225,7 @@ class _AdminCard extends StatelessWidget {
                       color: _verdeClaro,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(
-                      icono,
-                      color: _verde,
-                      size: fullWidth ? 26 : 22,
-                    ),
+                    child: Icon(icono, color: _verde, size: 26),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -248,10 +235,10 @@ class _AdminCard extends StatelessWidget {
                       children: [
                         Text(
                           titulo,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontWeight: FontWeight.w700,
-                            fontSize: fullWidth ? 15 : 13,
-                            color: const Color(0xFF1A1A2E),
+                            fontSize: 15,
+                            color: Color(0xFF1A1A2E),
                           ),
                         ),
                         const SizedBox(height: 3),
