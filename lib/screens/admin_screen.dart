@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'login_page.dart';
 import 'admin_recetas_screen.dart';
 import 'admin_categorias_screen.dart';
+import 'reportes_screen.dart';
 
 class AdminScreen extends StatelessWidget {
   const AdminScreen({super.key});
@@ -170,7 +171,14 @@ class AdminScreen extends StatelessWidget {
                           titulo: 'Reportes',
                           subtitulo: 'Estadísticas y actividad',
                           icono: Icons.bar_chart_rounded,
-                          onTap: () {},
+                          onTap: () {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const ReportesScreen(),
+    ),
+  );
+}
                         ),
                       ),
                     ],
