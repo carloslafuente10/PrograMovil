@@ -51,7 +51,11 @@ class AdminScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+<<<<<<< Updated upstream
             // Header verde con saludo
+=======
+            // Header verde
+>>>>>>> Stashed changes
             Container(
               width: double.infinity,
               decoration: const BoxDecoration(
@@ -129,7 +133,11 @@ class AdminScreen extends StatelessWidget {
               ),
             ),
 
+<<<<<<< Updated upstream
             // Grid de tarjetas — cada tarjeta recibe el context del Builder
+=======
+            // Grid 3 tarjetas
+>>>>>>> Stashed changes
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 6, 14, 20),
               child: GridView.count(
