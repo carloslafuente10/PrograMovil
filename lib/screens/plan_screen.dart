@@ -19,7 +19,6 @@ class _PlanScreenState extends State<PlanScreen>
   static const Color _verdeClaro = Color(0xFFE8F7F1);
   static const Color _fondo = Color(0xFFF7F7F5);
   static const Color _naranja = Color(0xFFFF6B35);
-
   static const Color _amarillo = Color(0xFFF59E0B);
   static const Color _amarilloClaro = Color(0xFFFEF3C7);
   static const Color _indigo = Color(0xFF6366F1);
@@ -333,7 +332,7 @@ class _PlanScreenState extends State<PlanScreen>
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: _naranja.withValues(alpha: 0.35),
+                      color: _verde.withValues(alpha: 0.35),
                       blurRadius: 8,
                       offset: const Offset(0, 3),
                     ),
@@ -386,12 +385,15 @@ class _PlanScreenState extends State<PlanScreen>
               margin: const EdgeInsets.only(right: 8),
               width: 48,
               decoration: BoxDecoration(
-                color: esSeleccionado ? _naranja : Colors.white,
+                color: esSeleccionado
+                    ? (esHoy ? _verde : _naranja)
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(14),
                 boxShadow: esSeleccionado
                     ? [
                         BoxShadow(
-                          color: _naranja.withValues(alpha: 0.35),
+                          color: (esHoy ? _verde : _naranja)
+                              .withValues(alpha: 0.35),
                           blurRadius: 8,
                           offset: const Offset(0, 3),
                         ),
@@ -547,10 +549,14 @@ class _PlanScreenState extends State<PlanScreen>
                     width: 34,
                     height: 34,
                     decoration: BoxDecoration(
-                      color: color,
+                      color: tieneReceta ? color.withValues(alpha: 0.15) : color,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.add, color: Colors.white, size: 20),
+                    child: Icon(
+                      tieneReceta ? Icons.edit_rounded : Icons.add,
+                      color: tieneReceta ? color : Colors.white,
+                      size: 18,
+                    ),
                   ),
                 ),
               ],
@@ -631,42 +637,27 @@ class _PlanScreenState extends State<PlanScreen>
                     ),
                   ],
                 ),
-                Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () =>
-                          setState(() => _snacksExpandido = !_snacksExpandido),
-                      child: Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: _snackColor,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          _snacksExpandido ? Icons.remove : Icons.add,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
+                GestureDetector(
+                  onTap: () =>
+                      setState(() => _snacksExpandido = !_snacksExpandido),
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: _snackColor,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: () =>
-                          setState(() => _snacksExpandido = !_snacksExpandido),
-                      child: Icon(
-                        _snacksExpandido
-                            ? Icons.keyboard_arrow_up_rounded
-                            : Icons.keyboard_arrow_down_rounded,
-                        color: Colors.grey[400],
-                        size: 24,
-                      ),
+                    child: Icon(
+                      _snacksExpandido ? Icons.remove : Icons.add,
+                      color: Colors.white,
+                      size: 20,
                     ),
-                  ],
+                  ),
                 ),
               ],
             ),
 
+            // Contenido expandible
             AnimatedSize(
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOut,
