@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-<<<<<<< HEAD
+
 import 'detalle_receta_screen.dart';
-=======
+
 import 'editar_receta_screen.dart';
 
->>>>>>> layout/admin
+
 class AdminRecetasScreen extends StatelessWidget {
   const AdminRecetasScreen({super.key});
 
@@ -218,35 +218,20 @@ class _RecetaCard extends StatelessWidget {
       elevation: 2,
       shadowColor: Colors.black12,
       child: InkWell(
-<<<<<<< HEAD
-        borderRadius: BorderRadius.circular(14),
-        //onTap: () => _editarReceta(context),
-        onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => DetalleRecetaScreen(
-        recetaId: docId,
-        nombreReceta: receta['nombre'] ?? '',
-        isAdmin: true,
-      ),
-    ),
-  );
-},
-=======
         borderRadius: BorderRadius.circular(16),
-        // Tap = solo lectura
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => EditarRecetaScreen(
-              docId: docId,
-              datosIniciales: data,
-              soloLectura: true,
+        onTap: () {
+          // Aquí usamos 'data' que es como definiste tu variable arriba
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => DetalleRecetaScreen(
+                recetaId: docId,
+                nombreReceta: nombre, // Usamos la variable local 'nombre'
+                isAdmin: true,
+              ),
             ),
-          ),
-        ),
->>>>>>> layout/admin
+          );
+        },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -342,7 +327,6 @@ class _RecetaCard extends StatelessWidget {
                           ),
                         ),
                         const Spacer(),
-                        // Solo botón de eliminar
                         _MiniBtn(
                           icono: Icons.delete_rounded,
                           color: const Color(0xFFE53935),
