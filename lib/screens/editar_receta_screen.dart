@@ -66,6 +66,8 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
   late final TextEditingController _imagenCtrl;
   late final TextEditingController _porcionCtrl;
   String _categoriaSeleccionada = '';
+  // Subcategoría como campo de texto libre
+  late final TextEditingController _subcategoriaCtrl;
 
   List<_IngReceta> _ingredientes = [];
   List<_Paso> _pasos = [];
@@ -116,6 +118,10 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
       text: d['porcion_base']?.toString() ?? '1',
     );
     _categoriaSeleccionada = d['categoria']?.toString() ?? '';
+    // Subcategoría: campo de texto libre, inicializado desde datosIniciales
+    _subcategoriaCtrl = TextEditingController(
+      text: d['subcategoria']?.toString() ?? '',
+    );
 
     if (d['ingredientes'] != null) {
       for (final item in d['ingredientes'] as List) {
@@ -158,29 +164,84 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
     }
   }
 
+  // Llave maestra: cubre los 3 formatos que puede tener la BD
+  //  - Intento 1: doc cuyo ID == docId de la receta  (guardado nuevo)
+  //  - Intento 2: campo 'receta_id'  (sin 's', formato original en BD)
+  //  - Intento 3: campo 'recetas_id' (con 's', formato de la corrección anterior)
   Future<void> _cargarPasos() async {
-    if (widget.docId == null) return;
+    if (widget.docId == null) {
+      debugPrint('[PASOS] docId es null, abortando carga');
+      return;
+    }
+    debugPrint('[PASOS] Buscando pasos para docId: ${widget.docId}');
     try {
+      // Intento 1 — doc con el mismo ID que la receta
       final doc = await FirebaseFirestore.instance
           .collection('steps-recetas')
           .doc(widget.docId)
           .get();
-      if (!doc.exists) return;
-      final raw = doc.data()?['pasos_ordenados'] as List? ?? [];
-      if (mounted)
-        setState(() {
-          _pasos = raw
-              .asMap()
-              .entries
-              .map(
-                (e) => _Paso(
-                  instruccion: e.value['instruccion']?.toString() ?? '',
-                  orden: (e.value['orden'] as num?)?.toInt() ?? (e.key + 1),
-                ),
-              )
-              .toList();
-        });
-    } catch (_) {}
+
+      if (doc.exists) {
+        debugPrint('[PASOS] Intento 1 OK — doc encontrado por ID');
+        _procesarDatosPasos(doc.data());
+        return;
+      }
+      debugPrint(
+        '[PASOS] Intento 1 fallido — no existe doc con ID ${widget.docId}',
+      );
+
+      // Intento 2 — campo 'receta_id' (sin 's') — formato original de la BD
+      final q2 = await FirebaseFirestore.instance
+          .collection('steps-recetas')
+          .where('receta_id', isEqualTo: widget.docId)
+          .limit(1)
+          .get();
+
+      if (q2.docs.isNotEmpty) {
+        debugPrint('[PASOS] Intento 2 OK — encontrado por campo receta_id');
+        _procesarDatosPasos(q2.docs.first.data());
+        return;
+      }
+      debugPrint('[PASOS] Intento 2 fallido — sin resultados para receta_id');
+
+      // Intento 3 — campo 'recetas_id' (con 's') — documentos migrados
+      final q3 = await FirebaseFirestore.instance
+          .collection('steps-recetas')
+          .where('recetas_id', isEqualTo: widget.docId)
+          .limit(1)
+          .get();
+
+      if (q3.docs.isNotEmpty) {
+        debugPrint('[PASOS] Intento 3 OK — encontrado por campo recetas_id');
+        _procesarDatosPasos(q3.docs.first.data());
+        return;
+      }
+      debugPrint(
+        '[PASOS] ❌ Ningún intento encontró pasos para ${widget.docId}',
+      );
+    } catch (e) {
+      debugPrint('[PASOS] Error al cargar pasos: $e');
+    }
+  }
+
+  // Auxiliar: convierte el mapa de Firestore en la lista _pasos ordenada
+  void _procesarDatosPasos(Map<String, dynamic>? data) {
+    if (data == null || data['pasos_ordenados'] == null) return;
+    final lista = data['pasos_ordenados'] as List;
+    if (mounted) {
+      setState(() {
+        _pasos =
+            lista
+                .map(
+                  (p) => _Paso(
+                    instruccion: p['instruccion']?.toString() ?? '',
+                    orden: (p['orden'] as num?)?.toInt() ?? 0,
+                  ),
+                )
+                .toList()
+              ..sort((a, b) => a.orden.compareTo(b.orden));
+      });
+    }
   }
 
   @override
@@ -191,6 +252,7 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
     _tiempoCtrl.dispose();
     _imagenCtrl.dispose();
     _porcionCtrl.dispose();
+    _subcategoriaCtrl.dispose();
     super.dispose();
   }
 
@@ -294,6 +356,7 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
     if (ok == true) await _guardar();
   }
 
+  // CORRECCIÓN 1: _guardar incluye subcategoria y agrega recetas_id en steps-recetas
   Future<void> _guardar() async {
     setState(() => _guardando = true);
     try {
@@ -303,6 +366,7 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
         'tiempo': _tiempoCtrl.text.trim(),
         'imagen': _imagenCtrl.text.trim(),
         'categoria': _categoriaSeleccionada,
+        'subcategoria': _subcategoriaCtrl.text.trim(),
         'porcion_base': _porcionCtrl.text.trim(),
         'ingredientes': _ingredientes.map((i) => i.toMap()).toList(),
       };
@@ -322,12 +386,22 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
       }
 
       if (_pasos.isNotEmpty) {
+        debugPrint(
+          '[GUARDAR] Guardando ${_pasos.length} pasos en steps-recetas/$docId',
+        );
+        // Usamos el ID de la receta como nombre del doc y guardamos recetas_id como vínculo
         await FirebaseFirestore.instance
             .collection('steps-recetas')
             .doc(docId)
             .set({
               'pasos_ordenados': _pasos.map((p) => p.toMap()).toList(),
-            }, SetOptions(merge: true));
+              'recetas_id': docId, // vínculo vital entre colecciones
+            });
+        debugPrint(
+          '[GUARDAR] ✅ Pasos guardados correctamente para docId: $docId',
+        );
+      } else {
+        debugPrint('[GUARDAR] ⚠️ Sin pasos para guardar (_pasos está vacío)');
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -470,6 +544,8 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
               _InfoFila('Tiempo', '${_tiempoCtrl.text} min'),
               _InfoFila('Porción base', _porcionCtrl.text),
               _InfoFila('Categoría', _categoriaSeleccionada),
+              if (_subcategoriaCtrl.text.isNotEmpty)
+                _InfoFila('Subcategoría', _subcategoriaCtrl.text),
             ],
           ),
           const SizedBox(height: 20),
@@ -687,6 +763,20 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
         _SelectorCategoria(
           seleccionada: _categoriaSeleccionada,
           onSeleccionar: (cat) => setState(() => _categoriaSeleccionada = cat),
+        ),
+        // Subcategoría: campo de texto libre, siempre visible
+        const SizedBox(height: 16),
+        _SeccionTitulo('Subcategoría'),
+        const SizedBox(height: 4),
+        Text(
+          'Ej: Sopas, Postres, Jugos... (opcional)',
+          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+        ),
+        const SizedBox(height: 8),
+        _CampoTexto(
+          ctrl: _subcategoriaCtrl,
+          label: 'Subcategoría',
+          icono: Icons.label_outline_rounded,
         ),
       ],
     ),
