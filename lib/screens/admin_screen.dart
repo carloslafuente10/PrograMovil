@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'login_page.dart';
 import 'admin_recetas_screen.dart';
 import 'admin_categorias_screen.dart';
+import 'reportes_screen.dart';
 
 class AdminScreen extends StatelessWidget {
   const AdminScreen({super.key});
@@ -21,7 +22,7 @@ class AdminScreen extends StatelessWidget {
         backgroundColor: _verde,
         elevation: 0,
         title: const Text(
-          'Panel Administrador',
+          'Panel de administración',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w700,
@@ -51,7 +52,7 @@ class AdminScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header verde con saludo
+            // Header verde
             Container(
               width: double.infinity,
               decoration: const BoxDecoration(
@@ -129,19 +130,13 @@ class AdminScreen extends StatelessWidget {
               ),
             ),
 
-            // Grid de tarjetas — cada tarjeta recibe el context del Builder
+            // Tarjetas en columna
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 6, 14, 20),
-              child: GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.6,
+              child: Column(
                 children: [
                   _AdminCard(
-                    titulo: 'Gestionar Recetas',
+                    titulo: 'Gestionar recetas',
                     subtitulo: 'Añadir, editar o eliminar tus platos',
                     icono: Icons.restaurant_menu_rounded,
                     onTap: () => Navigator.push(
@@ -151,30 +146,37 @@ class AdminScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  _AdminCard(
-                    titulo: 'Ingredientes',
-                    subtitulo: 'Catálogo y gestión de inventario',
-                    icono: Icons.eco_rounded,
-                    onTap: () {},
-                  ),
-                  _AdminCard(
+                  const SizedBox(height: 12),
+                    _AdminCard(
                     titulo: 'Categorías',
-                    subtitulo: 'Organizar por tipo de comida o etiqueta',
+                    subtitulo: 'Organizar por tipo de comida',
                     icono: Icons.grid_view_rounded,
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const AdminCategoriasScreen(),
+                        builder: (_) =>
+                            const AdminCategoriasScreen(),
                       ),
                     ),
                   ),
+
+                  const SizedBox(height: 12),
+
                   _AdminCard(
-                    titulo: 'Sustitutos',
-                    subtitulo: 'Definir alternativas y alérgenos',
-                    icono: Icons.swap_horiz_rounded,
-                    onTap: () {},
+                    titulo: 'Reportes',
+                    subtitulo: 'Estadísticas y actividad',
+                    icono: Icons.bar_chart_rounded,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              const ReportesScreen(),
+                        ),
+                      );
+                    },
                   ),
-                ],
+                  ],
               ),
             ),
           ],
@@ -214,48 +216,54 @@ class _AdminCard extends StatelessWidget {
         child: Stack(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.fromLTRB(16, 16, 44, 24),
+              child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: _verdeClaro,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(icono, color: _verde, size: 20),
+                    child: Icon(icono, color: _verde, size: 26),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    titulo,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                      color: Color(0xFF1A1A2E),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          titulo,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            color: Color(0xFF1A1A2E),
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          subtitulo,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[500],
+                            height: 1.3,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitulo,
-                    style: TextStyle(
-                      fontSize: 10.5,
-                      color: Colors.grey[500],
-                      height: 1.3,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
-            // Acento verde esquina inferior derecha
             Positioned(
               bottom: 0,
               right: 0,
               child: Container(
-                width: 28,
-                height: 16,
+                width: 30,
+                height: 18,
                 decoration: const BoxDecoration(
                   color: _verde,
                   borderRadius: BorderRadius.only(

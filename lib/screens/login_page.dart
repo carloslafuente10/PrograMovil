@@ -1,11 +1,10 @@
+import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
 import 'package:programovil/screens/app_main_screen.dart';
-import 'dart:math'; // Para generar el número aleatorio
-import 'dart:convert'; // Para el json.encode
-import 'package:http/http.dart' as http; // Para la petición web
-import 'package:programovil/screens/reset_password_page.dart'; 
 import 'admin_screen.dart';
 
 class LoginPage extends StatefulWidget {
@@ -108,6 +107,14 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
         .doc(uid)
         .get();
     final data = doc.data();
+//ultimo acceso
+    await FirebaseFirestore.instance
+    .collection('app-usuarios')
+    .doc(uid)
+    .update({
+  'ultimoAcceso': FieldValue.serverTimestamp(),
+});
+
     String rol = "user"; // default
     if (data != null && data.containsKey('rol')) {
       rol = data['rol'];
@@ -192,91 +199,106 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   }
   // ── UI Y MODALES ──────────────────────────────────────────────────────────
 
-  void _modalRecuperarContra() {
-    final correoParaRecuperar = correoCtrl.text.trim();
-    if (correoParaRecuperar.isEmpty || !correoParaRecuperar.contains('@')) {
-      _snack('Escribe un correo válido en el campo de inicio de sesión', esError: true);
-      return;
-    }
-
-    int pasoRecuperacion = 1; 
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setModalState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(pasoRecuperacion == 1 ? 'Verificación de cuenta' : 'Ingresa el código', textAlign: TextAlign.center),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (pasoRecuperacion == 1) ...[
-                const Icon(Icons.mark_email_read_outlined, size: 50, color: _verde),
-                const SizedBox(height: 15),
-                const Text('Enviaremos un código de seguridad a:', textAlign: TextAlign.center),
-                Text(correoParaRecuperar, style: const TextStyle(fontWeight: FontWeight.bold, color: _verde)),
-              ] else ...[
-                const Text('Escribe el código que recibiste:', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: _textoGris)),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: codigoOTPController,
-                  keyboardType: TextInputType.number,
-                  maxLength: 6,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 8),
-                  decoration: _buildInput('000000', Icons.lock_outline),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                codigoOTPController.clear();
-                Navigator.pop(ctx);
-              },
-              child: const Text('Cancelar', style: TextStyle(color: _textoGris)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _verde, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-              onPressed: () async {
-                if (pasoRecuperacion == 1) {
-                  try {
-                    await _enviarCorreoReal(correoParaRecuperar);
-                    setModalState(() => pasoRecuperacion = 2);
-                    _snack('Código enviado con éxito');
-                  } catch (e) {
-                    _snack('Error al enviar el correo.', esError: true);
-                  }
-                } else {
-                  // DENTRO DEL MODAL (ElevatedButton de VERIFICAR)
-if (codigoOTPController.text == _codigoGenerado) {
-  _snack('¡Código correcto!');
-  
-  // Primero cerramos el modal
-  Navigator.pop(ctx); 
-
-  // Ahora abrimos la nueva pantalla pasándole el correo
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => ResetPasswordPage(email: correoParaRecuperar),
-    ),
-  );
-} else {
-  _snack('Código incorrecto', esError: true);
-}
-                }
-              },
-              child: Text(pasoRecuperacion == 1 ? 'ENVIAR CÓDIGO' : 'VERIFICAR', style: const TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      ),
-    );
+void _modalRecuperarContra() {
+  final correoParaRecuperar = correoCtrl.text.trim();
+  if (correoParaRecuperar.isEmpty || !correoParaRecuperar.contains('@')) {
+    _snack('Escribe un correo válido en el campo de inicio de sesión', esError: true);
+    return;
   }
 
+  int pasoRecuperacion = 1;
+
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => StatefulBuilder(
+      builder: (context, setModalState) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          pasoRecuperacion == 1 ? 'Verificación de cuenta' : 'Ingresa el código',
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (pasoRecuperacion == 1) ...[
+              const Icon(Icons.mark_email_read_outlined, size: 50, color: _verde),
+              const SizedBox(height: 15),
+              const Text('Enviaremos un código de seguridad a:', textAlign: TextAlign.center),
+              Text(
+                correoParaRecuperar,
+                style: const TextStyle(fontWeight: FontWeight.bold, color: _verde),
+              ),
+            ] else ...[
+              const Text(
+                'Escribe el código que recibiste por EmailJS:',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: _textoGris),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: codigoOTPController,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 8),
+                decoration: _buildInput('000000', Icons.lock_outline),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              codigoOTPController.clear();
+              Navigator.pop(ctx);
+            },
+            child: const Text('Cancelar', style: TextStyle(color: _textoGris)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _verde,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              if (pasoRecuperacion == 1) {
+                try {
+                  await _enviarCorreoReal(correoParaRecuperar);
+                  setModalState(() => pasoRecuperacion = 2);
+                  _snack('Código enviado con éxito');
+                } catch (e) {
+                  _snack('Error al enviar el correo.', esError: true);
+                }
+              } else {
+                // VERIFICACIÓN DEL CÓDIGO MANUAL
+                if (codigoOTPController.text == _codigoGenerado) {
+                  Navigator.pop(ctx); // Cerramos el modal del código
+                  
+                  try {
+                    // Acción final: Firebase envía el link real de cambio de clave
+                    await FirebaseAuth.instance.sendPasswordResetEmail(
+                      email: correoParaRecuperar,
+                    );
+                    
+                    // Mostramos el aviso de "Casi listo" (El sobre verde)
+                    _modalAvisoFinal(correoParaRecuperar); 
+                    codigoOTPController.clear();
+                  } catch (e) {
+                    _snack('Error de Firebase: $e', esError: true);
+                  }
+                } else {
+                  _snack('Código incorrecto', esError: true);
+                }
+              }
+            },
+            child: Text(pasoRecuperacion == 1 ? 'ENVIAR' : 'VERIFICAR',
+                style: const TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    ),
+  );
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -396,5 +418,35 @@ if (codigoOTPController.text == _codigoGenerado) {
 
   Widget _divisorSeparador() {
     return const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 10), child: Text('O')), Expanded(child: Divider())]);
+  }
+void _modalAvisoFinal(String email) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('¡Casi listo!', textAlign: TextAlign.center),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.mark_email_unread_rounded, size: 60, color: Color(0xFF38A377)),
+            const SizedBox(height: 20),
+            Text(
+              'Por seguridad, hemos enviado un enlace de confirmación a $email. Haz clic en el enlace para elegir tu nueva contraseña.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF888888)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'ENTENDIDO',
+              style: TextStyle(color: Color(0xFF38A377), fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

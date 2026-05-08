@@ -6,6 +6,7 @@ import 'favoritos_screen.dart';
 import 'plan_screen.dart';
 import 'login_page.dart';
 import 'sugerencias_chat_screen.dart';
+import 'package:lottie/lottie.dart';
 
 class AppMainScreen extends StatefulWidget {
   const AppMainScreen({super.key});
@@ -16,6 +17,8 @@ class AppMainScreen extends StatefulWidget {
 
 class AppMainScreenState extends State<AppMainScreen> {
   int selectedIndex = 0;
+  late final List<Widget> page;
+  bool _showLlamaAnimation = true;
 
   final List<Widget> _pages = const [
     HomeScreen(),
@@ -55,84 +58,83 @@ class AppMainScreenState extends State<AppMainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        _manejarAtras();
-      },
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF7F7F5),
-        body: IndexedStack(
-          index: selectedIndex,
-          children: _pages,
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F7F5),
+      body: page[selectedIndex],
+floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+
+floatingActionButton: TweenAnimationBuilder<double>(
+  duration: const Duration(milliseconds: 2500),
+  tween: Tween(begin: 0.0, end: 1.0),
+  curve: Curves.elasticOut,
+  builder: (context, value, child) {
+    return Transform.scale(
+      scale: value, // Aquí usamos el valor de la animación para la entrada suave
+      child: GestureDetector(
+        onTap: () => Navigator.push(
+          context, 
+          MaterialPageRoute(builder: (context) => const SugerenciasChatScreen())
         ),
-        floatingActionButton: FloatingActionButton(
-          backgroundColor: const Color(0xFF2D9E73),
-          shape: const CircleBorder(),
-          elevation: 4,
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const SugerenciasChatScreen(),
-              ),
-            );
-          },
-          child: const Icon(
-            Icons.smart_toy_outlined,
-            color: Colors.white,
-            size: 28,
-          ),
-        ),
-        floatingActionButtonLocation:
-            FloatingActionButtonLocation.centerDocked,
-        bottomNavigationBar: BottomAppBar(
-          padding: const EdgeInsets.symmetric(horizontal: 5),
-          height: 65,
-          color: Colors.white,
-          shape: const CircularNotchedRectangle(),
-          notchMargin: 6,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  _buildNavItem(
-                    0,
-                    Icons.home_outlined,
-                    Icons.home,
-                    'Inicio',
-                  ),
-                  const SizedBox(width: 5),
-                  _buildNavItem(
-                    1,
-                    Icons.favorite_border,
-                    Icons.favorite,
-                    'Favoritos',
-                  ),
-                ],
-              ),
-              const SizedBox(width: 60),
-              Row(
-                children: [
-                  _buildNavItem(
-                    2,
-                    Icons.calendar_month_outlined,
-                    Icons.calendar_month,
-                    'Plan',
-                  ),
-                  const SizedBox(width: 5),
-                  _buildNavItem(
-                    3,
-                    Icons.settings_outlined,
-                    Icons.settings,
-                    'Ajustes',
-                  ),
-                ],
+        child: Container(
+          width: 80, // Un poco más grande para que luzca mejor
+          height: 80,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white, 
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2D9E73).withOpacity(0.3),
+                blurRadius: 15,
+                spreadRadius: 2,
               ),
             ],
           ),
+          child: ClipOval(
+            child: OverflowBox(
+              minWidth: 0.0,
+              minHeight: 0.0,
+              maxWidth: 160, // El doble del ancho para hacer zoom
+              maxHeight: 160,
+              child: Lottie.network(
+                'assets/animations/animation.json', 
+                fit: BoxFit.cover,
+                alignment: const Alignment(0, -0.5), // Ajusta este eje Y para centrar la cara
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  },
+),
+      bottomNavigationBar: BottomAppBar(
+        padding: const EdgeInsets.symmetric(horizontal: 5),
+        height: 65,
+        color: Colors.white,
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 12,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            // Grupo Izquierdo
+            Row(
+              children: [
+                _buildNavItem(0, Icons.home, 'Inicio'),
+                const SizedBox(width: 5),
+                _buildNavItem(1, Icons.favorite_border, 'Favoritos'),
+              ],
+            ),
+            // Espacio central para el botón flotante
+            const SizedBox(width: 60),
+            // Grupo Derecho
+            Row(
+              children: [
+                _buildNavItem(2, Icons.calendar_month_outlined, 'Plan'),
+                const SizedBox(width: 5),
+                _buildNavItem(3, Icons.settings_outlined, 'Ajustes'),
+              ],
+            ),
+          ],
         ),
       ),
     );
