@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'home_screen.dart';
 import 'favoritos_screen.dart';
+import 'plan_screen.dart';
 import 'login_page.dart';
 import 'sugerencias_chat_screen.dart';
 import 'package:lottie/lottie.dart';
@@ -17,21 +19,45 @@ class AppMainScreenState extends State<AppMainScreen> {
   int selectedIndex = 0;
   late final List<Widget> page;
   bool _showLlamaAnimation = true;
+  final List<Widget> _pages = const [
+    HomeScreen(),
+    FavoritosScreen(),
+    PlanScreen(),
+    _AjustesScreen(),
+  ];
 
-  @override
-  void initState() {
-    super.initState();
-    // Las páginas ahora son widgets simples que se inyectan en el body
-    page = [
-      HomeScreen(),
-      const FavoritosScreen(),
-      const _PlanScreen(),
-      const _AjustesScreen(),
-    ];
+  DateTime? _ultimaVezAtras;
+
+  void _manejarAtras() {
+    if (selectedIndex != 0) {
+      setState(() => selectedIndex = 0);
+      return;
+    }
+
+    final ahora = DateTime.now();
+    if (_ultimaVezAtras == null ||
+        ahora.difference(_ultimaVezAtras!) > const Duration(seconds: 2)) {
+      _ultimaVezAtras = ahora;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Presiona atrás de nuevo para salir'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: const Color(0xFF2D9E73),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
+    SystemNavigator.pop();
   }
 
   @override
   Widget build(BuildContext context) {
+<<<<<<< HEAD
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F5),
       body: page[selectedIndex],
@@ -109,14 +135,97 @@ floatingActionButton: TweenAnimationBuilder<double>(
               ],
             ),
           ],
+=======
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _manejarAtras();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF7F7F5),
+        body: IndexedStack(
+          index: selectedIndex,
+          children: _pages,
+        ),
+        floatingActionButton: FloatingActionButton(
+          backgroundColor: const Color(0xFF2D9E73),
+          shape: const CircleBorder(),
+          elevation: 4,
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const SugerenciasChatScreen(),
+              ),
+            );
+          },
+          child: const Icon(
+            Icons.smart_toy_outlined,
+            color: Colors.white,
+            size: 28,
+          ),
+        ),
+        floatingActionButtonLocation:
+            FloatingActionButtonLocation.centerDocked,
+        bottomNavigationBar: BottomAppBar(
+          padding: const EdgeInsets.symmetric(horizontal: 5),
+          height: 65,
+          color: Colors.white,
+          shape: const CircularNotchedRectangle(),
+          notchMargin: 6,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  _buildNavItem(
+                    0,
+                    Icons.home_outlined,
+                    Icons.home,
+                    'Inicio',
+                  ),
+                  const SizedBox(width: 5),
+                  _buildNavItem(
+                    1,
+                    Icons.favorite_border,
+                    Icons.favorite,
+                    'Favoritos',
+                  ),
+                ],
+              ),
+              const SizedBox(width: 60),
+              Row(
+                children: [
+                  _buildNavItem(
+                    2,
+                    Icons.calendar_month_outlined,
+                    Icons.calendar_month,
+                    'Plan',
+                  ),
+                  const SizedBox(width: 5),
+                  _buildNavItem(
+                    3,
+                    Icons.settings_outlined,
+                    Icons.settings,
+                    'Ajustes',
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // Método para construir los items de navegación con setState centralizado
-  Widget _buildNavItem(int index, IconData icon, String label) {
-    bool isSelected = selectedIndex == index;
+  Widget _buildNavItem(
+    int index,
+    IconData iconInactivo,
+    IconData iconActivo,
+    String label,
+  ) {
+    final bool isSelected = selectedIndex == index;
     return MaterialButton(
       minWidth: 40,
       onPressed: () => setState(() => selectedIndex = index),
@@ -124,14 +233,18 @@ floatingActionButton: TweenAnimationBuilder<double>(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            icon,
+            isSelected ? iconActivo : iconInactivo,
             color: isSelected ? const Color(0xFF2D9E73) : Colors.grey,
+            size: 24,
           ),
           Text(
             label,
             style: TextStyle(
-              fontSize: 12,
-              color: isSelected ? const Color(0xFF2D9E73) : Colors.grey,
+              fontSize: 11,
+              fontWeight:
+                  isSelected ? FontWeight.w600 : FontWeight.normal,
+              color:
+                  isSelected ? const Color(0xFF2D9E73) : Colors.grey,
             ),
           ),
         ],
@@ -140,22 +253,6 @@ floatingActionButton: TweenAnimationBuilder<double>(
   }
 }
 
-// --- PANTALLA DE PLAN (Limpia) ---
-class _PlanScreen extends StatelessWidget {
-  const _PlanScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Contenido de Planes',
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
-
-// --- PANTALLA DE AJUSTES ---
 class _AjustesScreen extends StatelessWidget {
   static const Color _verde = Color(0xFF2D9E73);
 
@@ -214,7 +311,10 @@ class _AjustesScreen extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   email,
-                  style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[500],
+                  ),
                 ),
               ],
             ),
@@ -226,7 +326,7 @@ class _AjustesScreen extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -253,18 +353,63 @@ class _AjustesScreen extends StatelessWidget {
             height: 50,
             child: ElevatedButton.icon(
               onPressed: () async {
-                await FirebaseAuth.instance.signOut();
-                if (!context.mounted) return;
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginPage()),
-                  (_) => false,
+                final confirmar = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    title: const Text(
+                      'Cerrar sesión',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    content: const Text(
+                      '¿Estás seguro que deseas cerrar sesión?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: Text(
+                          'Cancelar',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'Cerrar sesión',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
                 );
+
+                if (confirmar == true) {
+                  await FirebaseAuth.instance.signOut();
+                  if (!context.mounted) return;
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LoginPage(),
+                    ),
+                    (_) => false,
+                  );
+                }
               },
               icon: const Icon(Icons.logout_rounded),
               label: const Text(
                 'Cerrar sesión',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.redAccent,
