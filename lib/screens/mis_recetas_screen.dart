@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'editar_receta_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'crear_receta_usuario_screen.dart'; // Importamos tu nuevo taller de creación
 
-class AdminRecetasScreen extends StatelessWidget {
-  const AdminRecetasScreen({super.key});
+class MisRecetasScreen extends StatelessWidget {
+  const MisRecetasScreen({super.key});
 
   static const Color _verde = Color(0xFF2D9E73);
   static const Color _verdeClaro = Color(0xFFE8F7F1);
@@ -11,6 +12,10 @@ class AdminRecetasScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // El "Sello de propiedad" para saber qué recetas son tuyas
+    final String userId =
+        FirebaseAuth.instance.currentUser?.uid ?? 'usuario_desconocido';
+
     return Scaffold(
       backgroundColor: _fondo,
       appBar: AppBar(
@@ -24,19 +29,13 @@ class AdminRecetasScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Gestionar Recetas',
+          'Mis Recetas Personales',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w700,
             fontSize: 18,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search_rounded, color: Colors.white),
-            onPressed: () {},
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -47,12 +46,16 @@ class AdminRecetasScreen extends StatelessWidget {
             child: Container(
               decoration: const BoxDecoration(
                 color: _fondo,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
               ),
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('app-recetas-completas')
+                    .where('creador_id', isEqualTo: userId)
                     .snapshots(),
                 builder: (context, snapshot) {
                   final count = snapshot.data?.docs.length ?? 0;
@@ -65,40 +68,11 @@ class AdminRecetasScreen extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        '$count recetas en total',
+                        '$count recetas creadas',
                         style: const TextStyle(
                           color: _verde,
                           fontWeight: FontWeight.w600,
                           fontSize: 13,
-                        ),
-                      ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _verdeClaro,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(
-                              Icons.lock_outline_rounded,
-                              color: _verde,
-                              size: 12,
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              'Solo lectura',
-                              style: TextStyle(
-                                color: _verde,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
                         ),
                       ),
                     ],
@@ -108,11 +82,12 @@ class AdminRecetasScreen extends StatelessWidget {
             ),
           ),
 
-          // Grid recetas — 2 columnas
+          // Grid de recetas (Solo dibuja las tuyas)
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('app-recetas-completas')
+                  .where('creador_id', isEqualTo: userId)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -120,7 +95,9 @@ class AdminRecetasScreen extends StatelessWidget {
                     child: CircularProgressIndicator(color: _verde),
                   );
                 }
+
                 final docs = snapshot.data?.docs ?? [];
+
                 if (docs.isEmpty) {
                   return Center(
                     child: Column(
@@ -133,7 +110,7 @@ class AdminRecetasScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          'No hay recetas aún',
+                          'Aún no creaste recetas',
                           style: TextStyle(
                             color: Colors.grey[500],
                             fontSize: 15,
@@ -152,18 +129,23 @@ class AdminRecetasScreen extends StatelessWidget {
                     ),
                   );
                 }
+
                 return GridView.builder(
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 80),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    mainAxisExtent: 220,
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                    mainAxisExtent: 180,
                   ),
                   itemCount: docs.length,
                   itemBuilder: (context, i) {
+                    // Pasamos el mapa completo a la tarjeta
                     final data = docs[i].data() as Map<String, dynamic>;
-                    return _RecetaCard(docId: docs[i].id, data: data);
+                    return MiRecetaCard(
+                      datosCompletos: data,
+                      docId: docs[i].id,
+                    );
                   },
                 );
               },
@@ -171,13 +153,16 @@ class AdminRecetasScreen extends StatelessWidget {
           ),
         ],
       ),
+      // BOTÓN CONECTADO AL TALLER DE CREACIÓN
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: _verde,
         elevation: 4,
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const EditarRecetaScreen()),
-        ),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => CrearRecetaUsuarioScreen()),
+          );
+        },
         icon: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
         label: const Text(
           'Nueva receta',
@@ -192,97 +177,86 @@ class AdminRecetasScreen extends StatelessWidget {
   }
 }
 
-class _RecetaCard extends StatelessWidget {
+// ── Tarjeta de receta ─────────────────────────────────────────
+class MiRecetaCard extends StatelessWidget {
+  final Map<String, dynamic> datosCompletos;
   final String docId;
-  final Map<String, dynamic> data;
 
   static const Color _verde = Color(0xFF2D9E73);
   static const Color _verdeClaro = Color(0xFFE8F7F1);
 
-  const _RecetaCard({required this.docId, required this.data});
+  const MiRecetaCard({
+    super.key,
+    required this.datosCompletos,
+    required this.docId,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final img = data['imagen']?.toString() ?? '';
-    final nombre = data['nombre']?.toString() ?? '';
-    final calorias = (data['calorias'] ?? data['calorías'])?.toString() ?? '0';
-    final categoria = data['categoria']?.toString() ?? '';
+    final img = datosCompletos['imagen']?.toString() ?? '';
+    final nombre = datosCompletos['nombre']?.toString() ?? 'Sin nombre';
+    final calorias =
+        (datosCompletos['calorias'] ?? datosCompletos['calorías'])
+            ?.toString() ??
+        '0';
+    final categoria = datosCompletos['categoria']?.toString() ?? '';
 
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       elevation: 2,
       shadowColor: Colors.black12,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        // Tap = solo lectura
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => EditarRecetaScreen(
-              docId: docId,
-              datosIniciales: data,
-              soloLectura: true,
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          // NAVEGACIÓN EN MODO SOLO LECTURA
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CrearRecetaUsuarioScreen(
+                docId: docId,
+                datosIniciales: datosCompletos,
+                soloLectura:
+                    true, // Esto enciende el candado y oculta los botones de guardar
+              ),
             ),
-          ),
-        ),
+          );
+        },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Imagen con badge "Solo lectura"
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
-                  ),
-                  child: SizedBox(
-                    height: 110,
-                    width: double.infinity,
-                    child: img.isNotEmpty
-                        ? Image.network(
-                            img,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _Placeholder(),
-                          )
-                        : _Placeholder(),
-                  ),
-                ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Icon(
-                      Icons.lock_rounded,
-                      color: Colors.white,
-                      size: 12,
-                    ),
-                  ),
-                ),
-              ],
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(14),
+              ),
+              child: SizedBox(
+                height: 90,
+                width: double.infinity,
+                child: img.isNotEmpty
+                    ? Image.network(
+                        img,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _Placeholder(),
+                      )
+                    : _Placeholder(),
+              ),
             ),
-
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (categoria.isNotEmpty)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
+                          horizontal: 5,
+                          vertical: 1,
                         ),
-                        margin: const EdgeInsets.only(bottom: 4),
+                        margin: const EdgeInsets.only(bottom: 3),
                         decoration: BoxDecoration(
                           color: _verdeClaro,
-                          borderRadius: BorderRadius.circular(5),
+                          borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           categoria,
@@ -297,7 +271,7 @@ class _RecetaCard extends StatelessWidget {
                       nombre,
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
-                        fontSize: 12.5,
+                        fontSize: 11.5,
                         color: Color(0xFF1A1A2E),
                       ),
                       maxLines: 2,
@@ -309,24 +283,33 @@ class _RecetaCard extends StatelessWidget {
                         const Icon(
                           Icons.local_fire_department_rounded,
                           color: Color(0xFFFF6B35),
-                          size: 12,
+                          size: 11,
                         ),
                         const SizedBox(width: 2),
                         Text(
                           '$calorias Cal',
                           style: TextStyle(
-                            fontSize: 10.5,
+                            fontSize: 10,
                             color: Colors.grey[600],
                             fontWeight: FontWeight.w500,
                           ),
                         ),
                         const Spacer(),
-                        // Solo botón de eliminar
-                        _MiniBtn(
-                          icono: Icons.delete_rounded,
-                          color: const Color(0xFFE53935),
-                          bg: const Color(0xFFFFEBEE),
-                          onTap: () => _confirmarEliminar(context),
+                        // Botón de eliminar (Quitamos el de editar porque ya no se permite)
+                        GestureDetector(
+                          onTap: () => _confirmarEliminar(context, nombre),
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFEBEE),
+                              borderRadius: BorderRadius.circular(7),
+                            ),
+                            child: const Icon(
+                              Icons.delete_rounded,
+                              color: Color(0xFFE53935),
+                              size: 13,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -340,7 +323,7 @@ class _RecetaCard extends StatelessWidget {
     );
   }
 
-  void _confirmarEliminar(BuildContext context) {
+  void _confirmarEliminar(BuildContext context, String nombreReceta) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -349,21 +332,26 @@ class _RecetaCard extends StatelessWidget {
           'Eliminar receta',
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
-        content: Text(
-          '¿Eliminar "${data['nombre']}"? Esta acción no se puede deshacer.',
-        ),
+        content: Text('¿Eliminar "$nombreReceta"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text('Cancelar', style: TextStyle(color: Colors.grey[600])),
           ),
           ElevatedButton(
-            onPressed: () {
-              FirebaseFirestore.instance
+            onPressed: () async {
+              // Eliminamos primero la receta
+              await FirebaseFirestore.instance
                   .collection('app-recetas-completas')
                   .doc(docId)
                   .delete();
-              Navigator.pop(context);
+              // Y también eliminamos los pasos asociados para no dejar basura en la BD
+              await FirebaseFirestore.instance
+                  .collection('steps-recetas')
+                  .doc(docId)
+                  .delete();
+
+              if (context.mounted) Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFE53935),
@@ -387,32 +375,7 @@ class _Placeholder extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     color: const Color(0xFFE8F7F1),
     child: const Center(
-      child: Icon(Icons.restaurant_rounded, color: Color(0xFF2D9E73), size: 32),
-    ),
-  );
-}
-
-class _MiniBtn extends StatelessWidget {
-  final IconData icono;
-  final Color color, bg;
-  final VoidCallback onTap;
-  const _MiniBtn({
-    required this.icono,
-    required this.color,
-    required this.bg,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Icon(icono, color: color, size: 14),
+      child: Icon(Icons.restaurant_rounded, color: Color(0xFF2D9E73), size: 28),
     ),
   );
 }
