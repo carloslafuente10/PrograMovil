@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'home_screen.dart';
 import 'favoritos_screen.dart';
+import 'plan_screen.dart';
 import 'login_page.dart';
 import 'sugerencias_chat_screen.dart';
 import 'package:lottie/lottie.dart';
@@ -15,108 +17,168 @@ class AppMainScreen extends StatefulWidget {
 
 class AppMainScreenState extends State<AppMainScreen> {
   int selectedIndex = 0;
-  late final List<Widget> page;
+  // Se eliminó 'late final List<Widget> page' porque ya usas '_pages' más abajo
   bool _showLlamaAnimation = true;
+  final List<Widget> _pages = const [
+    HomeScreen(),
+    FavoritosScreen(),
+    PlanScreen(),
+    _AjustesScreen(),
+  ];
 
-  @override
-  void initState() {
-    super.initState();
-    // Las páginas ahora son widgets simples que se inyectan en el body
-    page = [
-      HomeScreen(),
-      const FavoritosScreen(),
-      const _PlanScreen(),
-      const _AjustesScreen(),
-    ];
+  DateTime? _ultimaVezAtras;
+
+  void _manejarAtras() {
+    if (selectedIndex != 0) {
+      setState(() => selectedIndex = 0);
+      return;
+    }
+
+    final ahora = DateTime.now();
+    if (_ultimaVezAtras == null ||
+        ahora.difference(_ultimaVezAtras!) > const Duration(seconds: 2)) {
+      _ultimaVezAtras = ahora;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Presiona atrás de nuevo para salir'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: const Color(0xFF2D9E73),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
+    SystemNavigator.pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F5),
-      body: page[selectedIndex],
-floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-
-floatingActionButton: TweenAnimationBuilder<double>(
-  duration: const Duration(milliseconds: 2500),
-  tween: Tween(begin: 0.0, end: 1.0),
-  curve: Curves.elasticOut,
-  builder: (context, value, child) {
-    return Transform.scale(
-      scale: value, // Aquí usamos el valor de la animación para la entrada suave
-      child: GestureDetector(
-        onTap: () => Navigator.push(
-          context, 
-          MaterialPageRoute(builder: (context) => const SugerenciasChatScreen())
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _manejarAtras();
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF7F7F5),
+        body: IndexedStack(
+          index: selectedIndex,
+          children: _pages,
         ),
-        child: Container(
-          width: 80, // Un poco más grande para que luzca mejor
-          height: 80,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white, 
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF2D9E73).withOpacity(0.3),
-                blurRadius: 15,
-                spreadRadius: 2,
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        floatingActionButton: TweenAnimationBuilder<double>(
+          duration: const Duration(milliseconds: 2500),
+          tween: Tween(begin: 0.0, end: 1.0),
+          curve: Curves.elasticOut,
+          builder: (context, value, child) {
+            return Transform.scale(
+              scale: value,
+              child: GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SugerenciasChatScreen()),
+                ),
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF2D9E73).withOpacity(0.3),
+                        blurRadius: 15,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: OverflowBox(
+                      minWidth: 0.0,
+                      minHeight: 0.0,
+                      maxWidth: 160,
+                      maxHeight: 160,
+                      child: Lottie.network(
+                        'assets/animations/animation.json',
+                        fit: BoxFit.cover,
+                        alignment: const Alignment(0, -0.5),
+                        errorBuilder: (context, error, stackTrace) {
+                          // Fallback por si el json no carga
+                          return const Icon(Icons.smart_toy, color: Color(0xFF2D9E73), size: 40);
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+        bottomNavigationBar: BottomAppBar(
+          padding: const EdgeInsets.symmetric(horizontal: 5),
+          height: 65,
+          color: Colors.white,
+          shape: const CircularNotchedRectangle(),
+          notchMargin: 12,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: <Widget>[
+              // Grupo Izquierdo
+              Row(
+                children: [
+                  _buildNavItem(
+                    0,
+                    Icons.home_outlined,
+                    Icons.home,
+                    'Inicio',
+                  ),
+                  const SizedBox(width: 5),
+                  _buildNavItem(
+                    1,
+                    Icons.favorite_border,
+                    Icons.favorite,
+                    'Favoritos',
+                  ),
+                ],
+              ),
+              // Espacio central para el botón flotante
+              const SizedBox(width: 60),
+              // Grupo Derecho
+              Row(
+                children: [
+                  _buildNavItem(
+                    2,
+                    Icons.calendar_month_outlined,
+                    Icons.calendar_month,
+                    'Plan',
+                  ),
+                  const SizedBox(width: 5),
+                  _buildNavItem(
+                    3,
+                    Icons.settings_outlined,
+                    Icons.settings,
+                    'Ajustes',
+                  ),
+                ],
               ),
             ],
           ),
-          child: ClipOval(
-            child: OverflowBox(
-              minWidth: 0.0,
-              minHeight: 0.0,
-              maxWidth: 160, // El doble del ancho para hacer zoom
-              maxHeight: 160,
-              child: Lottie.network(
-                'assets/animations/animation.json', 
-                fit: BoxFit.cover,
-                alignment: const Alignment(0, -0.5), // Ajusta este eje Y para centrar la cara
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  },
-),
-      bottomNavigationBar: BottomAppBar(
-        padding: const EdgeInsets.symmetric(horizontal: 5),
-        height: 65,
-        color: Colors.white,
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 12,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: <Widget>[
-            // Grupo Izquierdo
-            Row(
-              children: [
-                _buildNavItem(0, Icons.home, 'Inicio'),
-                const SizedBox(width: 5),
-                _buildNavItem(1, Icons.favorite_border, 'Favoritos'),
-              ],
-            ),
-            // Espacio central para el botón flotante
-            const SizedBox(width: 60),
-            // Grupo Derecho
-            Row(
-              children: [
-                _buildNavItem(2, Icons.calendar_month_outlined, 'Plan'),
-                const SizedBox(width: 5),
-                _buildNavItem(3, Icons.settings_outlined, 'Ajustes'),
-              ],
-            ),
-          ],
         ),
       ),
     );
   }
 
-  // Método para construir los items de navegación con setState centralizado
-  Widget _buildNavItem(int index, IconData icon, String label) {
-    bool isSelected = selectedIndex == index;
+  Widget _buildNavItem(
+    int index,
+    IconData iconInactivo,
+    IconData iconActivo,
+    String label,
+  ) {
+    final bool isSelected = selectedIndex == index;
     return MaterialButton(
       minWidth: 40,
       onPressed: () => setState(() => selectedIndex = index),
@@ -124,13 +186,15 @@ floatingActionButton: TweenAnimationBuilder<double>(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            icon,
+            isSelected ? iconActivo : iconInactivo,
             color: isSelected ? const Color(0xFF2D9E73) : Colors.grey,
+            size: 24,
           ),
           Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
               color: isSelected ? const Color(0xFF2D9E73) : Colors.grey,
             ),
           ),
@@ -140,22 +204,6 @@ floatingActionButton: TweenAnimationBuilder<double>(
   }
 }
 
-// --- PANTALLA DE PLAN (Limpia) ---
-class _PlanScreen extends StatelessWidget {
-  const _PlanScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text(
-        'Contenido de Planes',
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-}
-
-// --- PANTALLA DE AJUSTES ---
 class _AjustesScreen extends StatelessWidget {
   static const Color _verde = Color(0xFF2D9E73);
 
@@ -214,7 +262,10 @@ class _AjustesScreen extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   email,
-                  style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[500],
+                  ),
                 ),
               ],
             ),
@@ -253,18 +304,63 @@ class _AjustesScreen extends StatelessWidget {
             height: 50,
             child: ElevatedButton.icon(
               onPressed: () async {
-                await FirebaseAuth.instance.signOut();
-                if (!context.mounted) return;
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginPage()),
-                  (_) => false,
+                final confirmar = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    title: const Text(
+                      'Cerrar sesión',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    content: const Text(
+                      '¿Estás seguro que deseas cerrar sesión?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: Text(
+                          'Cancelar',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'Cerrar sesión',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
                 );
+
+                if (confirmar == true) {
+                  await FirebaseAuth.instance.signOut();
+                  if (!context.mounted) return;
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LoginPage(),
+                    ),
+                    (_) => false,
+                  );
+                }
               },
               icon: const Icon(Icons.logout_rounded),
               label: const Text(
                 'Cerrar sesión',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.redAccent,

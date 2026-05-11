@@ -107,6 +107,14 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
         .doc(uid)
         .get();
     final data = doc.data();
+//ultimo acceso
+    await FirebaseFirestore.instance
+    .collection('app-usuarios')
+    .doc(uid)
+    .update({
+  'ultimoAcceso': FieldValue.serverTimestamp(),
+});
+
     String rol = "user"; // default
     if (data != null && data.containsKey('rol')) {
       rol = data['rol'];
