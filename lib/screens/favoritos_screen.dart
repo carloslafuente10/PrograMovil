@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'favoritos_provider.dart';
 import 'detalle_receta_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FavoritosScreen extends StatelessWidget {
   const FavoritosScreen({super.key});
@@ -114,15 +115,50 @@ class _FavoritoTile extends StatelessWidget {
     final String img = receta['img']?.toString() ?? '';
 
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-         builder: (context) => DetalleRecetaScreen(
-          nombreReceta: receta['nombre']!, // Parámetro 1
-          recetaId: receta['id']!,         // Parámetro 2 
-        ), 
-     ), 
-    ),
+onTap: () async {
+  final nombre = receta['nombre']?.toString() ?? '';
+  if (nombre.isEmpty) return;
+
+  try {
+    final snap = await FirebaseFirestore.instance
+        .collection('app-recetas-completas')
+        .where('nombre', isEqualTo: nombre)
+        .limit(1)
+        .get();
+
+    if (!context.mounted) return;
+
+    if (snap.docs.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se encontró la receta'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final docId = snap.docs.first.id;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DetalleRecetaScreen(
+          nombreReceta: nombre,
+          recetaId: docId,
+        ),
+      ),
+    );
+  } catch (e) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Error al abrir la receta: $e'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+},
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,

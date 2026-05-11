@@ -33,17 +33,13 @@ class AdminCategoriasScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // Subheader con contador
           Container(
             width: double.infinity,
             color: _verde,
             child: Container(
               decoration: const BoxDecoration(
                 color: _fondo,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
               child: StreamBuilder<QuerySnapshot>(
@@ -74,8 +70,6 @@ class AdminCategoriasScreen extends StatelessWidget {
               ),
             ),
           ),
-
-          // Lista de categorías
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -88,9 +82,7 @@ class AdminCategoriasScreen extends StatelessWidget {
                     child: CircularProgressIndicator(color: _verde),
                   );
                 }
-
                 final docs = snapshot.data?.docs ?? [];
-
                 if (docs.isEmpty) {
                   return Center(
                     child: Column(
@@ -122,19 +114,15 @@ class AdminCategoriasScreen extends StatelessWidget {
                     ),
                   );
                 }
-
                 return ListView.separated(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 80),
                   itemCount: docs.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (context, i) {
                     final data = docs[i].data() as Map<String, dynamic>;
-                    final nombre = data['nombre']?.toString() ?? '';
-                    final docId = docs[i].id;
-
                     return _CategoriaCard(
-                      nombre: nombre,
-                      docId: docId,
+                      nombre: data['nombre']?.toString() ?? '',
+                      docId: docs[i].id,
                       index: i,
                     );
                   },
@@ -144,8 +132,6 @@ class AdminCategoriasScreen extends StatelessWidget {
           ),
         ],
       ),
-
-      // Botón agregar
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: _verde,
         elevation: 4,
@@ -163,7 +149,6 @@ class AdminCategoriasScreen extends StatelessWidget {
     );
   }
 
-  /// Diálogo para crear O editar una categoría
   static void _mostrarDialogo(
     BuildContext context,
     String? docId,
@@ -209,7 +194,6 @@ class AdminCategoriasScreen extends StatelessWidget {
             onPressed: () {
               final nombre = ctrl.text.trim();
               if (nombre.isEmpty) return;
-
               if (esEdicion) {
                 FirebaseFirestore.instance
                     .collection('app-Categorías')
@@ -243,7 +227,6 @@ class AdminCategoriasScreen extends StatelessWidget {
   }
 }
 
-// ── Tarjeta de categoría ──────────────────────────────────────
 class _CategoriaCard extends StatelessWidget {
   final String nombre;
   final String docId;
@@ -252,7 +235,6 @@ class _CategoriaCard extends StatelessWidget {
   static const Color _verde = Color(0xFF2D9E73);
   static const Color _verdeClaro = Color(0xFFE8F7F1);
 
-  // Íconos decorativos rotando según índice
   static const List<IconData> _iconos = [
     Icons.breakfast_dining_rounded,
     Icons.lunch_dining_rounded,
@@ -273,7 +255,6 @@ class _CategoriaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icono = _iconos[index % _iconos.length];
-
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),
@@ -288,7 +269,6 @@ class _CategoriaCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              // Ícono
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
@@ -298,8 +278,6 @@ class _CategoriaCard extends StatelessWidget {
                 child: Icon(icono, color: _verde, size: 22),
               ),
               const SizedBox(width: 14),
-
-              // Nombre
               Expanded(
                 child: Text(
                   nombre,
@@ -310,26 +288,40 @@ class _CategoriaCard extends StatelessWidget {
                   ),
                 ),
               ),
-
-              // Botón editar
-              _MiniBtn(
-                icono: Icons.edit_rounded,
-                color: _verde,
-                bg: _verdeClaro,
+              GestureDetector(
                 onTap: () => AdminCategoriasScreen._mostrarDialogo(
                   context,
                   docId,
                   nombre,
                 ),
+                child: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: _verdeClaro,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: const Icon(
+                    Icons.edit_rounded,
+                    color: _verde,
+                    size: 16,
+                  ),
+                ),
               ),
               const SizedBox(width: 8),
-
-              // Botón eliminar
-              _MiniBtn(
-                icono: Icons.delete_rounded,
-                color: const Color(0xFFE53935),
-                bg: const Color(0xFFFFEBEE),
+              GestureDetector(
                 onTap: () => _confirmarEliminar(context),
+                child: Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFEBEE),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: const Icon(
+                    Icons.delete_rounded,
+                    color: Color(0xFFE53935),
+                    size: 16,
+                  ),
+                ),
               ),
             ],
           ),
@@ -376,30 +368,4 @@ class _CategoriaCard extends StatelessWidget {
       ),
     );
   }
-}
-
-// ── Botón ícono pequeño ───────────────────────────────────────
-class _MiniBtn extends StatelessWidget {
-  final IconData icono;
-  final Color color, bg;
-  final VoidCallback onTap;
-  const _MiniBtn({
-    required this.icono,
-    required this.color,
-    required this.bg,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.all(7),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(9),
-      ),
-      child: Icon(icono, color: color, size: 16),
-    ),
-  );
 }
