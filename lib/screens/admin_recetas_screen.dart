@@ -158,11 +158,7 @@ class AdminRecetasScreen extends StatelessWidget {
                 }
                 return GridView.builder(
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 80),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3, // 3 columnas
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                    mainAxisExtent: 215, // altura fija por tarjeta
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount( // altura fija por tarjeta
                     crossAxisCount: 2,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
