@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'favoritos_provider.dart';
 import 'detalle_receta_screen.dart';
+import 'mis_recetas_screen.dart';
 
 class FavoritosScreen extends StatelessWidget {
   const FavoritosScreen({super.key});
@@ -12,6 +13,32 @@ class FavoritosScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F5),
+
+      // Botón flotante para acceder a Mis Recetas
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: const Color(0xFF2D9E73),
+        elevation: 4,
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const MisRecetasScreen()),
+          );
+        },
+        icon: const Icon(
+          Icons.restaurant_menu_rounded,
+          color: Colors.white,
+          size: 20,
+        ),
+        label: const Text(
+          'Mis Recetas',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
+      ),
+
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -80,15 +107,14 @@ class FavoritosScreen extends StatelessWidget {
 class _FavoritoTile extends StatelessWidget {
   final Map<String, dynamic> receta;
   final FavoritosState favState;
+
   const _FavoritoTile({required this.receta, required this.favState});
 
-  
   Widget _buildImage(String img) {
     const double w = 90;
     const double h = 80;
 
     if (img.isEmpty) return _placeholder();
-
     if (img.startsWith('http://') || img.startsWith('https://')) {
       return Image.network(
         img,
@@ -98,8 +124,6 @@ class _FavoritoTile extends StatelessWidget {
         errorBuilder: (_, __, ___) => _placeholder(),
       );
     }
-
-    
     return Image.asset(
       img,
       width: w,
@@ -117,12 +141,12 @@ class _FavoritoTile extends StatelessWidget {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-         builder: (context) => DetalleRecetaScreen(
-          nombreReceta: receta['nombre']!, // Parámetro 1
-          recetaId: receta['id']!,         // Parámetro 2 
-        ), 
-     ), 
-    ),
+          builder: (context) => DetalleRecetaScreen(
+            nombreReceta: receta['nombre']?.toString() ?? 'Receta Favorita',
+            recetaId: receta['id']?.toString() ?? 'sin-id',
+          ),
+        ),
+      ),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -137,15 +161,12 @@ class _FavoritoTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            
             ClipRRect(
               borderRadius: const BorderRadius.horizontal(
                 left: Radius.circular(14),
               ),
               child: _buildImage(img),
             ),
-
-            
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -222,8 +243,6 @@ class _FavoritoTile extends StatelessWidget {
                 ),
               ),
             ),
-
-           
             Padding(
               padding: const EdgeInsets.only(right: 14),
               child: GestureDetector(
@@ -265,8 +284,7 @@ class _FavoritoTile extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child:
-                Text('Cancelar', style: TextStyle(color: Colors.grey[600])),
+            child: Text('Cancelar', style: TextStyle(color: Colors.grey[600])),
           ),
           TextButton(
             onPressed: () {
@@ -287,9 +305,9 @@ class _FavoritoTile extends StatelessWidget {
   }
 
   Widget _placeholder() => Container(
-        width: 90,
-        height: 80,
-        color: const Color(0xFFE8E8E8),
-        child: const Icon(Icons.fastfood, size: 32, color: Colors.white70),
-      );
+    width: 90,
+    height: 80,
+    color: const Color(0xFFE8E8E8),
+    child: const Icon(Icons.fastfood, size: 32, color: Colors.white70),
+  );
 }
