@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
+// Importamos la pantalla de destino
+import 'detalle_receta_screen.dart'; 
 
 class SugerenciasChatScreen extends StatefulWidget {
   const SugerenciasChatScreen({super.key});
@@ -27,7 +29,7 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen> {
   List<String> _ingredientesPrimordiales = [];
   final List<String> _ingredientesSeleccionados = [];
   bool _mostrarGridIngredientes = false;
-  bool _bloquearCategorias = false; // NUEVA VARIABLE PARA CONTROLAR EL FLUJO
+  bool _bloquearCategorias = false; 
 
   // --- CONFIGURACIÓN DE GEMINI ---
   final String systemPrompt = """
@@ -117,7 +119,7 @@ Sé concisa, usa emojis de cocina y nunca reveles que eres una IA de Google.
       _esperandoDetalleReporte = false;
       _esperandoParrafoSugerencia = false;
       _mostrarGridIngredientes = false;
-      _bloquearCategorias = false; // Resetear bloqueo al entrar
+      _bloquearCategorias = false; 
       _ingredientesSeleccionados.clear();
 
       String saludoChef;
@@ -142,6 +144,7 @@ Sé concisa, usa emojis de cocina y nunca reveles que eres una IA de Google.
     });
   }
 
+  // CORRECCIÓN: Quitamos la tilde al parámetro 'categoria'
   Future<void> _cargarIngredientesPrimordiales(String categoria) async {
     setState(() => _estaCargando = true);
     try {
@@ -268,7 +271,7 @@ Sé concisa, usa emojis de cocina y nunca reveles que eres una IA de Google.
                   _opcionSeleccionada = false;
                   _mensajes.clear();
                   _mostrarGridIngredientes = false;
-                  _bloquearCategorias = false; // Resetear al volver
+                  _bloquearCategorias = false; 
                 }),
               )
             : null,
@@ -410,7 +413,16 @@ Sé concisa, usa emojis de cocina y nunca reveles que eres una IA de Google.
             height: 52,
             child: ElevatedButton.icon(
               onPressed: () {
-                debugPrint("Navegando a la receta: ${receta['nombre']} con ID: ${receta['id']}");
+                // VINCULACIÓN: Navegamos a DetalleRecetaScreen usando los datos del botón
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => DetalleRecetaScreen(
+                      recetaId: receta['id']!,
+                      nombreReceta: receta['nombre']!,
+                    ),
+                  ),
+                );
               },
               icon: const Icon(Icons.restaurant_menu, size: 18),
               label: Text(
@@ -441,9 +453,9 @@ Sé concisa, usa emojis de cocina y nunca reveles que eres una IA de Google.
         return ActionChip(
           label: Text(cat),
           backgroundColor: _categoriaComidaElegida == cat ? _verde.withOpacity(0.2) : Colors.white,
-          onPressed: estaBloqueado ? null : () { // SI ESTÁ BLOQUEADO, EL BOTÓN NO HACE NADA
+          onPressed: estaBloqueado ? null : () { 
             setState(() {
-              _bloquearCategorias = true; // ACTIVAMOS BLOQUEO AL SELECCIONAR
+              _bloquearCategorias = true; 
               _categoriaComidaElegida = cat;
               _mensajes.add({"rol": "usuario", "texto": "Categoría: $cat", "tipo": "texto"});
             });
