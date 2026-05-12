@@ -194,19 +194,24 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   }
 
   bool get _puedecocinar {
-    if (_checks.isEmpty) return false;
+    if (_checks.isEmpty || _ingredientesEditables.isEmpty) return false;
 
-    // 1. Calculamos el porcentaje (el 80% que ya tenías)
+    // 1. Condición del 80%
     final marcadosCount = _checks.where((c) => c).length;
     final bool tieneOchentaPorciento = (marcadosCount / _checks.length) >= 0.8;
 
-    // 2. NUEVA LÓGICA: Verificar ingredientes primordiales
-    // Necesitamos acceder a la lista de ingredientes que cargamos en el Future
-    // Para esto, buscaremos si algún primordial NO está marcado.
+    // 2. Condición del Ingrediente Primordial
+    bool faltaPrimordial = false;
+    for (int i = 0; i < _ingredientesEditables.length; i++) {
+      // Si el ingrediente es primordial en la BD y NO tiene el check marcado...
+      if (_ingredientesEditables[i].es_primordial && !_checks[i]) {
+        faltaPrimordial = true;
+        break;
+      }
+    }
 
-    // Nota: Esta lógica es más robusta si se hace dentro del builder,
-    // pero para no romper tu estructura, vamos a usar una validación directa.
-    return tieneOchentaPorciento;
+    // El botón solo sirve si tiene el 80% Y NO falta ningún primordial
+    return tieneOchentaPorciento && !faltaPrimordial;
   }
 
   void _editarIngrediente(int index, _IngredienteCompleto ing) {
@@ -311,7 +316,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
 
   @override
   Widget build(BuildContext context) {
-   // final favState = FavoritosProvider.of(context);
+    // final favState = FavoritosProvider.of(context);
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F5),
       body: FutureBuilder<Map<String, dynamic>>(
@@ -439,53 +444,60 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                               ),
                               const SizedBox(width: 12),
                               if (!widget.isAdmin)
-  Builder(
-    builder: (context) {
-      final favStateLocal = FavoritosProvider.of(context);
-
-      final bool esFavLocal = favStateLocal.esFavorito(
-        nombre,
-      );
-
-      return GestureDetector(
-        onTap: () {
-          favStateLocal.toggle({
-            'nombre': nombre,
-            'img': imagenPrincipal,
-            'calorias': caloriasBase.round().toString(),
-            'tiempo': tiempoBase.toString(),
-            'categoria':
-                receta['categoria']?.toString() ?? '',
-          });
-        },
-        child: Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: esFavLocal
-                ? Colors.red.withValues(alpha: 0.1)
-                : const Color(0xFFF7F7F5),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: esFavLocal
-                  ? Colors.redAccent
-                  : Colors.grey[300]!,
-            ),
-          ),
-          child: Icon(
-            esFavLocal
-                ? Icons.favorite
-                : Icons.favorite_border,
-            color: esFavLocal
-                ? Colors.redAccent
-                : Colors.grey[400],
-            size: 20,
-          ),
-        ),
-      );
-    },
-  ),
-                                
+                                Builder(
+                                  builder: (context) {
+                                    final favStateLocal = FavoritosProvider.of(
+                                      context,
+                                    );
+                                    final bool esFavLocal = favStateLocal
+                                        .esFavorito(nombre);
+                                    return GestureDetector(
+                                      onTap: () {
+                                        favStateLocal.toggle({
+                                          'id': widget
+                                              .recetaId, // <-- LA LÍNEA VITAL QUE FALTABA
+                                          'nombre': nombre,
+                                          'img': imagenPrincipal,
+                                          'calorias': caloriasBase
+                                              .round()
+                                              .toString(),
+                                          'tiempo': tiempoBase.toString(),
+                                          'categoria':
+                                              receta['categoria']?.toString() ??
+                                              '',
+                                        });
+                                      },
+                                      child: Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: esFavLocal
+                                              ? Colors.red.withValues(
+                                                  alpha: 0.1,
+                                                )
+                                              : const Color(0xFFF7F7F5),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          border: Border.all(
+                                            color: esFavLocal
+                                                ? Colors.redAccent
+                                                : Colors.grey[300]!,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          esFavLocal
+                                              ? Icons.favorite
+                                              : Icons.favorite_border,
+                                          color: esFavLocal
+                                              ? Colors.redAccent
+                                              : Colors.grey[400],
+                                          size: 20,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
                             ],
                           ),
                           const SizedBox(height: 10),
@@ -586,19 +598,19 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                 ),
                               ),
 
-   
-                                Wrap(
+                              Wrap(
                                 spacing: 14,
                                 runSpacing: 8,
-                                crossAxisAlignment:
-                                    WrapCrossAlignment.center,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
-    
-    if (widget.isAdmin)
-      IconButton(
-        icon: const Icon(Icons.add, color: Colors.green),
-        onPressed: _agregarIngrediente,
-      ),
+                                  if (widget.isAdmin)
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.add,
+                                        color: Colors.green,
+                                      ),
+                                      onPressed: _agregarIngrediente,
+                                    ),
 
                                   if (!widget.isAdmin) ...[
                                     _ContadorBtn(
@@ -716,12 +728,12 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                                 ),
                                               ),
                                             ),
-                                      const SizedBox(width: 10),
+                                            const SizedBox(width: 10),
 
-/* ============================
+                                            /* ============================
    VERSION VIEJA (RESPALDO)
 =============================*/
-/*
+                                            /*
 AnimatedContainer(
   duration: const Duration(
     milliseconds: 200,
@@ -756,7 +768,7 @@ AnimatedContainer(
   ),
 ),
 */
-/*
+                                            /*
 widget.isAdmin
     ? Row(
         children: [
@@ -822,75 +834,93 @@ widget.isAdmin
       ),
 */
 
-                                       
-/* ===== VERSION NUEVA ===== */
+                                            /* ===== VERSION NUEVA ===== */
+                                            widget.isAdmin
+                                                ? Row(
+                                                    children: [
+                                                      IconButton(
+                                                        constraints:
+                                                            const BoxConstraints(),
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        iconSize: 18,
+                                                        icon: const Icon(
+                                                          Icons.edit,
+                                                          color: Colors.blue,
+                                                        ),
+                                                        onPressed: () {
+                                                          _editarIngrediente(
+                                                            i,
+                                                            ing,
+                                                          );
+                                                        },
+                                                      ),
 
-widget.isAdmin
-    ? Row(
-        children: [
-          IconButton(
-            constraints: const BoxConstraints(),
-            padding: EdgeInsets.zero,
-            iconSize: 18,
-            icon: const Icon(
-              Icons.edit,
-              color: Colors.blue,
-            ),
-            onPressed: () {
-              _editarIngrediente(i, ing);
-            },
-          ),
+                                                      IconButton(
+                                                        constraints:
+                                                            const BoxConstraints(),
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        iconSize: 18,
+                                                        icon: const Icon(
+                                                          Icons.delete,
+                                                          color: Colors.red,
+                                                        ),
+                                                        onPressed: () {
+                                                          setState(() {
+                                                            _ingredientesEditables
+                                                                .removeAt(i);
+                                                            _checks.removeAt(i);
+                                                          });
+                                                        },
+                                                      ),
+                                                    ],
+                                                  )
+                                                : AnimatedContainer(
+                                                    duration: const Duration(
+                                                      milliseconds: 200,
+                                                    ),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 12,
+                                                          vertical: 6,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: marcado
+                                                          ? _verde
+                                                          : Colors.red
+                                                                .withValues(
+                                                                  alpha: 0.1,
+                                                                ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            20,
+                                                          ),
+                                                      border: Border.all(
+                                                        color: marcado
+                                                            ? _verde
+                                                            : Colors.red[300]!,
+                                                        width: 1,
+                                                      ),
+                                                    ),
+                                                    child: Text(
+                                                      marcado
+                                                          ? 'Tengo ✓'
+                                                          : 'Falta',
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: marcado
+                                                            ? Colors.white
+                                                            : Colors.red[700],
+                                                      ),
+                                                    ),
+                                                  ),
+                                          ],
+                                        ),
+                                      ),
 
-          IconButton(
-            constraints: const BoxConstraints(),
-            padding: EdgeInsets.zero,
-            iconSize: 18,
-            icon: const Icon(
-              Icons.delete,
-              color: Colors.red,
-            ),
-            onPressed: () {
-              setState(() {
-                _ingredientesEditables.removeAt(i);
-                _checks.removeAt(i);
-              });
-            },
-          ),
-        ],
-      )
-    : AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 6,
-        ),
-        decoration: BoxDecoration(
-          color: marcado
-              ? _verde
-              : Colors.red.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: marcado
-                ? _verde
-                : Colors.red[300]!,
-            width: 1,
-          ),
-        ),
-        child: Text(
-          marcado ? 'Tengo ✓' : 'Falta',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: marcado
-                ? Colors.white
-                : Colors.red[700],
-          ),
-        ),
-      ),    
-                                                      ],
-                                              ),
-                                            ),
-                                          
                                       if (ing.sustituto.isNotEmpty && !marcado)
                                         Container(
                                           margin: const EdgeInsets.only(
@@ -1062,7 +1092,9 @@ widget.isAdmin
                     label: Text(
                       activo
                           ? 'Empezar a cocinar'
-                          : 'Marca el 80% de ingredientes (${porcentaje.toStringAsFixed(0)}%)',
+                          : (porcentaje < 80
+                                ? 'Marca el 80% de ingredientes ($porcentaje%)'
+                                : 'Falta ingrediente obligatorio'), // <--- Aviso extra
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,

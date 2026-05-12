@@ -61,10 +61,7 @@ class _IngredientsBody extends StatelessWidget {
               },
             ),
           ),
-          _CookingButton(
-            isReady: provider.isReadyToCook,
-            recipeId: recipeId,
-          ),
+          _CookingButton(isReady: provider.isReadyToCook, recipeId: recipeId),
         ],
       ),
     );
@@ -171,7 +168,10 @@ class _CookingButton extends StatelessWidget {
             child: const Text(
               "¡A cocinar! 👨‍🍳",
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         SafeArea(
@@ -209,7 +209,7 @@ class _CookingButton extends StatelessWidget {
     try {
       final service = RecipeService();
       final steps = await service.fetchStepsForRecipe(recipeId);
-      
+
       print("Resultado de Firestore: ${steps.length} documentos encontrados.");
 
       if (!context.mounted) return;
@@ -221,8 +221,15 @@ class _CookingButton extends StatelessWidget {
           context: context,
           builder: (_) => AlertDialog(
             title: const Text("Error de Datos"),
-            content: Text("No se encontraron pasos para la receta: '$recipeId'. Revisa que el nombre en Firestore coincida exactamente."),
-            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK"))],
+            content: Text(
+              "No se encontraron pasos para la receta: '$recipeId'. Revisa que el nombre en Firestore coincida exactamente.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("OK"),
+              ),
+            ],
           ),
         );
       } else {
@@ -235,3 +242,4 @@ class _CookingButton extends StatelessWidget {
       if (context.mounted) Navigator.of(context).pop();
     }
   }
+}
