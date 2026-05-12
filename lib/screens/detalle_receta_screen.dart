@@ -452,6 +452,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                     return GestureDetector(
                                       onTap: () {
                                         favStateLocal.toggle({
+                                          'id': widget.recetaId, // <-- LA LÍNEA VITAL QUE FALTABA
                                           'nombre': nombre,
                                           'img': imagenPrincipal,
                                           'calorias': caloriasBase
