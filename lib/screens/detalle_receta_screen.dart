@@ -316,7 +316,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final favState = FavoritosProvider.of(context);
+    // final favState = FavoritosProvider.of(context);
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F5),
       body: FutureBuilder<Map<String, dynamic>>(
@@ -433,6 +433,8 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                               Expanded(
                                 child: Text(
                                   nombre,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     fontSize: 22,
                                     fontWeight: FontWeight.bold,
@@ -452,7 +454,8 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                     return GestureDetector(
                                       onTap: () {
                                         favStateLocal.toggle({
-                                          'id': widget.recetaId, // <-- LA LÍNEA VITAL QUE FALTABA
+                                          'id': widget
+                                              .recetaId, // <-- LA LÍNEA VITAL QUE FALTABA
                                           'nombre': nombre,
                                           'img': imagenPrincipal,
                                           'calorias': caloriasBase
@@ -595,7 +598,10 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                 ),
                               ),
 
-                              Row(
+                              Wrap(
+                                spacing: 14,
+                                runSpacing: 8,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
                                   if (widget.isAdmin)
                                     IconButton(
@@ -707,6 +713,8 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                             Expanded(
                                               child: Text(
                                                 textoCompleto,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
                                                 style: TextStyle(
                                                   fontSize: 14,
                                                   fontWeight: FontWeight.w500,
@@ -721,50 +729,124 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                               ),
                                             ),
                                             const SizedBox(width: 10),
-                                            /*AnimatedContainer(//
-                                              duration: const Duration(
-                                                milliseconds: 200,
-                                              ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 6,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: marcado
-                                                    ? _verde
-                                                    : Colors.red.withValues(
-                                                        alpha: 0.1,
-                                                      ),
-                                                borderRadius:
-                                                    BorderRadius.circular(20),
-                                                border: Border.all(
-                                                  color: marcado
-                                                      ? _verde
-                                                      : Colors.red[300]!,
-                                                  width: 1,
-                                                ),
-                                              ),
-                                              child: Text(
-                                                marcado ? 'Tengo ✓' : 'Falta',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: marcado
-                                                      ? Colors.white
-                                                      : Colors.red[700],
-                                                ),
-                                              ),
-                                            )*/
+
+                                            /* ============================
+   VERSION VIEJA (RESPALDO)
+=============================*/
+                                            /*
+AnimatedContainer(
+  duration: const Duration(
+    milliseconds: 200,
+  ),
+  padding: const EdgeInsets.symmetric(
+    horizontal: 12,
+    vertical: 6,
+  ),
+  decoration: BoxDecoration(
+    color: marcado
+        ? _verde
+        : Colors.red.withValues(
+            alpha: 0.1,
+          ),
+    borderRadius: BorderRadius.circular(20),
+    border: Border.all(
+      color: marcado
+          ? _verde
+          : Colors.red[300]!,
+      width: 1,
+    ),
+  ),
+  child: Text(
+    marcado ? 'Tengo ✓' : 'Falta',
+    style: TextStyle(
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
+      color: marcado
+          ? Colors.white
+          : Colors.red[700],
+    ),
+  ),
+),
+*/
+                                            /*
+widget.isAdmin
+    ? Row(
+        children: [
+          IconButton(
+            icon: const Icon(
+              Icons.edit,
+              color: Colors.blue,
+              size: 18,
+            ),
+            onPressed: () {
+              _editarIngrediente(i, ing);
+            },
+          ),
+
+          IconButton(
+            icon: const Icon(
+              Icons.delete,
+              color: Colors.red,
+              size: 18,
+            ),
+            onPressed: () {
+              setState(() {
+                _ingredientesEditables.removeAt(i);
+                _checks.removeAt(i);
+              });
+            },
+          ),
+        ],
+      )
+      
+    : AnimatedContainer(
+        duration: const Duration(
+          milliseconds: 200,
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 6,
+        ),
+        decoration: BoxDecoration(
+          color: marcado
+              ? _verde
+              : Colors.red.withValues(
+                  alpha: 0.1,
+                ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: marcado
+                ? _verde
+                : Colors.red[300]!,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          marcado ? 'Tengo ✓' : 'Falta',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: marcado
+                ? Colors.white
+                : Colors.red[700],
+          ),
+        ),
+      ),
+*/
+
+                                            /* ===== VERSION NUEVA ===== */
                                             widget.isAdmin
                                                 ? Row(
                                                     children: [
-                                                      //  EDITAR
                                                       IconButton(
+                                                        constraints:
+                                                            const BoxConstraints(),
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        iconSize: 18,
                                                         icon: const Icon(
                                                           Icons.edit,
                                                           color: Colors.blue,
-                                                          size: 18,
                                                         ),
                                                         onPressed: () {
                                                           _editarIngrediente(
@@ -774,17 +856,18 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                                         },
                                                       ),
 
-                                                      //ELIMINAR
                                                       IconButton(
+                                                        constraints:
+                                                            const BoxConstraints(),
+                                                        padding:
+                                                            EdgeInsets.zero,
+                                                        iconSize: 18,
                                                         icon: const Icon(
                                                           Icons.delete,
                                                           color: Colors.red,
-                                                          size: 18,
                                                         ),
                                                         onPressed: () {
                                                           setState(() {
-                                                            //ingredientes.removeAt(i);
-                                                            //_checks.removeAt(i);
                                                             _ingredientesEditables
                                                                 .removeAt(i);
                                                             _checks.removeAt(i);
@@ -837,6 +920,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                           ],
                                         ),
                                       ),
+
                                       if (ing.sustituto.isNotEmpty && !marcado)
                                         Container(
                                           margin: const EdgeInsets.only(
@@ -931,6 +1015,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
           );
         },
       ),
+      //a aca
       bottomNavigationBar: Container(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         decoration: BoxDecoration(
