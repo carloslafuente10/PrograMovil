@@ -142,4 +142,8 @@ class PdfService {
     await generarReporteUsuarios();
 
   }
+
+  generarReporteUsuario(
+  Map<String, dynamic> data
+)
 }

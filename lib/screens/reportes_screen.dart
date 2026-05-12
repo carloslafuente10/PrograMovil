@@ -14,6 +14,11 @@ class _ReportesScreenState
     extends State<ReportesScreen> {
   
   String seccion = 'usuarios';
+
+    String buscarUsuario = '';
+
+  String formatoUsuarios =
+      'PDF';
   @override
   Widget build(BuildContext context) {
     final Color verde = const Color(0xFF2FA36B);
@@ -169,123 +174,309 @@ class _ReportesScreenState
 
          //los usuarios /users/admins
 if (seccion == 'usuarios') ...[
-           Row(
-  mainAxisAlignment:
-      MainAxisAlignment.spaceBetween,
 
-  children: [
+  Row(
+    children: [
 
-    _titulo('Usuarios registrados'),
+      Expanded(
+        child: TextField(
+          decoration: InputDecoration(
+            hintText:
+                'Buscar usuario',
+            prefixIcon:
+                const Icon(Icons.search),
+            filled: true,
+            fillColor: Colors.white,
+            border:
+                OutlineInputBorder(
+              borderRadius:
+                  BorderRadius.circular(14),
+              borderSide:
+                  BorderSide.none,
+            ),
+          ),
 
-    ElevatedButton.icon(
-      onPressed: () {
-        PdfService.generarReporteUsuarios();
-      },
-
-      icon: const Icon(Icons.picture_as_pdf),
-
-      label: const Text(
-        'PDF',
+          onChanged: (value) {
+            setState(() {
+              buscarUsuario = value
+                  .toLowerCase();
+            });
+          },
+        ),
       ),
-    ),
-  ],
-),
-//const SizedBox(height: 30),
 
+      const SizedBox(width: 10),
 
-            const SizedBox(height: 12),
+      Container(
+        padding:
+            const EdgeInsets.symmetric(
+          horizontal: 12,
+        ),
 
-            StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('app-usuarios')
-                  .snapshots(),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius:
+              BorderRadius.circular(14),
+        ),
 
-              builder: (context, snapshot) {
+        child: DropdownButton<String>(
+          value: formatoUsuarios,
 
-                if (!snapshot.hasData) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
-                }
+          underline:
+              const SizedBox(),
 
-                final usuarios = snapshot.data!.docs;
+          items: const [
 
-                return Column(
-                  children: usuarios.map((doc) {
-
-                    final data =
-                        doc.data() as Map<String, dynamic>;
-
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-
-                      padding: const EdgeInsets.all(14),
-
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-
-                      child: Row(
-                        children: [
-
-                          CircleAvatar(
-                            backgroundColor:
-                                verde.withValues(alpha: 0.1),
-
-                            child: Icon(
-                              Icons.person,
-                              color: verde,
-                            ),
-                          ),
-
-                          const SizedBox(width: 12),
-
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-
-                              children: [
-
-                                Text(
-                                  data['nombre'] ?? 'Sin nombre',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                  ),
-                                ),
-
-                                const SizedBox(height: 4),
-
-                                Text(
-                                  data['correo'] ??
-                                      data['email'] ??
-                                      'Sin correo',
-                                ),
-
-                                const SizedBox(height: 4),
-
-                                Text(
-                                  'Rol: ${data['rol'] ?? 'user'}',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-
-                  }).toList(),
-                );
-              },
+            DropdownMenuItem(
+              value: 'PDF',
+              child: Text('PDF'),
             ),
 
-            const SizedBox(height: 30),
+            DropdownMenuItem(
+              value: 'Excel',
+              child: Text('Excel'),
+            ),
+
+            DropdownMenuItem(
+              value: 'CSV',
+              child: Text('CSV'),
+            ),
+          ],
+
+          onChanged: (value) {
+            setState(() {
+              formatoUsuarios =
+                  value!;
+            });
+          },
+        ),
+      ),
+
+      const SizedBox(width: 10),
+
+      ElevatedButton(
+       onPressed: () async {
+
+  if (formatoUsuarios == 'PDF') {
+
+    await PdfService
+        .generarReporteUsuarios();
+
+  }
+
+  else if (
+      formatoUsuarios == 'Excel') {
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+
+      const SnackBar(
+        content: Text(
+          'Reporte Excel próximamente',
+        ),
+      ),
+    );
+  }
+
+  else if (
+      formatoUsuarios == 'CSV') {
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+
+      const SnackBar(
+        content: Text(
+          'Reporte CSV próximamente',
+        ),
+      ),
+    );
+  }
+},
+
+        child:
+            const Text('Reporte'),
+      ),
+    ],
+  ),
+
+  const SizedBox(height: 20),
+
+  _titulo('Usuarios'),
+
+  const SizedBox(height: 12),
+
+  StreamBuilder<QuerySnapshot>(
+    stream: FirebaseFirestore.instance
+        .collection('app-usuarios')
+        .snapshots(),
+
+    builder: (context, snapshot) {
+
+      if (!snapshot.hasData) {
+        return const Center(
+          child:
+              CircularProgressIndicator(),
+        );
+      }
+
+      final usuarios =
+          snapshot.data!.docs.where(
+        (doc) {
+
+          final data = doc.data()
+              as Map<String, dynamic>;
+
+          final nombre =
+              (data['nombre'] ?? '')
+                  .toString()
+                  .toLowerCase();
+
+          return nombre.contains(
+            buscarUsuario,
+          );
+        },
+      ).toList();
+
+      return Column(
+        children:
+            usuarios.map((doc) {
+
+          final data =
+              doc.data()
+                  as Map<String, dynamic>;
+
+          return GestureDetector(
+            onTap: () {
+
+              showDialog(
+                context: context,
+
+                builder: (_) =>
+                    AlertDialog(
+
+                  title: Text(
+                    data['nombre'] ??
+                        '',
+                  ),
+
+                  content: Column(
+                    mainAxisSize:
+                        MainAxisSize.min,
+
+                    crossAxisAlignment:
+                        CrossAxisAlignment
+                            .start,
+
+                    children: [
+
+                      Text(
+                        'Correo: ${data['correo'] ?? data['email'] ?? ''}',
+                      ),
+
+                      const SizedBox(
+                          height: 8),
+
+                      Text(
+                        'Rol: ${data['rol'] ?? 'user'}',
+                      ),
+
+                      const SizedBox(
+                          height: 8),
+
+                      Text(
+                        'Estado: Activo',
+                      ),
+
+                      const SizedBox(
+                          height: 8),
+
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          PdfService
+                              .generarReporteUsuarios();
+                        },
+
+                        icon: const Icon(
+                          Icons.picture_as_pdf,
+                        ),
+
+                        label: const Text(
+                          'PDF usuario',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+
+            child: Container(
+              margin:
+                  const EdgeInsets.only(
+                bottom: 10,
+              ),
+
+              padding:
+                  const EdgeInsets.all(
+                14,
+              ),
+
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius:
+                    BorderRadius.circular(
+                  16,
+                ),
+              ),
+
+              child: Row(
+                children: [
+
+                  CircleAvatar(
+                    backgroundColor:
+                        verde.withValues(
+                      alpha: 0.1,
+                    ),
+
+                    child: Icon(
+                      Icons.person,
+                      color: verde,
+                    ),
+                  ),
+
+                  const SizedBox(
+                      width: 12),
+
+                  Expanded(
+                    child: Text(
+                      data['nombre'] ??
+                          'Sin nombre',
+
+                      style:
+                          const TextStyle(
+                        fontWeight:
+                            FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+
+                  const Icon(
+                    Icons
+                        .arrow_forward_ios,
+                    size: 16,
+                  ),
+                ],
+              ),
+            ),
+          );
+
+        }).toList(),
+      );
+    },
+  ),
+
+  const SizedBox(height: 30),
 ],
       //las recetas
 if (seccion == 'recetas') ...[
