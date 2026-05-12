@@ -196,7 +196,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   bool get _puedecocinar {
     if (_checks.isEmpty || _ingredientesEditables.isEmpty) return false;
 
-    // 1. Condición del 80%
+    // 1. Condición del mayor al 80%
     final marcadosCount = _checks.where((c) => c).length;
     final bool tieneOchentaPorciento = (marcadosCount / _checks.length) >= 0.8;
 
@@ -210,7 +210,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
       }
     }
 
-    // El botón solo sirve si tiene el 80% Y NO falta ningún primordial
+    // El botón solo sirve si tiene mas del 80% Y NO falta ningún primordial
     return tieneOchentaPorciento && !faltaPrimordial;
   }
 
@@ -1093,7 +1093,7 @@ widget.isAdmin
                       activo
                           ? 'Empezar a cocinar'
                           : (porcentaje < 80
-                                ? 'Marca el 80% de ingredientes ($porcentaje%)'
+                                ? 'Marca más del 80% de ingredientes ($porcentaje%)'
                                 : 'Falta ingrediente obligatorio'), // <--- Aviso extra
                       style: const TextStyle(
                         fontSize: 14,
