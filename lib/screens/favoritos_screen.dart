@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'favoritos_provider.dart';
 import 'detalle_receta_screen.dart';
 import 'mis_recetas_screen.dart';
@@ -115,6 +116,7 @@ class _FavoritoTile extends StatelessWidget {
     const double h = 80;
 
     if (img.isEmpty) return _placeholder();
+
     if (img.startsWith('http://') || img.startsWith('https://')) {
       return Image.network(
         img,
@@ -138,15 +140,67 @@ class _FavoritoTile extends StatelessWidget {
     final String img = receta['img']?.toString() ?? '';
 
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => DetalleRecetaScreen(
-            nombreReceta: receta['nombre']?.toString() ?? 'Receta Favorita',
-            recetaId: receta['id']?.toString() ?? 'sin-id',
-          ),
-        ),
-      ),
+      onTap: () async {
+        final String nombre = receta['nombre']?.toString() ?? '';
+        final String recetaId = receta['id']?.toString() ?? '';
+
+        // 1. RUTA RÁPIDA (Optimizada por Hans)
+        // Si ya tenemos el ID, navegamos directamente sin consultar Firebase.
+        if (recetaId.isNotEmpty && recetaId != 'sin-id') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => DetalleRecetaScreen(
+                nombreReceta: nombre.isEmpty ? 'Receta Favorita' : nombre,
+                recetaId: recetaId,
+              ),
+            ),
+          );
+          return;
+        }
+
+        // 2. RUTA DE CONTINGENCIA (Código de los compañeros)
+        // Si es un favorito antiguo y le falta el ID, hacemos la consulta.
+        if (nombre.isEmpty) return;
+
+        try {
+          final snap = await FirebaseFirestore.instance
+              .collection('app-recetas-completas')
+              .where('nombre', isEqualTo: nombre)
+              .limit(1)
+              .get();
+
+          if (!context.mounted) return;
+
+          if (snap.docs.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No se encontró la receta'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+            return;
+          }
+
+          final docId = snap.docs.first.id;
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  DetalleRecetaScreen(nombreReceta: nombre, recetaId: docId),
+            ),
+          );
+        } catch (e) {
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al abrir la receta: $e'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,

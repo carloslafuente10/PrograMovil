@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'detalle_receta_screen.dart';
 import 'editar_receta_screen.dart';
 
 class AdminRecetasScreen extends StatelessWidget {
@@ -155,6 +156,7 @@ class AdminRecetasScreen extends StatelessWidget {
                 return GridView.builder(
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 80),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    // altura fija por tarjeta
                     crossAxisCount: 2,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
@@ -215,17 +217,19 @@ class _RecetaCard extends StatelessWidget {
       shadowColor: Colors.black12,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        // Tap = solo lectura
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => EditarRecetaScreen(
-              docId: docId,
-              datosIniciales: data,
-              soloLectura: true,
+        onTap: () {
+          // Aquí usamos 'data' que es como definiste tu variable arriba
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => DetalleRecetaScreen(
+                recetaId: docId,
+                nombreReceta: nombre, // Usamos la variable local 'nombre'
+                isAdmin: true,
+              ),
             ),
-          ),
-        ),
+          );
+        },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -295,13 +299,13 @@ class _RecetaCard extends StatelessWidget {
                       ),
                     Text(
                       nombre,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 12.5,
                         color: Color(0xFF1A1A2E),
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
                     const Spacer(),
                     Row(
@@ -396,6 +400,7 @@ class _MiniBtn extends StatelessWidget {
   final IconData icono;
   final Color color, bg;
   final VoidCallback onTap;
+
   const _MiniBtn({
     required this.icono,
     required this.color,
