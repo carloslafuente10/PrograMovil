@@ -356,7 +356,7 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
     if (ok == true) await _guardar();
   }
 
-  // CORRECCIÓN 1: _guardar incluye subcategoria y agrega recetas_id en steps-recetas
+  // _guardar: incluye subcategoria y guarda pasos con campo receta_id (consistente con BD)
   Future<void> _guardar() async {
     setState(() => _guardando = true);
     try {
@@ -389,13 +389,12 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
         debugPrint(
           '[GUARDAR] Guardando ${_pasos.length} pasos en steps-recetas/$docId',
         );
-        // Usamos el ID de la receta como nombre del doc y guardamos recetas_id como vínculo
         await FirebaseFirestore.instance
             .collection('steps-recetas')
             .doc(docId)
             .set({
               'pasos_ordenados': _pasos.map((p) => p.toMap()).toList(),
-              'recetas_id': docId, // vínculo vital entre colecciones
+              'receta_id': docId, // mismo nombre que usa el resto de la BD
             });
         debugPrint(
           '[GUARDAR] ✅ Pasos guardados correctamente para docId: $docId',
