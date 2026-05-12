@@ -3,9 +3,6 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 
-// Importa aquí tus pantallas de destino si es necesario
-// import 'tu_ruta/receta_detalle_screen.dart'; 
-
 class SugerenciasChatScreen extends StatefulWidget {
   const SugerenciasChatScreen({super.key});
 
@@ -30,6 +27,7 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen> {
   List<String> _ingredientesPrimordiales = [];
   final List<String> _ingredientesSeleccionados = [];
   bool _mostrarGridIngredientes = false;
+  bool _bloquearCategorias = false; // NUEVA VARIABLE PARA CONTROLAR EL FLUJO
 
   // --- CONFIGURACIÓN DE GEMINI ---
   final String systemPrompt = """
@@ -65,7 +63,6 @@ Sé concisa, usa emojis de cocina y nunca reveles que eres una IA de Google.
           .where('categoria', isEqualTo: _categoriaComidaElegida)
           .get();
 
-      // Guardamos Mapas con 'id' y 'nombre' para poder navegar luego
       List<Map<String, String>> recetasEncontradas = [];
 
       for (var doc in snapshot.docs) {
@@ -91,7 +88,7 @@ Sé concisa, usa emojis de cocina y nunca reveles que eres una IA de Google.
             "rol": "llama",
             "texto": "¡He encontrado el maridaje perfecto! 👨‍🍳 Aquí tienes las opciones que mejor combinan con tu selección. ¡Pulsa en la que más te apetezca!",
             "tipo": "recetas_grid",
-            "recetas": recetasEncontradas // Pasamos la lista de objetos
+            "recetas": recetasEncontradas 
           });
         });
       } else {
@@ -103,7 +100,6 @@ Sé concisa, usa emojis de cocina y nunca reveles que eres una IA de Google.
           });
         });
       }
-
     } catch (e) {
       debugPrint("Error al buscar recetas: $e");
       setState(() => _mensajes.add({"rol": "llama", "texto": "Se nos ha derramado el caldo... Error en la conexión."}));
@@ -121,16 +117,17 @@ Sé concisa, usa emojis de cocina y nunca reveles que eres una IA de Google.
       _esperandoDetalleReporte = false;
       _esperandoParrafoSugerencia = false;
       _mostrarGridIngredientes = false;
+      _bloquearCategorias = false; // Resetear bloqueo al entrar
       _ingredientesSeleccionados.clear();
 
       String saludoChef;
       String tipoMensaje = "texto";
 
       if (titulo == "Reporte") {
-        saludoChef = "¡Oído cocina! Veo que tenemos un plato quemado (un error). Por favor, dime con detalle qué está fallando.";
+        saludoChef = "¡Oído cocina! Veo que tenemos un plato quemado. Por favor, dime con detalle qué está fallando.";
         _esperandoDetalleReporte = true;
       } else if (titulo == "Ayuda") {
-        saludoChef = "Cuéntame, veo que necesitas una pequeña ayuda para decidirte. Por favor selecciona una categoría:";
+        saludoChef = "Aqui estoy para guiarte en tu siguiente comida. Por favor selecciona una categoría:";
         tipoMensaje = "botones_categoria";
       } else {
         saludoChef = "¡Me encanta experimentar! Cuéntame tu idea completa (Nombre, ingredientes y toque especial) en un solo párrafo. 📝";
@@ -213,7 +210,7 @@ Sé concisa, usa emojis de cocina y nunca reveles que eres una IA de Google.
         _mensajes.add({
           "rol": "llama",
           "tipo": "reporte_btn",
-          "texto": "¿Deseas enviar este reporte directamente al administrador?"
+          "texto": "Lo siento mucho por este incoveniente.¿Deseas enviar este reporte directamente al administrador para que sea resuelto lo mas antes posible?"
         });
       });
       return;
@@ -242,7 +239,7 @@ Sé concisa, usa emojis de cocina y nunca reveles que eres una IA de Google.
         });
       });
     } catch (e) {
-      setState(() => _mensajes.add({"rol": "llama", "texto": "Parece que los fogones están bloqueados."}));
+      setState(() => _mensajes.add({"rol": "llama", "texto": "Disculpa creo que no entendi lo que intentase decir, por favor sigue las indicaciones."}));
     } finally {
       setState(() => _estaCargando = false);
     }
@@ -271,6 +268,7 @@ Sé concisa, usa emojis de cocina y nunca reveles que eres una IA de Google.
                   _opcionSeleccionada = false;
                   _mensajes.clear();
                   _mostrarGridIngredientes = false;
+                  _bloquearCategorias = false; // Resetear al volver
                 }),
               )
             : null,
@@ -379,7 +377,6 @@ Sé concisa, usa emojis de cocina y nunca reveles que eres una IA de Google.
                     ),
                     if (msg["tipo"] == "botones_categoria") _buildCategoriasGrid(),
                     if (msg["tipo"] == "grid_ingredients" && _mostrarGridIngredientes) _buildIngredientesGrid(),
-                    // NUEVO: Grid de botones de recetas encontradas
                     if (msg["tipo"] == "recetas_grid") _buildRecetasBotonesGrid(msg["recetas"]),
                     if (msg["tipo"] == "reporte_btn") 
                        _buildActionBtn(() => _enviarReporteAlAdmin(msg["texto"]), Icons.mark_email_read_outlined, "Enviar reporte al admin"),
@@ -401,7 +398,6 @@ Sé concisa, usa emojis de cocina y nunca reveles que eres una IA de Google.
     );
   }
 
-  // WIDGET NUEVO: Botones para las recetas recomendadas
   Widget _buildRecetasBotonesGrid(List<Map<String, String>> recetas) {
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 16),
@@ -410,17 +406,11 @@ Sé concisa, usa emojis de cocina y nunca reveles que eres una IA de Google.
         runSpacing: 10,
         children: recetas.map((receta) {
           return SizedBox(
-            width: 160, // Ajuste para que quepan dos por fila aprox.
+            width: 160, 
             height: 52,
             child: ElevatedButton.icon(
               onPressed: () {
-                // Aquí navegas a tu pantalla de detalle usando receta['id']
                 debugPrint("Navegando a la receta: ${receta['nombre']} con ID: ${receta['id']}");
-                /* Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => TuPantallaDetalle(recetaId: receta['id']!))
-                ); 
-                */
               },
               icon: const Icon(Icons.restaurant_menu, size: 18),
               label: Text(
@@ -446,17 +436,21 @@ Sé concisa, usa emojis de cocina y nunca reveles que eres una IA de Google.
     final cats = ["Almuerzo", "Cena", "Desayuno", "Snack", "Refrescos"];
     return Wrap(
       spacing: 8,
-      children: cats.map((cat) => ActionChip(
-        label: Text(cat),
-        backgroundColor: Colors.white,
-        onPressed: () {
-          setState(() {
-            _categoriaComidaElegida = cat;
-            _mensajes.add({"rol": "usuario", "texto": "Categoría: $cat", "tipo": "texto"});
-          });
-          _cargarIngredientesPrimordiales(cat);
-        },
-      )).toList(),
+      children: cats.map((cat) {
+        bool estaBloqueado = _bloquearCategorias;
+        return ActionChip(
+          label: Text(cat),
+          backgroundColor: _categoriaComidaElegida == cat ? _verde.withOpacity(0.2) : Colors.white,
+          onPressed: estaBloqueado ? null : () { // SI ESTÁ BLOQUEADO, EL BOTÓN NO HACE NADA
+            setState(() {
+              _bloquearCategorias = true; // ACTIVAMOS BLOQUEO AL SELECCIONAR
+              _categoriaComidaElegida = cat;
+              _mensajes.add({"rol": "usuario", "texto": "Categoría: $cat", "tipo": "texto"});
+            });
+            _cargarIngredientesPrimordiales(cat);
+          },
+        );
+      }).toList(),
     );
   }
 
