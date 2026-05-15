@@ -314,7 +314,7 @@ class _AjustesScreen extends StatelessWidget {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const MisRecetasScreen(),
+                          builder: (context) => MisRecetasScreen(),
                         ),
                       ),
                     ),

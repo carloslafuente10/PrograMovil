@@ -72,7 +72,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   late final TextEditingController _imagenCtrl;
   late final TextEditingController _porcionCtrl;
   String _categoriaSeleccionada = '';
-  // Subcategoría como campo de texto libre
   late final TextEditingController _subcategoriaCtrl;
 
   List<_IngReceta> _ingredientes = [];
@@ -80,6 +79,8 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   List<Map<String, dynamic>> _maestros = [];
   bool _cargandoMaestros = true;
   bool _guardando = false;
+
+  Map<String, String> _nombresResueltos = {};
 
   static const List<String> _unidadesSugeridas = [
     'g',
@@ -124,7 +125,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       text: d['porcion_base']?.toString() ?? '1',
     );
     _categoriaSeleccionada = d['categoria']?.toString() ?? '';
-    // Subcategoría: campo de texto libre, inicializado desde datosIniciales
     _subcategoriaCtrl = TextEditingController(
       text: d['subcategoria']?.toString() ?? '',
     );
@@ -150,8 +150,93 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         }
       }
     }
-    _cargarMaestros();
+    _cargarMaestros().then((_) => _resolverNombresIngredientes());
     _cargarPasos();
+  }
+
+  /// ✅ FIX: Resuelve nombres Y actualiza la lista _ingredientes con ellos.
+  Future<void> _resolverNombresIngredientes() async {
+    final d = widget.datosIniciales ?? {};
+    final List ingredientesRaw = d['ingredientes'] ?? [];
+
+    final idsHuerfanos = ingredientesRaw
+        .whereType<Map>()
+        .where(
+          (item) =>
+              (item['nombre'] == null || item['nombre'].toString().isEmpty) &&
+              item['ingrediente_id'] != null &&
+              item['ingrediente_id'].toString().isNotEmpty,
+        )
+        .map((item) => item['ingrediente_id'].toString())
+        .toSet();
+
+    if (idsHuerfanos.isEmpty) return;
+
+    // 1. Busca primero en los maestros ya cargados en memoria (sin Firestore)
+      final maestro = _maestros.firstWhere(
+        (m) => m['id'] == id,
+        orElse: () => <String, dynamic>{},
+      );
+      if (maestro.isNotEmpty && maestro['nombre'] != null) {
+        _nombresResueltos[id] = maestro['nombre'].toString();
+      }
+    }
+
+    // 2. Los que no se encontraron localmente, los consulta en Firestore
+    final idsRestantes = idsHuerfanos
+        .where((id) => !_nombresResueltos.containsKey(id))
+        .toList();
+
+    for (final id in idsRestantes) {
+      try {
+        // Intento 1: el doc tiene el mismo ID que ingrediente_id
+        final doc = await FirebaseFirestore.instance
+            .collection('ingredientes_maestros')
+            .doc(id)
+            .get();
+        if (doc.exists && doc.data()?['nombre'] != null) {
+          _nombresResueltos[id] = doc.data()!['nombre'].toString();
+          continue;
+        }
+        // Intento 2: busca por nombre con guiones → espacios
+        final q = await FirebaseFirestore.instance
+            .collection('ingredientes_maestros')
+            .where('nombre', isEqualTo: id.replaceAll('-', ' '))
+            .limit(1)
+            .get();
+        if (q.docs.isNotEmpty) {
+          _nombresResueltos[id] = q.docs.first['nombre'].toString();
+        }
+      } catch (_) {}
+    }
+
+    // ✅ FIX: Actualiza _ingredientes con los nombres resueltos
+    if (mounted) {
+      setState(() {
+        for (int i = 0; i < _ingredientes.length; i++) {
+          if (_ingredientes[i].nombre.isEmpty) {
+            final id = _ingredientes[i].ingredienteId;
+            final nombreResuelto =
+                _nombresResueltos[id] ??
+                id
+                    .split('-')
+                    .map(
+                      (w) =>
+                          w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1),
+                    )
+                    .join(' ');
+            _ingredientes[i] = _IngReceta(
+              ingredienteId: id,
+              nombre: nombreResuelto,
+              cantidad: _ingredientes[i].cantidad,
+              unidad: _ingredientes[i].unidad,
+              esPrimordial: _ingredientes[i].esPrimordial,
+              esMaestro: _ingredientes[i].esMaestro,
+            );
+          }
+        }
+      });
+    }
   }
 
   Future<void> _cargarMaestros() async {
@@ -172,29 +257,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   }
 
   Future<void> _cargarPasos() async {
-    // Para recetas_personales, los pasos están embebidos en el mismo documento
-    if (widget.coleccion == 'recetas_personales') {
-      final pasosRaw = widget.datosIniciales?['pasos'];
-      if (pasosRaw is List && pasosRaw.isNotEmpty) {
-        if (mounted) {
-          setState(() {
-            _pasos =
-                pasosRaw
-                    .map(
-                      (p) => _Paso(
-                        instruccion: p['instruccion']?.toString() ?? '',
-                        orden: (p['orden'] as num?)?.toInt() ?? 0,
-                      ),
-                    )
-                    .toList()
-                  ..sort((a, b) => a.orden.compareTo(b.orden));
-          });
-        }
-      }
-      return;
-    }
-
-    // Para app-recetas-completas buscamos en steps-recetas
     if (widget.docId == null) {
       debugPrint('[PASOS] docId es null, abortando carga');
       return;
@@ -314,24 +376,24 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFE8F7F1),
+                color: const Color(0xFFFFF8E1),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: const Color(0xFF2D9E73).withOpacity(0.3),
+                  color: const Color(0xFFFFCC02).withOpacity(0.5),
                 ),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Icon(
-                    Icons.check_circle_outline_rounded,
-                    color: Color(0xFF2D9E73),
+                    Icons.info_outline_rounded,
+                    color: Color(0xFFFF8F00),
                     size: 16,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Podrás editar esta receta en cualquier momento desde "Mis Recetas".',
+                      'Una vez guardada, la receta no podrá editarse. Solo podrás eliminarla.',
                       style: TextStyle(
                         fontSize: 12.5,
                         color: Colors.grey[700],
@@ -372,38 +434,23 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     if (ok == true) await _guardar();
   }
 
-  // GUARDAR — soporta recetas_personales y app-recetas-completas (admin)
   Future<void> _guardar() async {
     setState(() => _guardando = true);
     try {
       final userId =
           FirebaseAuth.instance.currentUser?.uid ?? 'usuario_desconocido';
 
-      // ── Convertir calorias y tiempo a double ──────────────────────────────
-      final double caloriasDouble =
-          double.tryParse(_caloriasCtrl.text.trim()) ?? 0.0;
-      final double tiempoDouble =
-          double.tryParse(_tiempoCtrl.text.trim()) ?? 0.0;
-
       final datos = {
         'nombre': _nombreCtrl.text.trim(),
-        'calorias': caloriasDouble, // ← siempre double
-        'tiempo': tiempoDouble, // ← siempre double
+        'calorias': _caloriasCtrl.text.trim(),
+        'tiempo': _tiempoCtrl.text.trim(),
         'imagen': _imagenCtrl.text.trim(),
         'categoria': _categoriaSeleccionada,
         'subcategoria': _subcategoriaCtrl.text.trim(),
         'porcion_base': _porcionCtrl.text.trim(),
         'ingredientes': _ingredientes.map((i) => i.toMap()).toList(),
-        'usuarioId': userId,
-        // compat con colección admin
         'creador_id': userId,
-        'fechaCreacion': DateTime.now().toIso8601String(),
       };
-
-      // Si es recetas_personales, guardamos pasos dentro del mismo documento
-      if (widget.coleccion == 'recetas_personales') {
-        datos['pasos'] = _pasos.map((p) => p.toMap()).toList();
-      }
 
       String docId;
       if (widget.docId != null) {
@@ -419,8 +466,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         docId = ref.id;
       }
 
-      // Para colección admin también guardamos pasos en steps-recetas
-      if (widget.coleccion != 'recetas_personales' && _pasos.isNotEmpty) {
+      if (_pasos.isNotEmpty) {
         debugPrint(
           '[GUARDAR] Guardando ${_pasos.length} pasos en steps-recetas/$docId',
         );
@@ -431,8 +477,12 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
               'pasos_ordenados': _pasos.map((p) => p.toMap()).toList(),
               'recetas_id': docId,
             });
+        debugPrint(
+          '[GUARDAR] ✅ Pasos guardados correctamente para docId: $docId',
+        );
+      } else {
+        debugPrint('[GUARDAR] ⚠️ Sin pasos para guardar (_pasos está vacío)');
       }
-
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
@@ -587,10 +637,22 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
           else
             ...ingredientesRaw.map((item) {
               if (item is! Map) return const SizedBox();
-              final nombre =
-                  item['nombre']?.toString() ??
-                  item['ingrediente_id']?.toString() ??
-                  '—';
+
+              String nombre = item['nombre']?.toString() ?? '';
+              if (nombre.isEmpty) {
+                final id = item['ingrediente_id']?.toString() ?? '';
+                nombre =
+                    _nombresResueltos[id] ??
+                    id
+                        .split('-')
+                        .map(
+                          (w) => w.isEmpty
+                              ? ''
+                              : w[0].toUpperCase() + w.substring(1),
+                        )
+                        .join(' ');
+              }
+              if (nombre.isEmpty) nombre = 'Ingrediente';
               final cantidad = item['cantidad']?.toString() ?? '';
               final unidad = item['unidad']?.toString() ?? '';
               final primordial = item['es_primordial'] == true;
