@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'favoritos_provider.dart';
 import 'detalle_receta_screen.dart';
-import 'mis_recetas_screen.dart';
 
 class FavoritosScreen extends StatelessWidget {
   const FavoritosScreen({super.key});
@@ -14,31 +13,6 @@ class FavoritosScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F5),
-
-      // Botón flotante para acceder a Mis Recetas
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF2D9E73),
-        elevation: 4,
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const MisRecetasScreen()),
-          );
-        },
-        icon: const Icon(
-          Icons.restaurant_menu_rounded,
-          color: Colors.white,
-          size: 20,
-        ),
-        label: const Text(
-          'Mis Recetas',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-          ),
-        ),
-      ),
 
       body: SafeArea(
         child: Column(
