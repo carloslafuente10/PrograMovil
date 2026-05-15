@@ -360,10 +360,16 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
   Future<void> _guardar() async {
     setState(() => _guardando = true);
     try {
+      // Convertir calorias y tiempo a double para consistencia con el modelo de BD
+      final double caloriasDouble =
+          double.tryParse(_caloriasCtrl.text.trim()) ?? 0.0;
+      final double tiempoDouble =
+          double.tryParse(_tiempoCtrl.text.trim()) ?? 0.0;
+
       final datos = {
         'nombre': _nombreCtrl.text.trim(),
-        'calorias': _caloriasCtrl.text.trim(),
-        'tiempo': _tiempoCtrl.text.trim(),
+        'calorias': caloriasDouble, // ← siempre double
+        'tiempo': tiempoDouble, // ← siempre double
         'imagen': _imagenCtrl.text.trim(),
         'categoria': _categoriaSeleccionada,
         'subcategoria': _subcategoriaCtrl.text.trim(),

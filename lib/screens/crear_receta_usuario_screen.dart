@@ -41,11 +41,16 @@ class CrearRecetaUsuarioScreen extends StatefulWidget {
   final Map<String, dynamic>? datosIniciales;
   final bool soloLectura;
 
+  /// Colección de Firestore donde se guarda/edita la receta.
+  /// Por defecto 'recetas_personales' (para usuarios).
+  final String coleccion;
+
   const CrearRecetaUsuarioScreen({
     super.key,
     this.docId,
     this.datosIniciales,
     this.soloLectura = false,
+    this.coleccion = 'recetas_personales',
   });
 
   @override
@@ -167,6 +172,29 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   }
 
   Future<void> _cargarPasos() async {
+    // Para recetas_personales, los pasos están embebidos en el mismo documento
+    if (widget.coleccion == 'recetas_personales') {
+      final pasosRaw = widget.datosIniciales?['pasos'];
+      if (pasosRaw is List && pasosRaw.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _pasos =
+                pasosRaw
+                    .map(
+                      (p) => _Paso(
+                        instruccion: p['instruccion']?.toString() ?? '',
+                        orden: (p['orden'] as num?)?.toInt() ?? 0,
+                      ),
+                    )
+                    .toList()
+                  ..sort((a, b) => a.orden.compareTo(b.orden));
+          });
+        }
+      }
+      return;
+    }
+
+    // Para app-recetas-completas buscamos en steps-recetas
     if (widget.docId == null) {
       debugPrint('[PASOS] docId es null, abortando carga');
       return;
@@ -286,24 +314,24 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF8E1),
+                color: const Color(0xFFE8F7F1),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: const Color(0xFFFFCC02).withOpacity(0.5),
+                  color: const Color(0xFF2D9E73).withOpacity(0.3),
                 ),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Icon(
-                    Icons.info_outline_rounded,
-                    color: Color(0xFFFF8F00),
+                    Icons.check_circle_outline_rounded,
+                    color: Color(0xFF2D9E73),
                     size: 16,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Una vez guardada, la receta no podrá editarse. Solo podrás eliminarla.',
+                      'Podrás editar esta receta en cualquier momento desde "Mis Recetas".',
                       style: TextStyle(
                         fontSize: 12.5,
                         color: Colors.grey[700],
@@ -344,40 +372,55 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     if (ok == true) await _guardar();
   }
 
-  // AQUÍ ESTÁ EL SELLO DE PROPIEDAD
+  // GUARDAR — soporta recetas_personales y app-recetas-completas (admin)
   Future<void> _guardar() async {
     setState(() => _guardando = true);
     try {
       final userId =
           FirebaseAuth.instance.currentUser?.uid ?? 'usuario_desconocido';
 
+      // ── Convertir calorias y tiempo a double ──────────────────────────────
+      final double caloriasDouble =
+          double.tryParse(_caloriasCtrl.text.trim()) ?? 0.0;
+      final double tiempoDouble =
+          double.tryParse(_tiempoCtrl.text.trim()) ?? 0.0;
+
       final datos = {
         'nombre': _nombreCtrl.text.trim(),
-        'calorias': _caloriasCtrl.text.trim(),
-        'tiempo': _tiempoCtrl.text.trim(),
+        'calorias': caloriasDouble, // ← siempre double
+        'tiempo': tiempoDouble, // ← siempre double
         'imagen': _imagenCtrl.text.trim(),
         'categoria': _categoriaSeleccionada,
         'subcategoria': _subcategoriaCtrl.text.trim(),
         'porcion_base': _porcionCtrl.text.trim(),
         'ingredientes': _ingredientes.map((i) => i.toMap()).toList(),
-        'creador_id': userId, // Este es tu candado personal
+        'usuarioId': userId,
+        // compat con colección admin
+        'creador_id': userId,
+        'fechaCreacion': DateTime.now().toIso8601String(),
       };
+
+      // Si es recetas_personales, guardamos pasos dentro del mismo documento
+      if (widget.coleccion == 'recetas_personales') {
+        datos['pasos'] = _pasos.map((p) => p.toMap()).toList();
+      }
 
       String docId;
       if (widget.docId != null) {
         await FirebaseFirestore.instance
-            .collection('app-recetas-completas')
+            .collection(widget.coleccion)
             .doc(widget.docId)
             .update(datos);
         docId = widget.docId!;
       } else {
         final ref = await FirebaseFirestore.instance
-            .collection('app-recetas-completas')
+            .collection(widget.coleccion)
             .add(datos);
         docId = ref.id;
       }
 
-      if (_pasos.isNotEmpty) {
+      // Para colección admin también guardamos pasos en steps-recetas
+      if (widget.coleccion != 'recetas_personales' && _pasos.isNotEmpty) {
         debugPrint(
           '[GUARDAR] Guardando ${_pasos.length} pasos en steps-recetas/$docId',
         );
@@ -388,12 +431,8 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
               'pasos_ordenados': _pasos.map((p) => p.toMap()).toList(),
               'recetas_id': docId,
             });
-        debugPrint(
-          '[GUARDAR] ✅ Pasos guardados correctamente para docId: $docId',
-        );
-      } else {
-        debugPrint('[GUARDAR] ⚠️ Sin pasos para guardar (_pasos está vacío)');
       }
+
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
