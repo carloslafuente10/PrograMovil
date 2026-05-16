@@ -65,7 +65,7 @@ class MisRecetasScreen extends StatelessWidget {
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('recetas_personales')
-                    .where('usuarioId', isEqualTo: userId)
+                    .where('creador_id', isEqualTo: userId)
                     .snapshots(),
                 builder: (context, snapshot) {
                   final count = snapshot.data?.docs.length ?? 0;
@@ -130,7 +130,7 @@ class MisRecetasScreen extends StatelessWidget {
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('recetas_personales')
-                  .where('usuarioId', isEqualTo: userId)
+                  .where('creador_id', isEqualTo: userId)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -234,6 +234,7 @@ class MisRecetasScreen extends StatelessWidget {
 
 class _CopiarRecetaSheet extends StatefulWidget {
   final String userId;
+
   const _CopiarRecetaSheet({required this.userId});
 
   @override
@@ -538,11 +539,10 @@ class _CopiarRecetaSheetState extends State<_CopiarRecetaSheet> {
         'porcion_base': data['porcion_base']?.toString() ?? '1',
         'ingredientes': ingredientesNorm,
         'pasos': pasos,
-        'usuarioId': widget.userId,
+        'creador_id': widget.userId,
         'origenRecetaId': recetaOriginalId, // referencia al original
         'fechaCreacion': DateTime.now().toIso8601String(),
       };
-
       await FirebaseFirestore.instance
           .collection('recetas_personales')
           .add(copia);
@@ -598,7 +598,7 @@ class MiRecetaCard extends StatelessWidget {
         (datosCompletos['calorias'] ?? datosCompletos['calorías'])
             ?.toString() ??
         '0';
-    final categoria = datosCompletos['categoria']?.toString() ?? '';
+    final category = datosCompletos['categoria']?.toString() ?? '';
     final esCopia = datosCompletos['origenRecetaId'] != null;
 
     return Material(
@@ -614,7 +614,7 @@ class MiRecetaCard extends StatelessWidget {
           isScrollControlled: true,
           builder: (_) => _RecetaOptionsSheet(
             nombre: nombre,
-            categoria: categoria,
+            categoria: category,
             calorias: calorias,
             docId: docId,
             datosCompletos: datosCompletos,
@@ -675,7 +675,7 @@ class MiRecetaCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (categoria.isNotEmpty)
+                    if (category.isNotEmpty)
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 5,
@@ -687,7 +687,7 @@ class MiRecetaCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          categoria,
+                          category,
                           style: const TextStyle(
                             color: _verde,
                             fontSize: 9,
@@ -1077,7 +1077,7 @@ class _RecetaOptionsSheet extends StatelessWidget {
   }
 }
 
-// ── Vista de receta personal (detalle + pasos embebidos) ──────────────────────
+// ── Vista de receta personal (detalle + pasos embebidos o dinámicos) ──────────────────────
 
 class _VistaRecetaPersonal extends StatelessWidget {
   final Map<String, dynamic> datosCompletos;
@@ -1101,10 +1101,12 @@ class _VistaRecetaPersonal extends StatelessWidget {
             ?.toString() ??
         '0';
     final tiempo = datosCompletos['tiempo']?.toString() ?? '0';
-    final categoria = datosCompletos['categoria']?.toString() ?? '';
+    final category = datosCompletos['categoria']?.toString() ?? '';
     final ingredientes =
         (datosCompletos['ingredientes'] as List<dynamic>?) ?? [];
-    final pasos = (datosCompletos['pasos'] as List<dynamic>?) ?? [];
+
+    // Aquí identificamos si la receta tiene los pasos embebidos (recetas copiadas)
+    final pasosEmbed = (datosCompletos['pasos'] as List<dynamic>?) ?? [];
 
     return Scaffold(
       backgroundColor: _fondo,
@@ -1166,7 +1168,7 @@ class _VistaRecetaPersonal extends StatelessWidget {
                   // Stats row
                   Row(
                     children: [
-                      if (categoria.isNotEmpty)
+                      if (category.isNotEmpty)
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
@@ -1177,7 +1179,7 @@ class _VistaRecetaPersonal extends StatelessWidget {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            categoria,
+                            category,
                             style: const TextStyle(
                               color: _verde,
                               fontSize: 11,
@@ -1268,8 +1270,8 @@ class _VistaRecetaPersonal extends StatelessWidget {
                     const SizedBox(height: 22),
                   ],
 
-                  // Pasos
-                  if (pasos.isNotEmpty) ...[
+                  // MÓDULO HÍBRIDO DE PASOS (Soporta embebidos y colecciones externas)
+                  if (pasosEmbed.isNotEmpty) ...[
                     const Text(
                       'Preparación',
                       style: TextStyle(
@@ -1279,7 +1281,7 @@ class _VistaRecetaPersonal extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    ...pasos.asMap().entries.map((entry) {
+                    ...pasosEmbed.asMap().entries.map((entry) {
                       final i = entry.key;
                       final paso = entry.value;
                       final instruccion =
@@ -1327,20 +1329,107 @@ class _VistaRecetaPersonal extends StatelessWidget {
                         ),
                       );
                     }),
-                  ] else
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 20),
-                        child: Text(
-                          'Esta receta no tiene pasos aún.',
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ),
+                  ] else ...[
+                    FutureBuilder<DocumentSnapshot>(
+                      future: FirebaseFirestore.instance
+                          .collection('steps-recetas')
+                          .doc(docId)
+                          .get(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(color: _verde),
+                          );
+                        }
 
+                        final dataStream =
+                            snapshot.data?.data() as Map<String, dynamic>?;
+                        final pasosDB =
+                            (dataStream?['pasos_ordenados']
+                                as List<dynamic>?) ??
+                            [];
+
+                        if (pasosDB.isEmpty) {
+                          return const Center(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 20),
+                              child: Text(
+                                'Esta receta no tiene pasos aún.',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Preparación',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1A1A2E),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            ...pasosDB.asMap().entries.map((entry) {
+                              final i = entry.key;
+                              final paso = entry.value;
+                              final instruccion =
+                                  (paso is Map ? paso['instruccion'] : paso)
+                                      ?.toString() ??
+                                  '';
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      width: 28,
+                                      height: 28,
+                                      decoration: const BoxDecoration(
+                                        color: _verde,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          '${i + 1}',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          instruccion,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xFF1A1A2E),
+                                            height: 1.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 32),
                 ],
               ),
