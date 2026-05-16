@@ -92,16 +92,13 @@ class _HomeScreenState extends State<HomeScreen>
         backgroundColor: _verde,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
 
   void _onPerfilTap() {
-    final mainScreen =
-        context.findAncestorStateOfType<AppMainScreenState>();
+    final mainScreen = context.findAncestorStateOfType<AppMainScreenState>();
     if (mainScreen != null) {
       mainScreen.setState(() => mainScreen.selectedIndex = 3);
     }
@@ -175,15 +172,10 @@ class _HomeScreenState extends State<HomeScreen>
         decoration: InputDecoration(
           hintText: 'Buscar recetas...',
           hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-          prefixIcon:
-              Icon(Icons.search, color: Colors.grey[400], size: 20),
+          prefixIcon: Icon(Icons.search, color: Colors.grey[400], size: 20),
           suffixIcon: _busqueda.isNotEmpty
               ? IconButton(
-                  icon: const Icon(
-                    Icons.clear,
-                    color: Colors.grey,
-                    size: 20,
-                  ),
+                  icon: const Icon(Icons.clear, color: Colors.grey, size: 20),
                   onPressed: _limpiarBusqueda,
                 )
               : null,
@@ -316,16 +308,11 @@ class _HomeScreenState extends State<HomeScreen>
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 18,
-                vertical: 8,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
               decoration: BoxDecoration(
                 color: activo ? _verde : Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: activo ? _verde : Colors.grey[300]!,
-                ),
+                border: Border.all(color: activo ? _verde : Colors.grey[300]!),
               ),
               child: Text(
                 cat,
@@ -389,9 +376,7 @@ class _HomeScreenState extends State<HomeScreen>
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting &&
               _docsCache == null) {
-            return Center(
-              child: CircularProgressIndicator(color: _verde),
-            );
+            return Center(child: CircularProgressIndicator(color: _verde));
           }
 
           if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
@@ -409,29 +394,28 @@ class _HomeScreenState extends State<HomeScreen>
             );
           }
 
-          final docs = sourceDocs.where((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            final nombre = (data['nombre'] ?? '').toString();
-            final categoria =
-                (data['categoría'] ?? data['categoria'] ?? '')
+          final docs =
+              sourceDocs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final nombre = (data['nombre'] ?? '').toString();
+                final categoria = (data['categoría'] ?? data['categoria'] ?? '')
                     .toString();
-            final coincideCategoria =
-                _categoriaSeleccionada == 'Todo' ||
-                categoria == _categoriaSeleccionada;
-            final coincideBusqueda = nombre
-                .toLowerCase()
-                .contains(_busqueda.toLowerCase());
-            return coincideCategoria && coincideBusqueda;
-          }).toList()
-            ..sort((a, b) {
-              final na = ((a.data() as Map)['nombre'] ?? '')
-                  .toString()
-                  .toLowerCase();
-              final nb = ((b.data() as Map)['nombre'] ?? '')
-                  .toString()
-                  .toLowerCase();
-              return na.compareTo(nb);
-            });
+                final coincideCategoria =
+                    _categoriaSeleccionada == 'Todo' ||
+                    categoria == _categoriaSeleccionada;
+                final coincideBusqueda = nombre.toLowerCase().contains(
+                  _busqueda.toLowerCase(),
+                );
+                return coincideCategoria && coincideBusqueda;
+              }).toList()..sort((a, b) {
+                final na = ((a.data() as Map)['nombre'] ?? '')
+                    .toString()
+                    .toLowerCase();
+                final nb = ((b.data() as Map)['nombre'] ?? '')
+                    .toString()
+                    .toLowerCase();
+                return na.compareTo(nb);
+              });
 
           if (docs.isEmpty) {
             return Center(
@@ -454,14 +438,10 @@ class _HomeScreenState extends State<HomeScreen>
                 'nombre': data['nombre']?.toString() ?? '',
                 'img': data['imagen']?.toString() ?? '',
                 'calorias':
-                    (data['calorías'] ?? data['calorias'])
-                        ?.toString() ??
-                    '—',
+                    (data['calorías'] ?? data['calorias'])?.toString() ?? '—',
                 'tiempo': data['tiempo']?.toString() ?? '—',
                 'categoria':
-                    (data['categoría'] ?? data['categoria'])
-                        ?.toString() ??
-                    '',
+                    (data['categoría'] ?? data['categoria'])?.toString() ?? '',
               };
 
               return GestureDetector(
@@ -476,10 +456,7 @@ class _HomeScreenState extends State<HomeScreen>
                     ),
                   );
                 },
-                child: _RecetaCard(
-                  receta: recetaMap,
-                  verde: _verde,
-                ),
+                child: _RecetaCard(receta: recetaMap, verde: _verde),
               );
             },
           );
@@ -493,10 +470,7 @@ class _RecetaCard extends StatefulWidget {
   final Map<String, String> receta;
   final Color verde;
 
-  const _RecetaCard({
-    required this.receta,
-    required this.verde,
-  });
+  const _RecetaCard({required this.receta, required this.verde});
 
   @override
   State<_RecetaCard> createState() => _RecetaCardState();
@@ -534,20 +508,20 @@ class _RecetaCardState extends State<_RecetaCard> {
                 ),
                 child: img.isNotEmpty
                     ? (esNetwork
-                        ? Image.network(
-                            img,
-                            width: 150,
-                            height: 110,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _placeholder(),
-                          )
-                        : Image.asset(
-                            img,
-                            width: 150,
-                            height: 110,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _placeholder(),
-                          ))
+                          ? Image.network(
+                              img,
+                              width: 150,
+                              height: 110,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _placeholder(),
+                            )
+                          : Image.asset(
+                              img,
+                              width: 150,
+                              height: 110,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _placeholder(),
+                            ))
                     : _placeholder(),
               ),
               Positioned(
@@ -598,24 +572,14 @@ class _RecetaCardState extends State<_RecetaCard> {
                     const SizedBox(width: 2),
                     Text(
                       '${widget.receta['calorias']} Cal',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey[500],
-                      ),
+                      style: TextStyle(fontSize: 10, color: Colors.grey[500]),
                     ),
                     const SizedBox(width: 8),
-                    Icon(
-                      Icons.access_time,
-                      size: 12,
-                      color: Colors.grey[400],
-                    ),
+                    Icon(Icons.access_time, size: 12, color: Colors.grey[400]),
                     const SizedBox(width: 2),
                     Text(
                       '${widget.receta['tiempo']} Min',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey[500],
-                      ),
+                      style: TextStyle(fontSize: 10, color: Colors.grey[500]),
                     ),
                   ],
                 ),
@@ -642,8 +606,7 @@ class _VerTodasRecetasScreen extends StatefulWidget {
   const _VerTodasRecetasScreen({required this.verde});
 
   @override
-  State<_VerTodasRecetasScreen> createState() =>
-      _VerTodasRecetasScreenState();
+  State<_VerTodasRecetasScreen> createState() => _VerTodasRecetasScreenState();
 }
 
 class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
@@ -698,8 +661,7 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                     : null,
                 filled: true,
                 fillColor: Colors.white,
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(color: Colors.grey[200]!),
@@ -710,8 +672,7 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      BorderSide(color: widget.verde, width: 1.5),
+                  borderSide: BorderSide(color: widget.verde, width: 1.5),
                 ),
               ),
             ),
@@ -722,38 +683,34 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                   .collection('app-recetas-completas')
                   .snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
                   return Center(
-                    child: CircularProgressIndicator(
-                      color: widget.verde,
-                    ),
+                    child: CircularProgressIndicator(color: widget.verde),
                   );
                 }
 
-                if (!snapshot.hasData ||
-                    snapshot.data!.docs.isEmpty) {
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return const Center(
                     child: Text('No hay recetas disponibles'),
                   );
                 }
 
-                final docs = snapshot.data!.docs.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  final nombre = (data['nombre'] ?? '')
-                      .toString()
-                      .toLowerCase();
-                  return nombre.contains(_busqueda.toLowerCase());
-                }).toList()
-                  ..sort((a, b) {
-                    final na = ((a.data() as Map)['nombre'] ?? '')
-                        .toString()
-                        .toLowerCase();
-                    final nb = ((b.data() as Map)['nombre'] ?? '')
-                        .toString()
-                        .toLowerCase();
-                    return na.compareTo(nb);
-                  });
+                final docs =
+                    snapshot.data!.docs.where((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final nombre = (data['nombre'] ?? '')
+                          .toString()
+                          .toLowerCase();
+                      return nombre.contains(_busqueda.toLowerCase());
+                    }).toList()..sort((a, b) {
+                      final na = ((a.data() as Map)['nombre'] ?? '')
+                          .toString()
+                          .toLowerCase();
+                      final nb = ((b.data() as Map)['nombre'] ?? '')
+                          .toString()
+                          .toLowerCase();
+                      return na.compareTo(nb);
+                    });
 
                 if (docs.isEmpty) {
                   return Center(
@@ -770,21 +727,15 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                     vertical: 8,
                   ),
                   itemCount: docs.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(height: 10),
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, i) {
-                    final data =
-                        docs[i].data() as Map<String, dynamic>;
-                    final nombre =
-                        data['nombre']?.toString() ?? 'Sin nombre';
-                    final imagen =
-                        data['imagen']?.toString() ?? '';
+                    final data = docs[i].data() as Map<String, dynamic>;
+                    final nombre = data['nombre']?.toString() ?? 'Sin nombre';
+                    final imagen = data['imagen']?.toString() ?? '';
                     final calorias =
-                        (data['calorías'] ?? data['calorias'])
-                            ?.toString() ??
+                        (data['calorías'] ?? data['calorias'])?.toString() ??
                         '—';
-                    final tiempo =
-                        data['tiempo']?.toString() ?? '—';
+                    final tiempo = data['tiempo']?.toString() ?? '—';
 
                     return GestureDetector(
                       onTap: () {
@@ -804,8 +755,7 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black
-                                  .withValues(alpha: 0.05),
+                              color: Colors.black.withValues(alpha: 0.05),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -814,8 +764,7 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                         child: Row(
                           children: [
                             ClipRRect(
-                              borderRadius:
-                                  const BorderRadius.horizontal(
+                              borderRadius: const BorderRadius.horizontal(
                                 left: Radius.circular(14),
                               ),
                               child: imagen.isNotEmpty
@@ -824,17 +773,15 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                                       width: 90,
                                       height: 90,
                                       fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (_, __, ___) =>
-                                              _imgPlaceholder(),
+                                      errorBuilder: (_, __, ___) =>
+                                          _imgPlaceholder(),
                                     )
                                   : _imgPlaceholder(),
                             ),
                             const SizedBox(width: 14),
                             Expanded(
                               child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     nombre,
@@ -882,8 +829,7 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
                               ),
                             ),
                             Padding(
-                              padding:
-                                  const EdgeInsets.only(right: 14),
+                              padding: const EdgeInsets.only(right: 14),
                               child: Icon(
                                 Icons.arrow_forward_ios_rounded,
                                 size: 14,

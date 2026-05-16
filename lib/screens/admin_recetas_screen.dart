@@ -247,7 +247,7 @@ class _RecetaCard extends StatelessWidget {
                         ? Image.network(
                             img,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _Placeholder(),
+                            errorBuilder: (_, _, ___) => _Placeholder(),
                           )
                         : _Placeholder(),
                   ),
