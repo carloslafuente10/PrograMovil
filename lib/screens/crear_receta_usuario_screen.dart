@@ -42,7 +42,7 @@ class CrearRecetaUsuarioScreen extends StatefulWidget {
   final bool soloLectura;
 
   /// Colección de Firestore donde se guarda/edita la receta.
-  /// Por defecto 'recetas_personales' (para usuarios).
+  /// 'recetas_personales' para usuarios, 'app-recetas-completas' para admin.
   final String coleccion;
 
   const CrearRecetaUsuarioScreen({
@@ -173,6 +173,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     if (idsHuerfanos.isEmpty) return;
 
     // 1. Busca primero en los maestros ya cargados en memoria (sin Firestore)
+    for (final id in idsHuerfanos) {
       final maestro = _maestros.firstWhere(
         (m) => m['id'] == id,
         orElse: () => <String, dynamic>{},
@@ -216,13 +217,13 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         for (int i = 0; i < _ingredientes.length; i++) {
           if (_ingredientes[i].nombre.isEmpty) {
             final id = _ingredientes[i].ingredienteId;
-            final nombreResuelto =
-                _nombresResueltos[id] ??
+            final nombreResuelto = _nombresResueltos[id] ??
                 id
                     .split('-')
                     .map(
-                      (w) =>
-                          w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1),
+                      (w) => w.isEmpty
+                          ? ''
+                          : w[0].toUpperCase() + w.substring(1),
                     )
                     .join(' ');
             _ingredientes[i] = _IngReceta(
@@ -257,11 +258,23 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   }
 
   Future<void> _cargarPasos() async {
+    final d = widget.datosIniciales ?? {};
+
+    // ✅ FIX: Primero intenta leer pasos desde el propio documento
+    // (recetas_personales guardan pasos dentro del doc como 'pasos' o 'pasos_ordenados')
+    final pasosEnDoc = d['pasos'] ?? d['pasos_ordenados'];
+    if (pasosEnDoc != null && pasosEnDoc is List && pasosEnDoc.isNotEmpty) {
+      debugPrint('[PASOS] Encontrados ${pasosEnDoc.length} pasos dentro del documento');
+      _procesarDatosPasos({'pasos_ordenados': pasosEnDoc});
+      return;
+    }
+
+    // Si no hay pasos en el doc, busca en steps-recetas (app-recetas-completas)
     if (widget.docId == null) {
       debugPrint('[PASOS] docId es null, abortando carga');
       return;
     }
-    debugPrint('[PASOS] Buscando pasos para docId: ${widget.docId}');
+    debugPrint('[PASOS] Buscando pasos en steps-recetas para docId: ${widget.docId}');
     try {
       final doc = await FirebaseFirestore.instance
           .collection('steps-recetas')
@@ -305,8 +318,11 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   }
 
   void _procesarDatosPasos(Map<String, dynamic>? data) {
-    if (data == null || data['pasos_ordenados'] == null) return;
-    final lista = data['pasos_ordenados'] as List;
+    if (data == null) return;
+    // Fix: acepta 'pasos' (recetas_personales) o 'pasos_ordenados' (steps-recetas)
+    final raw = data['pasos_ordenados'] ?? data['pasos'];
+    if (raw == null) return;
+    final lista = raw as List;
     if (mounted) {
       setState(() {
         _pasos =
