@@ -41,11 +41,16 @@ class CrearRecetaUsuarioScreen extends StatefulWidget {
   final Map<String, dynamic>? datosIniciales;
   final bool soloLectura;
 
+  /// Colección de Firestore donde se guarda/edita la receta.
+  /// 'recetas_personales' para usuarios, 'app-recetas-completas' para admin.
+  final String coleccion;
+
   const CrearRecetaUsuarioScreen({
     super.key,
     this.docId,
     this.datosIniciales,
     this.soloLectura = false,
+    this.coleccion = 'recetas_personales',
   });
 
   @override
@@ -67,7 +72,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   late final TextEditingController _imagenCtrl;
   late final TextEditingController _porcionCtrl;
   String _categoriaSeleccionada = '';
-  // Subcategoría como campo de texto libre
   late final TextEditingController _subcategoriaCtrl;
 
   List<_IngReceta> _ingredientes = [];
@@ -75,6 +79,8 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   List<Map<String, dynamic>> _maestros = [];
   bool _cargandoMaestros = true;
   bool _guardando = false;
+
+  Map<String, String> _nombresResueltos = {};
 
   static const List<String> _unidadesSugeridas = [
     'g',
@@ -119,7 +125,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       text: d['porcion_base']?.toString() ?? '1',
     );
     _categoriaSeleccionada = d['categoria']?.toString() ?? '';
-    // Subcategoría: campo de texto libre, inicializado desde datosIniciales
     _subcategoriaCtrl = TextEditingController(
       text: d['subcategoria']?.toString() ?? '',
     );
@@ -145,8 +150,94 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         }
       }
     }
-    _cargarMaestros();
+    _cargarMaestros().then((_) => _resolverNombresIngredientes());
     _cargarPasos();
+  }
+
+  /// ✅ FIX: Resuelve nombres Y actualiza la lista _ingredientes con ellos.
+  Future<void> _resolverNombresIngredientes() async {
+    final d = widget.datosIniciales ?? {};
+    final List ingredientesRaw = d['ingredientes'] ?? [];
+
+    final idsHuerfanos = ingredientesRaw
+        .whereType<Map>()
+        .where(
+          (item) =>
+              (item['nombre'] == null || item['nombre'].toString().isEmpty) &&
+              item['ingrediente_id'] != null &&
+              item['ingrediente_id'].toString().isNotEmpty,
+        )
+        .map((item) => item['ingrediente_id'].toString())
+        .toSet();
+
+    if (idsHuerfanos.isEmpty) return;
+
+    // 1. Busca primero en los maestros ya cargados en memoria (sin Firestore)
+    for (final id in idsHuerfanos) {
+      final maestro = _maestros.firstWhere(
+        (m) => m['id'] == id,
+        orElse: () => <String, dynamic>{},
+      );
+      if (maestro.isNotEmpty && maestro['nombre'] != null) {
+        _nombresResueltos[id] = maestro['nombre'].toString();
+      }
+    }
+
+    // 2. Los que no se encontraron localmente, los consulta en Firestore
+    final idsRestantes = idsHuerfanos
+        .where((id) => !_nombresResueltos.containsKey(id))
+        .toList();
+
+    for (final id in idsRestantes) {
+      try {
+        // Intento 1: el doc tiene el mismo ID que ingrediente_id
+        final doc = await FirebaseFirestore.instance
+            .collection('ingredientes_maestros')
+            .doc(id)
+            .get();
+        if (doc.exists && doc.data()?['nombre'] != null) {
+          _nombresResueltos[id] = doc.data()!['nombre'].toString();
+          continue;
+        }
+        // Intento 2: busca por nombre con guiones → espacios
+        final q = await FirebaseFirestore.instance
+            .collection('ingredientes_maestros')
+            .where('nombre', isEqualTo: id.replaceAll('-', ' '))
+            .limit(1)
+            .get();
+        if (q.docs.isNotEmpty) {
+          _nombresResueltos[id] = q.docs.first['nombre'].toString();
+        }
+      } catch (_) {}
+    }
+
+    // ✅ FIX: Actualiza _ingredientes con los nombres resueltos
+    if (mounted) {
+      setState(() {
+        for (int i = 0; i < _ingredientes.length; i++) {
+          if (_ingredientes[i].nombre.isEmpty) {
+            final id = _ingredientes[i].ingredienteId;
+            final nombreResuelto = _nombresResueltos[id] ??
+                id
+                    .split('-')
+                    .map(
+                      (w) => w.isEmpty
+                          ? ''
+                          : w[0].toUpperCase() + w.substring(1),
+                    )
+                    .join(' ');
+            _ingredientes[i] = _IngReceta(
+              ingredienteId: id,
+              nombre: nombreResuelto,
+              cantidad: _ingredientes[i].cantidad,
+              unidad: _ingredientes[i].unidad,
+              esPrimordial: _ingredientes[i].esPrimordial,
+              esMaestro: _ingredientes[i].esMaestro,
+            );
+          }
+        }
+      });
+    }
   }
 
   Future<void> _cargarMaestros() async {
@@ -167,11 +258,23 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   }
 
   Future<void> _cargarPasos() async {
+    final d = widget.datosIniciales ?? {};
+
+    // ✅ FIX: Primero intenta leer pasos desde el propio documento
+    // (recetas_personales guardan pasos dentro del doc como 'pasos' o 'pasos_ordenados')
+    final pasosEnDoc = d['pasos'] ?? d['pasos_ordenados'];
+    if (pasosEnDoc != null && pasosEnDoc is List && pasosEnDoc.isNotEmpty) {
+      debugPrint('[PASOS] Encontrados ${pasosEnDoc.length} pasos dentro del documento');
+      _procesarDatosPasos({'pasos_ordenados': pasosEnDoc});
+      return;
+    }
+
+    // Si no hay pasos en el doc, busca en steps-recetas (app-recetas-completas)
     if (widget.docId == null) {
       debugPrint('[PASOS] docId es null, abortando carga');
       return;
     }
-    debugPrint('[PASOS] Buscando pasos para docId: ${widget.docId}');
+    debugPrint('[PASOS] Buscando pasos en steps-recetas para docId: ${widget.docId}');
     try {
       final doc = await FirebaseFirestore.instance
           .collection('steps-recetas')
@@ -215,8 +318,11 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   }
 
   void _procesarDatosPasos(Map<String, dynamic>? data) {
-    if (data == null || data['pasos_ordenados'] == null) return;
-    final lista = data['pasos_ordenados'] as List;
+    if (data == null) return;
+    // Fix: acepta 'pasos' (recetas_personales) o 'pasos_ordenados' (steps-recetas)
+    final raw = data['pasos_ordenados'] ?? data['pasos'];
+    if (raw == null) return;
+    final lista = raw as List;
     if (mounted) {
       setState(() {
         _pasos =
@@ -344,7 +450,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     if (ok == true) await _guardar();
   }
 
-  // AQUÍ ESTÁ EL SELLO DE PROPIEDAD
   Future<void> _guardar() async {
     setState(() => _guardando = true);
     try {
@@ -360,19 +465,19 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         'subcategoria': _subcategoriaCtrl.text.trim(),
         'porcion_base': _porcionCtrl.text.trim(),
         'ingredientes': _ingredientes.map((i) => i.toMap()).toList(),
-        'creador_id': userId, // Este es tu candado personal
+        'creador_id': userId,
       };
 
       String docId;
       if (widget.docId != null) {
         await FirebaseFirestore.instance
-            .collection('app-recetas-completas')
+            .collection(widget.coleccion)
             .doc(widget.docId)
             .update(datos);
         docId = widget.docId!;
       } else {
         final ref = await FirebaseFirestore.instance
-            .collection('app-recetas-completas')
+            .collection(widget.coleccion)
             .add(datos);
         docId = ref.id;
       }
@@ -548,10 +653,22 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
           else
             ...ingredientesRaw.map((item) {
               if (item is! Map) return const SizedBox();
-              final nombre =
-                  item['nombre']?.toString() ??
-                  item['ingrediente_id']?.toString() ??
-                  '—';
+
+              String nombre = item['nombre']?.toString() ?? '';
+              if (nombre.isEmpty) {
+                final id = item['ingrediente_id']?.toString() ?? '';
+                nombre =
+                    _nombresResueltos[id] ??
+                    id
+                        .split('-')
+                        .map(
+                          (w) => w.isEmpty
+                              ? ''
+                              : w[0].toUpperCase() + w.substring(1),
+                        )
+                        .join(' ');
+              }
+              if (nombre.isEmpty) nombre = 'Ingrediente';
               final cantidad = item['cantidad']?.toString() ?? '';
               final unidad = item['unidad']?.toString() ?? '';
               final primordial = item['es_primordial'] == true;
