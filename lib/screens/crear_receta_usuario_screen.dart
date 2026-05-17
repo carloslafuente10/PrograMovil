@@ -217,13 +217,13 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         for (int i = 0; i < _ingredientes.length; i++) {
           if (_ingredientes[i].nombre.isEmpty) {
             final id = _ingredientes[i].ingredienteId;
-            final nombreResuelto = _nombresResueltos[id] ??
+            final nombreResuelto =
+                _nombresResueltos[id] ??
                 id
                     .split('-')
                     .map(
-                      (w) => w.isEmpty
-                          ? ''
-                          : w[0].toUpperCase() + w.substring(1),
+                      (w) =>
+                          w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1),
                     )
                     .join(' ');
             _ingredientes[i] = _IngReceta(
@@ -264,7 +264,9 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     // (recetas_personales guardan pasos dentro del doc como 'pasos' o 'pasos_ordenados')
     final pasosEnDoc = d['pasos'] ?? d['pasos_ordenados'];
     if (pasosEnDoc != null && pasosEnDoc is List && pasosEnDoc.isNotEmpty) {
-      debugPrint('[PASOS] Encontrados ${pasosEnDoc.length} pasos dentro del documento');
+      debugPrint(
+        '[PASOS] Encontrados ${pasosEnDoc.length} pasos dentro del documento',
+      );
       _procesarDatosPasos({'pasos_ordenados': pasosEnDoc});
       return;
     }
@@ -274,7 +276,9 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       debugPrint('[PASOS] docId es null, abortando carga');
       return;
     }
-    debugPrint('[PASOS] Buscando pasos en steps-recetas para docId: ${widget.docId}');
+    debugPrint(
+      '[PASOS] Buscando pasos en steps-recetas para docId: ${widget.docId}',
+    );
     try {
       final doc = await FirebaseFirestore.instance
           .collection('steps-recetas')
@@ -357,70 +361,13 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       barrierDismissible: false,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF3E0),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.lock_outline_rounded,
-                color: Color(0xFFFF8F00),
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                'Guardar receta',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
-              ),
-            ),
-          ],
+        title: const Text(
+          'Guardar receta',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '¿Deseas guardar esta receta?',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF8E1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFFFFCC02).withOpacity(0.5),
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.info_outline_rounded,
-                    color: Color(0xFFFF8F00),
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Una vez guardada, la receta no podrá editarse. Solo podrás eliminarla.',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: Colors.grey[700],
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        content: const Text(
+          '¿Deseas guardar esta receta?',
+          style: TextStyle(fontSize: 14),
         ),
         actions: [
           TextButton(
@@ -466,6 +413,11 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         'porcion_base': _porcionCtrl.text.trim(),
         'ingredientes': _ingredientes.map((i) => i.toMap()).toList(),
         'creador_id': userId,
+        // FIX: el StreamBuilder filtra por 'usuarioId'
+        'usuarioId': userId,
+        // FIX: guardar pasos dentro del doc para que _cargarPasos() los encuentre
+        if (_pasos.isNotEmpty) 'pasos': _pasos.map((p) => p.toMap()).toList(),
+        'fechaCreacion': DateTime.now().toIso8601String(),
       };
 
       String docId;

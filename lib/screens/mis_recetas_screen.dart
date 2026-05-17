@@ -190,8 +190,8 @@ class MisRecetasScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: _verde,
         elevation: 4,
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => const CrearRecetaUsuarioScreen(),
@@ -825,245 +825,247 @@ class _RecetaOptionsSheet extends StatelessWidget {
       maxChildSize: 0.75,
       expand: false,
       builder: (_, scrollCtrl) => Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-      child: SingleChildScrollView(
-        controller: scrollCtrl,
-        child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        child: SingleChildScrollView(
+          controller: scrollCtrl,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: 60,
-                  height: 60,
-                  child: img.isNotEmpty
-                      ? Image.network(
-                          img,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _PlaceholderImg(),
-                        )
-                      : _PlaceholderImg(),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      nombre,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A2E),
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: 60,
+                      height: 60,
+                      child: img.isNotEmpty
+                          ? Image.network(
+                              img,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _PlaceholderImg(),
+                            )
+                          : _PlaceholderImg(),
                     ),
-                    const SizedBox(height: 4),
-                    Row(
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (categoria.isNotEmpty) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 2,
+                        Text(
+                          nombre,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1A1A2E),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            if (categoria.isNotEmpty) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _verdeClaro,
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: Text(
+                                  categoria,
+                                  style: const TextStyle(
+                                    color: _verde,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                            const Icon(
+                              Icons.local_fire_department_rounded,
+                              size: 13,
+                              color: Color(0xFFFF6B35),
                             ),
-                            decoration: BoxDecoration(
-                              color: _verdeClaro,
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: Text(
-                              categoria,
-                              style: const TextStyle(
-                                color: _verde,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
+                            const SizedBox(width: 3),
+                            Text(
+                              '$calorias Cal',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[500],
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        const Icon(
-                          Icons.local_fire_department_rounded,
-                          size: 13,
-                          color: Color(0xFFFF6B35),
+                            if (tiempo.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              const Icon(
+                                Icons.access_time_rounded,
+                                size: 13,
+                                color: Colors.grey,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                '$tiempo min',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                        const SizedBox(width: 3),
-                        Text(
-                          '$calorias Cal',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                        if (tiempo.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          const Icon(
-                            Icons.access_time_rounded,
-                            size: 13,
-                            color: Colors.grey,
-                          ),
-                          const SizedBox(width: 3),
-                          Text(
-                            '$tiempo min',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey[500],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              const Divider(height: 1, color: Color(0xFFF0F0F0)),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => _VistaRecetaPersonal(
+                              datosCompletos: datosCompletos,
+                              docId: docId,
                             ),
                           ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          const Divider(height: 1, color: Color(0xFFF0F0F0)),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => _VistaRecetaPersonal(
-                          datosCompletos: datosCompletos,
-                          docId: docId,
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          color: _verde,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.play_arrow_rounded,
+                                color: Colors.white,
+                                size: 26,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'Ver receta',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Ingredientes y pasos',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.white.withOpacity(0.75),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      color: _verde,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.play_arrow_rounded,
-                            color: Colors.white,
-                            size: 26,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'Ver receta',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Ingredientes y pasos',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.white.withOpacity(0.75),
-                          ),
-                        ),
-                      ],
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => CrearRecetaUsuarioScreen(
-                          docId: docId,
-                          datosIniciales: datosCompletos,
-                          soloLectura: false,
-                          coleccion: 'recetas_personales',
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CrearRecetaUsuarioScreen(
+                              docId: docId,
+                              datosIniciales: datosCompletos,
+                              soloLectura: false,
+                              coleccion: 'recetas_personales',
+                            ),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF5F6FA),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE8E8E8)),
+                        ),
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: const Color(0xFFE8E8E8),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.edit_rounded,
+                                color: Color(0xFF1A1A2E),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'Editar',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1A1A2E),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Modificar campos',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF5F6FA),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFE8E8E8)),
-                    ),
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFFE8E8E8)),
-                          ),
-                          child: const Icon(
-                            Icons.edit_rounded,
-                            color: Color(0xFF1A1A2E),
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'Editar',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF1A1A2E),
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Modificar campos',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                      ],
                     ),
                   ),
-                ),
+                ],
               ),
             ],
-          ),
-        ],
-        ), // Column
-      ), // SingleChildScrollView
+          ), // Column
+        ), // SingleChildScrollView
       ), // Container
     ); // DraggableScrollableSheet
   }
@@ -1071,7 +1073,6 @@ class _RecetaOptionsSheet extends StatelessWidget {
 
 // ── Vista de receta personal (detalle + pasos embebidos) ──────────────────────
 // AHORA ES STATEFUL Y CARGA NOMBRES DE INGREDIENTES Y PASOS FALTANTES
-
 
 // ── Helper: formatea cantidades numéricas a fracciones legibles ──────────────
 String _formatCantidad(dynamic valor) {
@@ -1083,12 +1084,21 @@ String _formatCantidad(dynamic valor) {
   final decimal = d - entero;
   const eps = 0.01;
   String fraccion = '';
-  if ((decimal - 0.25).abs() < eps)       fraccion = '¼';
-  else if ((decimal - 0.5).abs() < eps)   fraccion = '½';
-  else if ((decimal - 0.75).abs() < eps)  fraccion = '¾';
-  else if ((decimal - 0.333).abs() < eps) fraccion = '⅓';
-  else if ((decimal - 0.667).abs() < eps) fraccion = '⅔';
-  else if (decimal > eps)                 fraccion = d.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+  if ((decimal - 0.25).abs() < eps)
+    fraccion = '¼';
+  else if ((decimal - 0.5).abs() < eps)
+    fraccion = '½';
+  else if ((decimal - 0.75).abs() < eps)
+    fraccion = '¾';
+  else if ((decimal - 0.333).abs() < eps)
+    fraccion = '⅓';
+  else if ((decimal - 0.667).abs() < eps)
+    fraccion = '⅔';
+  else if (decimal > eps)
+    fraccion = d
+        .toStringAsFixed(2)
+        .replaceAll(RegExp(r'0+$'), '')
+        .replaceAll(RegExp(r'\.$'), '');
 
   if (entero == 0 && fraccion.isNotEmpty) return fraccion;
   if (fraccion.isEmpty) return entero.toString();
@@ -1130,7 +1140,9 @@ class _VistaRecetaPersonalState extends State<_VistaRecetaPersonal> {
     List<Map<String, dynamic>> resolviendo = [];
 
     for (var item in ingredientesRaw) {
-      final map = item is Map ? Map<String, dynamic>.from(item) : <String, dynamic>{};
+      final map = item is Map
+          ? Map<String, dynamic>.from(item)
+          : <String, dynamic>{};
       final id = map['ingrediente_id']?.toString() ?? '';
       final nombreOriginal = map['nombre']?.toString() ?? '';
 
@@ -1362,7 +1374,8 @@ class _VistaRecetaPersonalState extends State<_VistaRecetaPersonal> {
                                     ),
                                   ),
                                   const SizedBox(width: 10),
-                                  if (cantidad.isNotEmpty || unidad.isNotEmpty) ...[
+                                  if (cantidad.isNotEmpty ||
+                                      unidad.isNotEmpty) ...[
                                     Text(
                                       '$cantidad $unidad'.trim(),
                                       style: TextStyle(
