@@ -38,16 +38,31 @@ class _CocinaPasosScreenState extends State<CocinaPasosScreen> {
 
   Future<void> _cargarPasos() async {
     try {
-      final snapshot = await FirebaseFirestore.instance
+      Map<String, dynamic>? data;
+
+      // Intento 1: buscar por ID de documento (formato usado por editar_receta_screen)
+      final docSnapshot = await FirebaseFirestore.instance
           .collection('steps-recetas')
-          .where('receta_id', isEqualTo: widget.recetaId)
+          .doc(widget.recetaId)
           .get();
 
-      if (snapshot.docs.isNotEmpty) {
-        final data = snapshot.docs.first.data();
+      if (docSnapshot.exists) {
+        data = docSnapshot.data();
+      } else {
+        // Intento 2: buscar por campo receta_id (formato de recetas personales)
+        final querySnapshot = await FirebaseFirestore.instance
+            .collection('steps-recetas')
+            .where('receta_id', isEqualTo: widget.recetaId)
+            .get();
+
+        if (querySnapshot.docs.isNotEmpty) {
+          data = querySnapshot.docs.first.data();
+        }
+      }
+
+      if (data != null) {
         List<dynamic> pasosRaw = List.from(data['pasos_ordenados'] ?? []);
         pasosRaw.sort((a, b) => (a['orden'] ?? 0).compareTo(b['orden'] ?? 0));
-        
         setState(() {
           _pasos = pasosRaw;
           _isLoading = false;
@@ -70,7 +85,9 @@ class _CocinaPasosScreenState extends State<CocinaPasosScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator(color: Colors.green)));
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator(color: Colors.green)),
+      );
     }
 
     // --- CAMBIO AQUÍ: BLOQUE DE DEPURACIÓN PARA VER EL ID ---
@@ -86,8 +103,8 @@ class _CocinaPasosScreenState extends State<CocinaPasosScreen> {
                 const Icon(Icons.search_off, size: 60, color: Colors.orange),
                 const SizedBox(height: 20),
                 const Text(
-                  "No se encontraron pasos", 
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)
+                  "No se encontraron pasos",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                 ),
                 const SizedBox(height: 10),
                 // Esto te mostrará el ID en la pantalla de PrograMovil
@@ -113,7 +130,10 @@ class _CocinaPasosScreenState extends State<CocinaPasosScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text("Preparación", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+        title: const Text(
+          "Preparación",
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+        ),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
@@ -151,100 +171,128 @@ class _CocinaPasosScreenState extends State<CocinaPasosScreen> {
   }
 
   Widget _buildStepCard(Map<String, dynamic> paso, int numeroPaso) {
-  final String instruccion = paso['instruccion'] ?? "Sin instrucción";
-  
-  // Lógica de detección: busca si alguna clave del mapa está en la instrucción
-  String? ingredienteDetectado;
-  String? sustitutoSugerido;
+    final String instruccion = paso['instruccion'] ?? "Sin instrucción";
 
-  _sustitutosConfig.forEach((key, value) {
-    if (instruccion.toLowerCase().contains(key)) {
-      ingredienteDetectado = key;
-      sustitutoSugerido = value;
-    }
-  });
+    // Lógica de detección: busca si alguna clave del mapa está en la instrucción
+    String? ingredienteDetectado;
+    String? sustitutoSugerido;
 
-  return Container(
-    margin: const EdgeInsets.all(25),
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(30),
-      boxShadow: [
-        BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))
-      ],
-    ),
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          height: 180, // Reduje un poco para dar espacio al aviso
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.green[50],
-            borderRadius: BorderRadius.circular(20),
+    _sustitutosConfig.forEach((key, value) {
+      if (instruccion.toLowerCase().contains(key)) {
+        ingredienteDetectado = key;
+        sustitutoSugerido = value;
+      }
+    });
+
+    return Container(
+      margin: const EdgeInsets.all(25),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
           ),
-          child: const Icon(Icons.restaurant, size: 60, color: Colors.green),
-        ),
-        const SizedBox(height: 20),
-        Text(
-          "PASO $numeroPaso",
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green, letterSpacing: 1.5),
-        ),
-        const SizedBox(height: 10),
-        Expanded(
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                Text(
-                  instruccion,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 18, height: 1.5, color: Colors.black87),
-                ),
-                if (sustitutoSugerido != null) ...[
-                  const SizedBox(height: 25),
-                  Container(
-                    padding: const EdgeInsets.all(15),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF9E7),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFFFE082)),
-                    ),
-                    child: Column(
-                      children: [
-                        const Icon(Icons.favorite_border, color: Colors.green, size: 20),
-                        const SizedBox(height: 8),
-                        RichText(
-                          textAlign: TextAlign.center,
-                          text: TextSpan(
-                            style: const TextStyle(color: Colors.brown, fontSize: 15),
-                            children: [
-                              const TextSpan(text: "Recuerda que si no tienes "),
-                              TextSpan(
-                                text: ingredienteDetectado,
-                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple),
-                              ),
-                              const TextSpan(text: " puedes usar "),
-                              TextSpan(
-                                text: sustitutoSugerido,
-                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            height: 180, // Reduje un poco para dar espacio al aviso
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.green[50],
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Icon(Icons.restaurant, size: 60, color: Colors.green),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            "PASO $numeroPaso",
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.green,
+              letterSpacing: 1.5,
             ),
           ),
-        ),
-      ],
-    ),
-  );
-}
-              
+          const SizedBox(height: 10),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  Text(
+                    instruccion,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      height: 1.5,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  if (sustitutoSugerido != null) ...[
+                    const SizedBox(height: 25),
+                    Container(
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF9E7),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFFFE082)),
+                      ),
+                      child: Column(
+                        children: [
+                          const Icon(
+                            Icons.favorite_border,
+                            color: Colors.green,
+                            size: 20,
+                          ),
+                          const SizedBox(height: 8),
+                          RichText(
+                            textAlign: TextAlign.center,
+                            text: TextSpan(
+                              style: const TextStyle(
+                                color: Colors.brown,
+                                fontSize: 15,
+                              ),
+                              children: [
+                                const TextSpan(
+                                  text: "Recuerda que si no tienes ",
+                                ),
+                                TextSpan(
+                                  text: ingredienteDetectado,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.deepPurple,
+                                  ),
+                                ),
+                                const TextSpan(text: " puedes usar "),
+                                TextSpan(
+                                  text: sustitutoSugerido,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBottomBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(25, 0, 25, 40),
@@ -285,11 +333,19 @@ class _CocinaPasosScreenState extends State<CocinaPasosScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
               ),
               child: Text(
-                _currentPage < _pasos.length - 1 ? "Siguiente Paso" : "Finalizar",
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                _currentPage < _pasos.length - 1
+                    ? "Siguiente Paso"
+                    : "Finalizar",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
             ),
           ),
@@ -311,7 +367,7 @@ class _CocinaPasosScreenState extends State<CocinaPasosScreen> {
               Navigator.pop(context);
             },
             child: const Text("OK"),
-          )
+          ),
         ],
       ),
     );
