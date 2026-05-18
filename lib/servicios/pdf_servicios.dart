@@ -15,7 +15,9 @@ class PdfService {
   // REPORTE USUARIOS
 
   static Future<void>
-      generarReporteUsuarios() async {
+      generarReporteUsuarios(
+  String filtroEstado,
+) async {
 
     final pdf = pw.Document();
 
@@ -97,24 +99,32 @@ if (ultimoAcceso != null) {
           .difference(fecha)
           .inDays;
 
-  if (diferencia <= 7) {
+  if (diferencia <= 30) {
 
-    estado = 'Activo';
-
-  } else if (
-      diferencia <= 30) {
-
-    estado = 'Inactivo';
-  }
-
-  else {
-
-    estado =
-        'Muy inactivo';
-  }
+  estado = 'Activo';
 }
 
-return [
+else if (
+    diferencia <= 60) {
+
+  estado = 'Inactivo';
+}
+
+else {
+
+  estado =
+      'Inhabilitado';
+} 
+}
+if (filtroEstado !=
+        'Todos' &&
+    estado !=
+        filtroEstado) {
+
+  return null;
+}
+
+return  <String>[
 
   (data['nombre'] ?? '')
           .toString()
@@ -138,7 +148,8 @@ return [
 
               
 
-            }).toList(),
+           }).whereType<List<String>>()
+  .toList(),
           ),
         ],
       ),
@@ -198,7 +209,9 @@ return [
     }
   }
 static Future<void>
-    generarExcelUsuarios() async {
+    generarExcelUsuarios(
+  String filtroEstado,
+) async {
 
   final snapshot =
       await FirebaseFirestore.instance
@@ -265,23 +278,29 @@ if (ultimoAcceso != null) {
           .difference(fecha)
           .inDays;
 
-  if (diferencia <= 7) {
+  if (diferencia <= 30) {
 
-    estado = 'Activo';
+  estado = 'Activo';
+}
 
-  }
+else if (
+    diferencia <= 60) {
 
-  else if (
-      diferencia <= 30) {
+  estado = 'Inactivo';
+}
 
-    estado = 'Inactivo';
-  }
+else {
 
-  else {
+  estado =
+      'Inhabilitado';
+} 
+}
+if (filtroEstado !=
+        'Todos' &&
+    estado !=
+        filtroEstado) {
 
-    estado =
-        'Muy inactivo';
-  }
+  continue;
 }
 
 sheet.appendRow([
@@ -358,7 +377,9 @@ sheet.appendRow([
 }
 
   static Future<void>
-    generarCsvUsuarios() async {
+    generarCsvUsuarios(
+  String filtroEstado,
+) async{
 
   final snapshot =
       await FirebaseFirestore.instance
@@ -368,7 +389,7 @@ sheet.appendRow([
   final usuarios = snapshot.docs;
 
   List<List<dynamic>> rows = [];
-
+  
   rows.add([
   'Nombre',
   'Correo',
@@ -421,25 +442,30 @@ if (ultimoAcceso != null) {
           .difference(fecha)
           .inDays;
 
-  if (diferencia <= 7) {
+  if (diferencia <= 30) {
 
-    estado = 'Activo';
-
-  }
-
-  else if (
-      diferencia <= 30) {
-
-    estado = 'Inactivo';
-  }
-
-  else {
-
-    estado =
-        'Muy inactivo';
-  }
+  estado = 'Activo';
 }
 
+else if (
+    diferencia <= 60) {
+
+  estado = 'Inactivo';
+}
+
+else {
+
+  estado =
+      'Inhabilitado';
+} 
+}
+if (filtroEstado !=
+        'Todos' &&
+    estado !=
+        filtroEstado) {
+
+  continue;
+}
 rows.add([
 
   (data['nombre'] ?? '')
@@ -802,6 +828,7 @@ static Future<void>
               'favoritos',
             )
             .get();
+    
 
     sheet.appendRow([
 
@@ -894,6 +921,7 @@ static Future<void>
               'favoritos',
             )
             .get();
+    
 
     rows.add([
 
@@ -1003,6 +1031,7 @@ static Future<void>
 
             final data =
                 doc.data();
+                
 
             return [
 
@@ -1244,7 +1273,9 @@ static Future<void>
   static Future<void>
       generarReporteGeneral() async {
 
-    await generarReporteUsuarios();
+    await generarReporteUsuarios(
+  'Todos',
+);
 
   }
 
