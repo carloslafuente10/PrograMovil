@@ -23,6 +23,8 @@ class _ReportesScreenState
   String formatoUsuarios =
       'PDF';
       String buscarFavorito = '';
+      String filtroEstadoUsuarios =
+    'Todos';
 
 final buscarFavoritoCtrl =
     TextEditingController();
@@ -343,6 +345,67 @@ if (seccion == 'usuarios') ...[
         ),
       ),
       const SizedBox(width: 10),
+      const SizedBox(width: 10),
+
+Container(
+  padding:
+      const EdgeInsets.symmetric(
+    horizontal: 12,
+  ),
+
+  decoration: BoxDecoration(
+    color: Colors.white,
+
+    borderRadius:
+        BorderRadius.circular(
+      14,
+    ),
+  ),
+
+  child:
+      DropdownButton<String>(
+
+    value:
+        filtroEstadoUsuarios,
+
+    underline:
+        const SizedBox(),
+
+    items: const [
+
+      DropdownMenuItem(
+        value: 'Todos',
+        child: Text('Todos'),
+      ),
+
+      DropdownMenuItem(
+        value: 'Activo',
+        child: Text('Activos'),
+      ),
+
+      DropdownMenuItem(
+        value: 'Inactivo',
+        child: Text('Inactivos'),
+      ),
+
+      DropdownMenuItem(
+        value: 'Inhabilitado',
+        child: Text(
+          'Inhabilitados',
+        ),
+      ),
+    ],
+
+    onChanged: (value) {
+
+      setState(() {
+
+        filtroEstadoUsuarios =
+            value!;
+      });
+    },
+  ),
+),
 
 ElevatedButton(
   onPressed: () async {
@@ -351,7 +414,9 @@ ElevatedButton(
         'PDF') {
 
       await PdfService
-          .generarReporteUsuarios();
+          .generarReporteUsuarios(
+  filtroEstadoUsuarios,
+);
     }
 
     else if (
@@ -359,7 +424,9 @@ ElevatedButton(
             'Excel') {
 
       await PdfService
-          .generarExcelUsuarios();
+          .generarExcelUsuarios(
+  filtroEstadoUsuarios,
+);
     }
 
     else if (
@@ -367,7 +434,9 @@ ElevatedButton(
             'CSV') {
 
       await PdfService
-          .generarCsvUsuarios();
+          .generarCsvUsuarios(
+  filtroEstadoUsuarios,
+);
     }
   },
 
@@ -412,9 +481,54 @@ ElevatedButton(
                   .toString()
                   .toLowerCase();
 
-          return nombre.contains(
-            buscarUsuario,
-          );
+          final ultimoAcceso =
+    data['ultimoAcceso'];
+
+String estado =
+    'Inactivo';
+
+if (ultimoAcceso != null) {
+
+  final diferencia =
+      DateTime.now()
+          .difference(
+            ultimoAcceso
+                .toDate(),
+          )
+          .inDays;
+
+  if (diferencia <= 30) {
+
+    estado = 'Activo';
+  }
+
+  else if (
+      diferencia <= 60) {
+
+    estado = 'Inactivo';
+  }
+
+  else {
+
+    estado =
+        'Inhabilitado';
+  }
+}
+
+final coincideBusqueda =
+    nombre.contains(
+  buscarUsuario,
+);
+
+final coincideEstado =
+    filtroEstadoUsuarios ==
+            'Todos'
+        ? true
+        : estado ==
+            filtroEstadoUsuarios;
+
+return coincideBusqueda &&
+    coincideEstado;
         },
       ).toList();
 
