@@ -42,7 +42,7 @@ class CrearRecetaUsuarioScreen extends StatefulWidget {
   final bool soloLectura;
 
   /// Colección de Firestore donde se guarda/edita la receta.
-  /// Por defecto 'recetas_personales' (para usuarios).
+  /// 'recetas_personales' para usuarios, 'app-recetas-completas' para admin.
   final String coleccion;
 
   const CrearRecetaUsuarioScreen({
@@ -81,6 +81,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   bool _guardando = false;
 
   Map<String, String> _nombresResueltos = {};
+
   static const List<String> _unidadesSugeridas = [
     'g',
     'kg',
@@ -194,7 +195,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
             .collection('ingredientes_maestros')
             .doc(id)
             .get();
-
         if (doc.exists && doc.data()?['nombre'] != null) {
           _nombresResueltos[id] = doc.data()!['nombre'].toString();
           continue;
@@ -205,7 +205,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
             .where('nombre', isEqualTo: id.replaceAll('-', ' '))
             .limit(1)
             .get();
-
         if (q.docs.isNotEmpty) {
           _nombresResueltos[id] = q.docs.first['nombre'].toString();
         }
@@ -247,7 +246,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
           .collection('ingredientes_maestros')
           .orderBy('nombre')
           .get();
-
       if (mounted) {
         setState(() {
           _maestros = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
@@ -260,18 +258,32 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   }
 
   Future<void> _cargarPasos() async {
+    final d = widget.datosIniciales ?? {};
+    // ✅ FIX: Primero intenta leer pasos desde el propio documento
+    // (recetas_personales guardan pasos dentro del doc como 'pasos' o 'pasos_ordenados')
+    final pasosEnDoc = d['pasos'] ?? d['pasos_ordenados'];
+    if (pasosEnDoc != null && pasosEnDoc is List && pasosEnDoc.isNotEmpty) {
+      debugPrint(
+        '[PASOS] Encontrados ${pasosEnDoc.length} pasos dentro del documento',
+      );
+      _procesarDatosPasos({'pasos_ordenados': pasosEnDoc});
+      return;
+    }
+
+    // Si no hay pasos en el doc, busca en steps-recetas (app-recetas-completas)
     if (widget.docId == null) {
       debugPrint('[PASOS] docId es null, abortando carga');
       return;
     }
-    debugPrint('[PASOS] Buscando pasos para docId: ${widget.docId}');
 
+    debugPrint(
+      '[PASOS] Buscando pasos en steps-recetas para docId: ${widget.docId}',
+    );
     try {
       final doc = await FirebaseFirestore.instance
           .collection('steps-recetas')
           .doc(widget.docId)
           .get();
-
       if (doc.exists) {
         debugPrint('[PASOS] Intento 1 OK — doc encontrado por ID');
         _procesarDatosPasos(doc.data());
@@ -280,26 +292,22 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       debugPrint(
         '[PASOS] Intento 1 fallido — no existe doc con ID ${widget.docId}',
       );
-
       final q2 = await FirebaseFirestore.instance
           .collection('steps-recetas')
           .where('receta_id', isEqualTo: widget.docId)
           .limit(1)
           .get();
-
       if (q2.docs.isNotEmpty) {
         debugPrint('[PASOS] Intento 2 OK — encontrado por campo receta_id');
         _procesarDatosPasos(q2.docs.first.data());
         return;
       }
       debugPrint('[PASOS] Intento 2 fallido — sin resultados para receta_id');
-
       final q3 = await FirebaseFirestore.instance
           .collection('steps-recetas')
           .where('recetas_id', isEqualTo: widget.docId)
           .limit(1)
           .get();
-
       if (q3.docs.isNotEmpty) {
         debugPrint('[PASOS] Intento 3 OK — encontrado por campo recetas_id');
         _procesarDatosPasos(q3.docs.first.data());
@@ -314,9 +322,11 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   }
 
   void _procesarDatosPasos(Map<String, dynamic>? data) {
-    if (data == null || data['pasos_ordenados'] == null) return;
-
-    final lista = data['pasos_ordenados'] as List;
+    if (data == null) return;
+    // Fix: acepta 'pasos' (recetas_personales) o 'pasos_ordenados' (steps-recetas)
+    final raw = data['pasos_ordenados'] ?? data['pasos'];
+    if (raw == null) return;
+    final lista = raw as List;
     if (mounted) {
       setState(() {
         _pasos =
@@ -441,13 +451,11 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         ],
       ),
     );
-
     if (ok == true) await _guardar();
   }
 
   Future<void> _guardar() async {
     setState(() => _guardando = true);
-
     try {
       final userId =
           FirebaseAuth.instance.currentUser?.uid ?? 'usuario_desconocido';
@@ -482,7 +490,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         debugPrint(
           '[GUARDAR] Guardando ${_pasos.length} pasos en steps-recetas/$docId',
         );
-
         await FirebaseFirestore.instance
             .collection('steps-recetas')
             .doc(docId)
@@ -490,7 +497,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
               'pasos_ordenados': _pasos.map((p) => p.toMap()).toList(),
               'recetas_id': docId,
             });
-
         debugPrint(
           '[GUARDAR] ✅ Pasos guardados correctamente para docId: $docId',
         );
@@ -515,7 +521,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   @override
   Widget build(BuildContext context) {
     final esNueva = widget.docId == null;
-
     final titulo = widget.soloLectura
         ? 'Detalle de receta'
         : (esNueva ? 'Nueva receta' : 'Editar receta');
@@ -1029,7 +1034,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
 
   void _mostrarDialogoPaso({int? index}) {
     final paso = index != null ? _pasos[index] : null;
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1149,7 +1153,6 @@ class _DialogoIngredienteState extends State<_DialogoIngrediente> {
 
   Future<void> _crearNuevoMaestro() async {
     final nombre = _nombreLibreCtrl.text.trim();
-
     if (nombre.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
