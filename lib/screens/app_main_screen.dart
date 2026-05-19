@@ -76,21 +76,22 @@ class AppMainScreenState extends State<AppMainScreen> {
               child: GestureDetector(
                 onTap: () => Navigator.push(
                   context,
+
                   MaterialPageRoute(
-                    builder: (context) => const SugerenciasChatScreen(),
+                    builder: (context) => SugerenciasChatScreen(),
                   ),
                 ),
-child: Container(
-  width: 80,
-  height: 80,
-  decoration: BoxDecoration(
-    shape: BoxShape.circle,
-    color: Colors.white,
-    boxShadow: [
-      BoxShadow(
-        color: const Color(0xFF2D9E73).withOpacity(0.3),
-        blurRadius: 15,
-        spreadRadius: 2,
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF2D9E73).withOpacity(0.3),
+                        blurRadius: 15,
+                        spreadRadius: 2,
                       ),
                     ],
                   ),
@@ -100,7 +101,7 @@ child: Container(
                       minHeight: 0.0,
                       maxWidth: 160,
                       maxHeight: 160,
-                      child: Lottie.network(
+                      child: Lottie.asset(
                         'assets/animations/animation.json',
                         fit: BoxFit.cover,
                         alignment: const Alignment(0, -0.5),
@@ -197,8 +198,6 @@ child: Container(
   }
 }
 
-// ─── PANTALLA DE AJUSTES / PERFIL ────────────────────────────────────────────
-
 class _AjustesScreen extends StatelessWidget {
   static const Color _verde = Color(0xFF2D9E73);
   static const Color _verdeClaro = Color(0xFFE8F7F1);
@@ -219,7 +218,6 @@ class _AjustesScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Header verde con avatar ──────────────────────────────────
               Container(
                 width: double.infinity,
                 decoration: const BoxDecoration(
@@ -276,7 +274,6 @@ class _AjustesScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // ── Sección MI CUENTA ────────────────────────────────────────
               _SectionLabel('MI CUENTA'),
               const SizedBox(height: 8),
               Padding(
@@ -300,7 +297,6 @@ class _AjustesScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // ── Sección MIS RECETAS ──────────────────────────────────────
               _SectionLabel('MIS RECETAS'),
               const SizedBox(height: 8),
               Padding(
@@ -324,7 +320,6 @@ class _AjustesScreen extends StatelessWidget {
 
               const SizedBox(height: 32),
 
-              // ── Botón cerrar sesión ──────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: SizedBox(
@@ -407,8 +402,6 @@ class _AjustesScreen extends StatelessWidget {
     );
   }
 }
-
-// ── Widgets auxiliares ────────────────────────────────────────────────────────
 
 class _SectionLabel extends StatelessWidget {
   final String texto;
