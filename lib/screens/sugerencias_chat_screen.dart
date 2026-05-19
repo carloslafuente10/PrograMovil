@@ -4,9 +4,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:http/http.dart' as http;
 
-import 'dart:convert'; // Necesario para JSON y UTF-8
+import 'dart:convert'; // Necesario para JSON 
 
 import 'detalle_receta_screen.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 
 
@@ -80,9 +81,8 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen> {
 
   // --- CONFIGURACIÓN DE GROQ (xAI API) ---
 
-  final String _apiKeyGrok = "";
-
-  final String _systemPrompt = """
+final String _apiKeyGrok = dotenv.env['GROQ_API_KEY'] ?? '';
+final String _systemPrompt = """
 
 Eres A.L.I.C.I.A., la chef virtual oficial de PrograMovil.
 
