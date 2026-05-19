@@ -1041,241 +1041,130 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
 
   Widget _buildWelcomeLayout() {
-
-    return Center(
-
+    return Align(
+      alignment: Alignment.bottomCenter, // Empuja todo el contenido hacia abajo
       child: SingleChildScrollView(
-
-        padding: const EdgeInsets.all(24.0),
-
+        padding: const EdgeInsets.only(left: 24.0, right: 24.0, bottom: 16.0, top: 40.0), // Ajusta márgenes externos
         child: Column(
-
+          mainAxisAlignment: MainAxisAlignment.end, // Alinea los elementos internos al final
           children: [
-
-            const SizedBox(height: 20),
-
             const Text(
-
               "¿Qué tienes para contarme?",
-
               textAlign: TextAlign.center,
-
               style: TextStyle(
-
                 fontSize: 22,
-
                 fontWeight: FontWeight.bold,
-
                 color: Colors.white,
-
                 shadows: [Shadow(color: Colors.black, blurRadius: 10)],
-
               ),
-
             ),
-
-            const SizedBox(height: 40),
-
+            const SizedBox(height: 20), // Reducido de 40 a 20 para acercar los botones al título
             _buildMenuButton(
-
               titulo: "Reporte",
-
               descripcion: "Quiero Reportar un problem con la app",
-
               subDescripcion: "Reportar un problema con la app",
-
               icono: Icons.bug_report_outlined,
-
               colorIcono: const Color(0xFFE57373)
-
             ),
-
             _buildMenuButton(
-
               titulo: "Ayuda",
-
               descripcion: "Necesito una recomendación de comida",
-
               subDescripcion: "Necesito una recomendación",
-
               icono: Icons.restaurant_menu,
-
               colorIcono: const Color(0xFFFFB74D)
-
             ),
-
-            _buildMenuButton(
-
-              titulo: "Sugerencia",
-
-              descripcion: "Me gustaría sugerir una nueva receta",
-
-              subDescripcion: "Sugerir nueva receta",
-
-              icono: Icons.lightbulb_outline,
-
-              colorIcono: const Color(0xFFFFF176)
-
-            ),
-
-            const SizedBox(height: 10),
-
-            _buildHighlightedButton(),
-
+            //_buildMenuButton(
+            //titulo: "Sugerencia",
+            //descripcion: "Me gustaría sugerir una nueva receta",
+            //subDescripcion: "Sugerir nueva receta",
+            //icono: Icons.lightbulb_outline,
+            //colorIcono: const Color(0xFFFFF176)
+            //,
+            _buildHighlightedButton(), // Se eliminó el SizedBox(height: 10) previo para juntarlo más
           ],
-
         ),
-
       ),
-
     );
-
   }
 
 
 
   Widget _buildMenuButton({
-
     required String titulo,
-
     required String descripcion,
-
     required String subDescripcion,
-
     required IconData icono,
-
     required Color colorIcono,
-
   }) {
-
     return Padding(
-
-      padding: const EdgeInsets.only(bottom: 20),
-
+      padding: const EdgeInsets.only(bottom: 10), // Reducido de 20 a 10 para juntar los botones
       child: Container(
-
         decoration: BoxDecoration(
-
-          color: Colors.white.withOpacity(0.9),
-
+          // Color crema/hueso idéntico al fondo de la imagen (100% sólido)
+          color: const Color(0xFFF7F4EB), 
           borderRadius: BorderRadius.circular(20),
-
           boxShadow: [
-
             BoxShadow(
-
-              color: Colors.black.withOpacity(0.05),
-
+              // Sombra suave adaptada al tono cálido del nuevo botón
+              color: const Color(0xFFC8C2B3).withOpacity(0.3),
               blurRadius: 10,
-
               offset: const Offset(0, 4),
-
             ),
-
           ],
-
         ),
-
         child: ElevatedButton(
-
           onPressed: () => _seleccionarOpcion(titulo, descripcion),
-
           style: ElevatedButton.styleFrom(
-
             backgroundColor: Colors.transparent,
-
             foregroundColor: Colors.black87,
-
             shadowColor: Colors.transparent,
-
-            padding: const EdgeInsets.all(20),
-
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12), // Reducido el padding vertical para hacerlos más esbeltos
             shape: RoundedRectangleBorder(
-
               borderRadius: BorderRadius.circular(20),
-
             ),
-
           ),
-
           child: Row(
-
             children: [
-
               Icon(icono, color: colorIcono, size: 36),
-
               const SizedBox(width: 20),
-
               Expanded(
-
                 child: Column(
-
                   crossAxisAlignment: CrossAxisAlignment.start,
-
                   children: [
-
                     Text(
-
                       titulo,
-
                       style: const TextStyle(
-
                         fontSize: 18,
-
                         fontWeight: FontWeight.bold,
-
-                        color: Color(0xFFB71C1C)
-
+                        // Tono marrón teja/anaranjado oscuro que combina con la ilustración
+                        color: Color(0xFFC85A32), 
                       ),
-
                     ),
-
-                    const SizedBox(height: 4),
-
+                    const SizedBox(height: 2), // Reducido levemente
                     Text(
-
                       subDescripcion,
-
-                      style: TextStyle(
-
+                      style: const TextStyle(
                         fontSize: 14,
-
                         fontWeight: FontWeight.normal,
-
-                        color: Colors.black.withOpacity(0.6)
-
+                        // Gris pardo suave para la descripción
+                        color: Color(0xFF7A756B), 
                       ),
-
                     ),
-
                   ],
-
                 ),
-
               ),
-
-              Icon(
-
+              const Icon(
                 Icons.arrow_forward_ios,
-
-                color: Colors.black.withOpacity(0.3),
-
-                size: 18
-
+                // Color mimetizado para la flecha derecha
+                color: Color(0xFFA39E94),
+                size: 18,
               ),
-
             ],
-
           ),
-
         ),
-
       ),
-
     );
-
   }
-
 
 
   Widget _buildHighlightedButton() {

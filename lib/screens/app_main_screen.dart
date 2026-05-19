@@ -76,23 +76,21 @@ class AppMainScreenState extends State<AppMainScreen> {
               child: GestureDetector(
                 onTap: () => Navigator.push(
                   context,
-
-                  MaterialPageRoute(builder: (context) => SugerenciasChatScreen()),
                   MaterialPageRoute(
                     builder: (context) => const SugerenciasChatScreen(),
                   ),
                 ),
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF2D9E73).withOpacity(0.3),
-                        blurRadius: 15,
-                        spreadRadius: 2,
+child: Container(
+  width: 80,
+  height: 80,
+  decoration: BoxDecoration(
+    shape: BoxShape.circle,
+    color: Colors.white,
+    boxShadow: [
+      BoxShadow(
+        color: const Color(0xFF2D9E73).withOpacity(0.3),
+        blurRadius: 15,
+        spreadRadius: 2,
                       ),
                     ],
                   ),
