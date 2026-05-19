@@ -1,29 +1,19 @@
 import 'package:flutter/material.dart';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 import 'package:http/http.dart' as http;
-
 import 'dart:convert'; // Necesario para JSON 
-
 import 'detalle_receta_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-
-
 
 class SugerenciasChatScreen extends StatefulWidget {
 
   const SugerenciasChatScreen({super.key});
-
-
 
   @override
 
   State<SugerenciasChatScreen> createState() => _SugerenciasChatScreenState();
 
 }
-
-
 
 class _SugerenciasChatScreenState extends State<SugerenciasChatScreen> {
 
@@ -43,315 +33,167 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen> {
 
   bool _esperandoParrafoSugerencia = false;
 
- 
-
   // Variables para el flujo lineal de Reportes
 
   bool _bloquearReportes = false;         // Bloquea las categorías principales (Contenido, Experiencia, Técnico)
-
   String _categoriaReporteActual = "";    // Almacena qué tipo de reporte se está ejecutando
-
   String _subCategoriaReporteActual = ""; // Almacena el problema específico seleccionado
-
   bool _bloquearFlujoReporte = false;     // Bloquea que se pulsen subcategorías repetidas o paralelas
-
-
 
   final Color _verde = const Color(0xFF2D9E73);
 
-
-
   // Variables para el flujo lineal de Ayuda / Recomendación de Comida
-
   String? _categoriaComidaElegida;
-
   List<String> _ingredientesPrimordiales = [];
-
   final List<String> _ingredientesSeleccionados = [];
-
- 
 
   // --- AQUÍ ESTÁN LAS DE CLARACIONES ÚNICAS CORREGIDAS ---
 
   bool _mostrarGridIngredientes = false;
-
   bool _bloquearCategorias = false;
-
-
 
   // --- CONFIGURACIÓN DE GROQ (xAI API) ---
 
-final String _apiKeyGrok = dotenv.env['GROQ_API_KEY'] ?? '';
-final String _systemPrompt = """
+  final String _apiKeyGrok = dotenv.env['GROQ_API_KEY'] ?? '';
+  final String _systemPrompt = """
 
 Eres A.L.I.C.I.A., la chef virtual oficial de PrograMovil.
-
 Tu misión es asistir con recetas, reportes de errores y sugerencias.
-
-
 
 REGLAS CRÍTICAS DE RESPUESTA:
 
 1. Sé SÚPER CORTA y DIRECTA. Responde en un máximo de 2 o 3 líneas de texto.
-
 2. NUNCA uses listas numeradas, viñetas ni textos largos. Todo debe ser un párrafo breve y fluido.
-
 3. Mantén el tono entusiasta y usa metáforas culinarias rápidas (problemas = platos quemados, soluciones = recetas).
-
 4. Usa pocos emojis de cocina y nunca reveles que eres una IA.
-
 """;
 
-
-
 String _construirPromptValidacion(String categoriaReporte, String subCategoria, String textoUsuario) {
-
   return """
-
 Eres el sistema de control de calidad de la app PrograMovil. Tu única tarea es validar si la descripción de un reporte de error enviada por el usuario es legítima.
 
-
-
 CRITERIOS DE VALIDACIÓN:
-
 1. RELACIÓN: El texto debe tener relación directa con el problema reportado. Categoría: $categoriaReporte. Subcategoría: $subCategoria.
-
 2. COHERENCIA: El texto debe ser legible, coherente y describir una situación o acción. No se permiten números aleatorios, spam, insultos ni palabras sueltas sin sentido.
-
 3. CONTEXTO DE LA APP: Debe hablar de funciones, pantallas, botones o recetas de la aplicación (datos de recetas, carga, inicio de sesión, etc.).
-
-
 
 Texto del usuario a evaluar: "$textoUsuario"
 
-
-
 Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVALIDO' si falla en alguno. No agregues saludos, explicaciones ni puntuación.
-
 """;
-
 }
 
   @override
-
   void initState() {
-
     super.initState();
-
   }
-
-
 
   // --- LÓGICA DE COMUNICACIÓN CON GROK CON CONTEXTO COMPLETO ---
 
   Future<String> _obtenerRespuestaDeGrok(String mensajeUsuario) async {
-
     final url = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
-
-   
-
     List<Map<String, String>> historialParaApi = [
-
       {"role": "system", "content": _systemPrompt}
-
     ];
 
-
-
     for (var msg in _mensajes) {
-
       if (msg["tipo"] == "texto") {
-
         String roleApi = (msg["rol"] == "usuario") ? "user" : "assistant";
-
         historialParaApi.add({
-
           "role": roleApi,
-
           "content": msg["texto"] ?? ""
-
         });
-
       }
-
     }
 
-
-
     try {
-
       final response = await http.post(
-
         url,
-
         headers: {
-
           'Content-Type': 'application/json',
-
           'Authorization': 'Bearer $_apiKeyGrok',
-
         },
 
         body: jsonEncode({
-
           "model": "llama-3.1-8b-instant",
-
           "messages": historialParaApi,
-
           "temperature": 0.4
-
         }),
-
       );
 
-
-
       if (response.statusCode == 200) {
-
         final data = jsonDecode(utf8.decode(response.bodyBytes));
-
         return data['choices'][0]['message']['content'];
-
       } else {
-
         debugPrint("Error de Grok API Status: ${response.statusCode} - ${response.body}");
-
         return "¡Uy! Se me ha cortado la salsa (Error de comunicación con la cocina).";
-
       }
-
     } catch (e) {
-
       debugPrint("Excepción al conectar con Grok: $e");
-
       return "Se nos ha derramado el caldo... Revisa tu conexión a internet.";
-
     }
-
   }
-
-
 
   Future<bool> _verificarRecetaEnFirebase(String texto) async {
-
     try {
-
       // Hacemos una consulta rápida simulada o real a tu colección de Firebase
-
       // Puedes adaptarlo en el futuro usando tu instancia si deseas verificar strings exactos:
-
       // final query = await FirebaseFirestore.instance.collection('app-recetas-completas').get();
 
-     
-
       await Future.delayed(const Duration(milliseconds: 600)); // Simula un pequeño delay de red
-
       return true; // Por defecto retorna true para indicar que cruzó datos con el sistema
-
     } catch (e) {
-
       debugPrint("Error al verificar en Firebase: $e");
-
       return false;
-
     }
-
   }
 
-
-
   // --- LÓGICA DE BÚSQUEDA EN FIRESTORE ---
-
   Future<void> _buscarRecetasRecomendadas() async {
-
     setState(() => _estaCargando = true);
-
     try {
-
       final snapshot = await FirebaseFirestore.instance
-
           .collection('app-recetas-completas')
-
           .where('categoria', isEqualTo: _categoriaComidaElegida)
-
           .get();
-
-
-
       List<Map<String, String>> recetasEncontradas = [];
 
-
-
       for (var doc in snapshot.docs) {
-
         final data = doc.data();
-
         String nombreReceta = data['nombre'] ?? "Receta sin nombre";
-
         List ingredientes = data['ingredientes'] ?? [];
 
-
-
         bool tieneIngrediente = ingredientes.any((ing) =>
-
           _ingredientesSeleccionados.contains(ing['nombre'].toString())
-
         );
 
-
-
         if (tieneIngrediente) {
-
           recetasEncontradas.add({
-
             'id': doc.id,
-
             'nombre': nombreReceta,
-
           });
-
         }
-
       }
 
-
-
       if (recetasEncontradas.isNotEmpty) {
-
         setState(() {
-
           _mensajes.add({
-
             "rol": "llama",
-
             "texto": "¡He encontrado el maridaje perfecto! 👨‍🍳 Aquí tienes las opciones que mejor combinan con tu selección. ¡Pulsa en la que más te apetezca!",
-
             "tipo": "recetas_grid",
-
             "recetas": recetasEncontradas
-
           });
-
         });
-
       } else {
 
         setState(() {
-
           _mensajes.add({
-
             "rol": "llama",
-
             "texto": "He buscado en mi alacena pero no tengo una receta exacta con esa combinación. 🥣 ¿Intentamos con otros ingredientes?",
-
             "tipo": "texto"
-
           });
-
         });
-
       }
-
     } catch (e) {
 
       debugPrint("Error al buscar recetas: $e");
@@ -975,38 +817,67 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
 
   Widget _buildResponsiveLayout() {
+
     if (_categoriaActual == "Reporte") {
+
       return Column(
+
         children: [
-          // Mitad superior: 50% de la pantalla para el contenedor y la animación
-          Expanded(
-            flex: 1,
-            child: Container(
-              width: double.infinity,
-              color: Colors.white,
-              child: Center(
-                child: SizedBox.expand( // Hace que la imagen o animación llene su espacio asignado
-                  child: Image.asset(
-                    'assets/images/fondo1.webp',
-                    fit: BoxFit.contain, // Mantiene la proporción de A.L.I.C.I.A. sin recortarla
+
+          Container(
+
+            height: 140,
+
+            width: double.infinity,
+
+            color: Colors.white,
+
+            child: const Center(
+
+              child: Column(
+
+                mainAxisAlignment: MainAxisAlignment.center,
+
+                children: [
+
+                  Icon(Icons.restaurant, size: 36, color: Color(0xFF2D9E73)),
+
+                  SizedBox(height: 6),
+
+                  Text(
+
+                    "[ Animación de la Llama ]",
+
+                    style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+
                   ),
-                ),
+
+                ],
+
               ),
+
             ),
+
           ),
-          
+
           const Divider(height: 1, color: Colors.black12),
-          
-          // Mitad inferior: 50% de la pantalla dedicado al flujo del chat
+
           Expanded(
-            flex: 1,
+
             child: _buildChatLayout(),
+
           ),
+
         ],
+
       );
+
     } else {
+
       return _buildChatLayout();
+
     }
+
   }
 
 
@@ -1298,7 +1169,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
                           backgroundColor: _verde.withOpacity(0.2),
 
-                          backgroundImage: const AssetImage('assets/images/iconllama.png'),
+                          backgroundImage: const AssetImage('assets/images/chef_avatar.png'),
 
                           child: const Icon(Icons.restaurant, size: 16, color: Color(0xFF2D9E73)),
 

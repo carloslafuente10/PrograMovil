@@ -72,14 +72,18 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
   uses-material-design: true
 
-  assets:      # ← 2 espacios de indentación, dentro de flutter:
-    - assets/images/
+  assets:
     - assets/images/platos/
     - assets/images/ingredientes/
     - assets/animations/
     - assets/videos/
+    - assets/images/fondo.webp
     - .env
 
   # To add assets to your application, add an assets section, like this:
@@ -96,7 +100,7 @@ flutter:
   # To add custom fonts to your application, add a fonts section here,
   # in this "flutter" section. Each entry in this list should have a
   # "family" key with the font family name, and a "fonts" key with a
-  # list giving the asset and other descriptors for the font. For
+  # list giving the asset code pubspec.yamland other descriptors for the font. For
   # example:
   # fonts:
   #   - family: Schyler
