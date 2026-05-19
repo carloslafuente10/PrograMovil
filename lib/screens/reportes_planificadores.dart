@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../servicios/pdf_servicios.dart'; // Importación de los servicios
 
 class ReportesPlanificadoresScreen extends StatefulWidget {
   const ReportesPlanificadoresScreen({super.key});
@@ -12,6 +13,7 @@ class ReportesPlanificadoresScreen extends StatefulWidget {
 class _ReportesPlanificadoresScreenState
     extends State<ReportesPlanificadoresScreen> {
   DateTime _fechaSeleccionada = DateTime.now();
+  String _formatoReporte = 'PDF'; // <-- Variable para controlar el dropdown
 
   String _getFechaFormateada() {
     final meses = [
@@ -72,8 +74,14 @@ class _ReportesPlanificadoresScreenState
       ),
       body: Column(
         children: [
+          // Selector de Fecha
           Container(
-            margin: const EdgeInsets.all(16),
+            margin: const EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 16,
+              bottom: 8,
+            ),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(20),
@@ -127,6 +135,72 @@ class _ReportesPlanificadoresScreenState
             ),
           ),
 
+          // Controles de Exportación (NUEVO)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: DropdownButton<String>(
+                    value: _formatoReporte,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(value: 'PDF', child: Text('PDF')),
+                      DropdownMenuItem(value: 'Excel', child: Text('Excel')),
+                      DropdownMenuItem(value: 'CSV', child: Text('CSV')),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _formatoReporte = value!;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF1A1A1A),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: () async {
+                    // Muestra indicador de carga
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Generando reporte...')),
+                    );
+
+                    if (_formatoReporte == 'PDF') {
+                      await PdfService.generarReportePlanificadoresPdf(
+                        _fechaSeleccionada,
+                      );
+                    } else if (_formatoReporte == 'Excel') {
+                      await PdfService.generarExcelPlanificadores(
+                        _fechaSeleccionada,
+                      );
+                    } else if (_formatoReporte == 'CSV') {
+                      await PdfService.generarCsvPlanificadores(
+                        _fechaSeleccionada,
+                      );
+                    }
+                  },
+                  child: const Text(
+                    'Reporte',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Lista de Usuarios y sus Planes
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -145,7 +219,6 @@ class _ReportesPlanificadoresScreenState
                     final uid = usuarios[i].id;
                     final docId = _getDocId(uid, _fechaSeleccionada);
 
-                    // SEGURIDAD: Obtener inicial de forma segura
                     final nombreUsuario = userData['nombre']?.toString() ?? 'U';
                     final inicial = nombreUsuario.isNotEmpty
                         ? nombreUsuario[0].toUpperCase()
