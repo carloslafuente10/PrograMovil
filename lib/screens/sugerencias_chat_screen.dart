@@ -80,7 +80,7 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen> {
 
   // --- CONFIGURACIÓN DE GROQ (xAI API) ---
 
-  final String _apiKeyGrok = "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";
+  final String _apiKeyGrok = "";
 
   final String _systemPrompt = """
 
@@ -410,7 +410,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
       if (titulo == "Reporte") {
 
-        saludoChef = "Lamento mucho que tengas problemas que te separen de tu proxima comida. Por favor selecciona el problema que estas teniendo";
+        saludoChef = "Lamento mucho que tengas problemas que te separen de tu proxima comida. Por favor selecciona el problema que mas coincida con tu situacion.";
 
         tipoMensaje = "botones_reporte_categorias";
 
