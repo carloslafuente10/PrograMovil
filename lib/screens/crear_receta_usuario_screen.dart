@@ -81,7 +81,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   bool _guardando = false;
 
   Map<String, String> _nombresResueltos = {};
-
   static const List<String> _unidadesSugeridas = [
     'g',
     'kg',
@@ -128,7 +127,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     _subcategoriaCtrl = TextEditingController(
       text: d['subcategoria']?.toString() ?? '',
     );
-
     if (d['ingredientes'] != null) {
       for (final item in d['ingredientes'] as List) {
         if (item is Map) {
@@ -158,7 +156,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   Future<void> _resolverNombresIngredientes() async {
     final d = widget.datosIniciales ?? {};
     final List ingredientesRaw = d['ingredientes'] ?? [];
-
     final idsHuerfanos = ingredientesRaw
         .whereType<Map>()
         .where(
@@ -171,7 +168,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         .toSet();
 
     if (idsHuerfanos.isEmpty) return;
-
     // 1. Busca primero en los maestros ya cargados en memoria (sin Firestore)
     for (final id in idsHuerfanos) {
       final maestro = _maestros.firstWhere(
@@ -187,7 +183,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     final idsRestantes = idsHuerfanos
         .where((id) => !_nombresResueltos.containsKey(id))
         .toList();
-
     for (final id in idsRestantes) {
       try {
         // Intento 1: el doc tiene el mismo ID que ingrediente_id
@@ -361,70 +356,13 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       barrierDismissible: false,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF3E0),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.lock_outline_rounded,
-                color: Color(0xFFFF8F00),
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Text(
-                'Guardar receta',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
-              ),
-            ),
-          ],
+        title: const Text(
+          'Guardar receta',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '¿Deseas guardar esta receta?',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF8E1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFFFFCC02).withOpacity(0.5),
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.info_outline_rounded,
-                    color: Color(0xFFFF8F00),
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Una vez guardada, la receta no podrá editarse. Solo podrás eliminarla.',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: Colors.grey[700],
-                        height: 1.4,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        content: const Text(
+          '¿Deseas guardar esta receta?',
+          style: TextStyle(fontSize: 14),
         ),
         actions: [
           TextButton(
@@ -470,8 +408,12 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         'porcion_base': _porcionCtrl.text.trim(),
         'ingredientes': _ingredientes.map((i) => i.toMap()).toList(),
         'creador_id': userId,
+        // FIX: el StreamBuilder filtra por 'usuarioId'
+        'usuarioId': userId,
+        // FIX: guardar pasos dentro del doc para que _cargarPasos() los encuentre
+        if (_pasos.isNotEmpty) 'pasos': _pasos.map((p) => p.toMap()).toList(),
+        'fechaCreacion': DateTime.now().toIso8601String(),
       };
-
       String docId;
       if (widget.docId != null) {
         await FirebaseFirestore.instance
@@ -524,7 +466,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     final titulo = widget.soloLectura
         ? 'Detalle de receta'
         : (esNueva ? 'Nueva receta' : 'Editar receta');
-
     return Scaffold(
       backgroundColor: _fondo,
       appBar: AppBar(
@@ -617,7 +558,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     final d = widget.datosIniciales ?? {};
     final img = _imagenCtrl.text;
     final List ingredientesRaw = d['ingredientes'] ?? [];
-
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
       child: Column(
@@ -673,11 +613,9 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
                         .join(' ');
               }
               if (nombre.isEmpty) nombre = 'Ingrediente';
-
               final cantidad = item['cantidad']?.toString() ?? '';
               final unidad = item['unidad']?.toString() ?? '';
               final primordial = item['es_primordial'] == true;
-
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.symmetric(
@@ -948,7 +886,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   void _mostrarDialogoIngrediente({int? index}) {
     final ing = index != null ? _ingredientes[index] : null;
     Map<String, dynamic>? maestroInicial;
-
     if (ing != null && ing.esMaestro && ing.ingredienteId.isNotEmpty) {
       maestroInicial = _maestros.firstWhere(
         (m) => m['id'] == ing.ingredienteId,
@@ -967,10 +904,11 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         ingInicial: ing,
         maestroInicial: maestroInicial,
         onGuardar: (nuevo) => setState(() {
-          if (index != null)
+          if (index != null) {
             _ingredientes[index] = nuevo;
-          else
+          } else {
             _ingredientes.add(nuevo);
+          }
         }),
         onNuevoMaestroCreado: (nuevo) => setState(() => _maestros.add(nuevo)),
       ),
@@ -1007,11 +945,12 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
                 onReorder: (o, n) => setState(() {
                   if (n > o) n--;
                   _pasos.insert(n, _pasos.removeAt(o));
-                  for (int i = 0; i < _pasos.length; i++)
+                  for (int i = 0; i < _pasos.length; i++) {
                     _pasos[i] = _Paso(
                       instruccion: _pasos[i].instruccion,
                       orden: i + 1,
                     );
+                  }
                 }),
                 itemBuilder: (context, i) => _PasoItemEditor(
                   key: ValueKey('paso_$i'),
@@ -1020,11 +959,12 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
                   onEditar: () => _mostrarDialogoPaso(index: i),
                   onEliminar: () => setState(() {
                     _pasos.removeAt(i);
-                    for (int j = 0; j < _pasos.length; j++)
+                    for (int j = 0; j < _pasos.length; j++) {
                       _pasos[j] = _Paso(
                         instruccion: _pasos[j].instruccion,
                         orden: j + 1,
                       );
+                    }
                   }),
                 ),
               ),
@@ -1043,12 +983,13 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         ingredientes: _ingredientes,
         numeroPaso: index != null ? index + 1 : _pasos.length + 1,
         onGuardar: (instruccion) => setState(() {
-          if (index != null)
+          if (index != null) {
             _pasos[index] = _Paso(instruccion: instruccion, orden: index + 1);
-          else
+          } else {
             _pasos.add(
               _Paso(instruccion: instruccion, orden: _pasos.length + 1),
             );
+          }
         }),
       ),
     );
@@ -1237,7 +1178,6 @@ class _DialogoIngredienteState extends State<_DialogoIngrediente> {
             esPrimordial: _esPrimordial,
             esMaestro: true,
           );
-
     widget.onGuardar(ingrediente);
     Navigator.pop(context);
   }
@@ -1704,7 +1644,6 @@ class _DialogoIngredienteState extends State<_DialogoIngrediente> {
 class _DialogoCrearMaestro extends StatefulWidget {
   final String nombreInicial;
   final ValueChanged<Map<String, dynamic>> onCrear;
-
   const _DialogoCrearMaestro({
     required this.nombreInicial,
     required this.onCrear,
@@ -1720,7 +1659,6 @@ class _DialogoCrearMaestroState extends State<_DialogoCrearMaestro> {
   final _sustCtrl = TextEditingController();
   String _cat = '';
   final List<String> _sustitutos = [];
-
   static const List<String> _cats = [
     'Proteínas',
     'Grasas',
@@ -1732,7 +1670,6 @@ class _DialogoCrearMaestroState extends State<_DialogoCrearMaestro> {
     'Legumbres',
     'Otros',
   ];
-
   @override
   void initState() {
     super.initState();
@@ -1916,14 +1853,12 @@ class _DialogoPaso extends StatefulWidget {
   final List<_IngReceta> ingredientes;
   final int numeroPaso;
   final ValueChanged<String> onGuardar;
-
   const _DialogoPaso({
     required this.onGuardar,
     required this.ingredientes,
     required this.numeroPaso,
     this.pasoInicial,
   });
-
   @override
   State<_DialogoPaso> createState() => _DialogoPasoState();
 }
@@ -2148,7 +2083,6 @@ class _IngredienteItemEditor extends StatelessWidget {
   final VoidCallback onEditar, onEliminar, onTogglePrimordial;
   static const Color _verde = Color(0xFF2D9E73);
   static const Color _verdeClaro = Color(0xFFE8F7F1);
-
   const _IngredienteItemEditor({
     super.key,
     required this.ing,
@@ -2156,7 +2090,6 @@ class _IngredienteItemEditor extends StatelessWidget {
     required this.onEliminar,
     required this.onTogglePrimordial,
   });
-
   @override
   Widget build(BuildContext context) => Container(
     margin: const EdgeInsets.only(bottom: 8),
@@ -2261,7 +2194,6 @@ class _PasoItemEditor extends StatelessWidget {
   final VoidCallback onEditar, onEliminar;
   static const Color _verde = Color(0xFF2D9E73);
   static const Color _verdeClaro = Color(0xFFE8F7F1);
-
   const _PasoItemEditor({
     super.key,
     required this.paso,
@@ -2269,7 +2201,6 @@ class _PasoItemEditor extends StatelessWidget {
     required this.onEditar,
     required this.onEliminar,
   });
-
   @override
   Widget build(BuildContext context) => Container(
     margin: const EdgeInsets.only(bottom: 10),
@@ -2363,12 +2294,10 @@ class _SelectorCategoria extends StatelessWidget {
   final String seleccionada;
   final ValueChanged<String> onSeleccionar;
   static const Color _verde = Color(0xFF2D9E73);
-
   const _SelectorCategoria({
     required this.seleccionada,
     required this.onSeleccionar,
   });
-
   @override
   Widget build(BuildContext context) => StreamBuilder<QuerySnapshot>(
     stream: FirebaseFirestore.instance
@@ -2433,7 +2362,6 @@ class _SelectorCategoria extends StatelessWidget {
 class _Label extends StatelessWidget {
   final String texto;
   const _Label(this.texto);
-
   @override
   Widget build(BuildContext context) => Text(
     texto,
@@ -2449,7 +2377,6 @@ class _Campo extends StatelessWidget {
   final TextEditingController ctrl;
   final String hint;
   final IconData icono;
-
   const _Campo({required this.ctrl, required this.hint, required this.icono});
 
   @override
@@ -2474,7 +2401,6 @@ class _Campo extends StatelessWidget {
 class _SeccionTitulo extends StatelessWidget {
   final String titulo;
   const _SeccionTitulo(this.titulo);
-
   @override
   Widget build(BuildContext context) => Text(
     titulo,
@@ -2489,7 +2415,6 @@ class _SeccionTitulo extends StatelessWidget {
 class _InfoFila extends StatelessWidget {
   final String label, valor;
   const _InfoFila(this.label, this.valor);
-
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
@@ -2521,7 +2446,6 @@ class _InfoFila extends StatelessWidget {
 class _InfoCard extends StatelessWidget {
   final List<Widget> children;
   const _InfoCard({required this.children});
-
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(14),
@@ -2553,7 +2477,6 @@ class _PlaceholderImagen extends StatelessWidget {
 class _VacioMsg extends StatelessWidget {
   final String msg;
   const _VacioMsg(this.msg);
-
   @override
   Widget build(BuildContext context) => Center(
     child: Padding(
@@ -2581,7 +2504,6 @@ class _BotonAgregar extends StatelessWidget {
   static const Color _verdeClaro = Color(0xFFE8F7F1);
 
   const _BotonAgregar({required this.label, required this.onTap});
-
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
@@ -2614,14 +2536,12 @@ class _CampoTexto extends StatelessWidget {
   final String label;
   final IconData icono;
   final TextInputType tipo;
-
   const _CampoTexto({
     required this.ctrl,
     required this.label,
     required this.icono,
     this.tipo = TextInputType.text,
   });
-
   @override
   Widget build(BuildContext context) => TextField(
     controller: ctrl,

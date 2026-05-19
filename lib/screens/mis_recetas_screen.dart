@@ -67,6 +67,7 @@ class MisRecetasScreen extends StatelessWidget {
                     .snapshots(),
                 builder: (context, snapshot) {
                   final count = snapshot.data?.docs.length ?? 0;
+
                   return Row(
                     children: [
                       const Icon(
@@ -190,8 +191,8 @@ class MisRecetasScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: _verde,
         elevation: 4,
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => const CrearRecetaUsuarioScreen(),
@@ -539,9 +540,11 @@ class _CopiarRecetaSheetState extends State<_CopiarRecetaSheet> {
         'origenRecetaId': recetaOriginalId, // referencia al original
         'fechaCreacion': DateTime.now().toIso8601String(),
       };
+
       await FirebaseFirestore.instance
           .collection('recetas_personales')
           .add(copia);
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -578,11 +581,13 @@ class MiRecetaCard extends StatelessWidget {
 
   static const Color _verde = Color(0xFF2D9E73);
   static const Color _verdeClaro = Color(0xFFE8F7F1);
+
   const MiRecetaCard({
     super.key,
     required this.datosCompletos,
     required this.docId,
   });
+
   @override
   Widget build(BuildContext context) {
     final img = datosCompletos['imagen']?.toString() ?? '';
@@ -593,6 +598,7 @@ class MiRecetaCard extends StatelessWidget {
         '0';
     final category = datosCompletos['categoria']?.toString() ?? '';
     final esCopia = datosCompletos['origenRecetaId'] != null;
+
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(14),
@@ -808,6 +814,7 @@ class _RecetaOptionsSheet extends StatelessWidget {
     required this.docId,
     required this.datosCompletos,
   });
+
   @override
   Widget build(BuildContext context) {
     final String img = datosCompletos['imagen']?.toString() ?? '';
@@ -1093,6 +1100,7 @@ String _formatCantidad(dynamic valor) {
         .toStringAsFixed(2)
         .replaceAll(RegExp(r'0+$'), '')
         .replaceAll(RegExp(r'\.$'), '');
+
   if (entero == 0 && fraccion.isNotEmpty) return fraccion;
   if (fraccion.isEmpty) return entero.toString();
   return '$entero $fraccion';
@@ -1118,6 +1126,7 @@ class _VistaRecetaPersonalState extends State<_VistaRecetaPersonal> {
   List<Map<String, dynamic>> _ingredientesResueltos = [];
   List<dynamic> _pasos = [];
   bool _cargando = true;
+
   @override
   void initState() {
     super.initState();
@@ -1351,6 +1360,7 @@ class _VistaRecetaPersonalState extends State<_VistaRecetaPersonal> {
                                 'Ingrediente';
                             final cantidad = _formatCantidad(map['cantidad']);
                             final unidad = map['unidad']?.toString() ?? '';
+
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 8),
                               child: Row(
