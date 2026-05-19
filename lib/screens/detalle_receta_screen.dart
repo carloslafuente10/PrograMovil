@@ -710,131 +710,51 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                                   : _IngPlaceholder(),
                                             ),
                                             const SizedBox(width: 12),
+                                            // Reemplaza TU bloque "Expanded" actual por este nuevo bloque:
                                             Expanded(
-                                              child: Text(
-                                                textoCompleto,
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w500,
-                                                  color: marcado
-                                                      ? Colors.grey[400]
-                                                      : const Color(0xFF1A1A1A),
-                                                  decoration: marcado
-                                                      ? TextDecoration
-                                                            .lineThrough
-                                                      : null,
-                                                ),
+                                              child: Row(
+                                                // <-- Convertimos el hijo en una Fila
+                                                children: [
+                                                  Flexible(
+                                                    // <-- Usamos Flexible para que el texto no empuje el icono fuera de pantalla
+                                                    child: Text(
+                                                      textoCompleto,
+                                                      maxLines: 2,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: TextStyle(
+                                                        fontSize: 14,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                        color: marcado
+                                                            ? Colors.grey[400]
+                                                            : const Color(
+                                                                0xFF1A1A1A,
+                                                              ),
+                                                        decoration: marcado
+                                                            ? TextDecoration
+                                                                  .lineThrough
+                                                            : null,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  // --- AQUI ESTA LA NUEVA FUNCIONALIDAD ---
+                                                  if (ing.es_primordial) ...[
+                                                    const SizedBox(width: 6),
+                                                    const Icon(
+                                                      Icons
+                                                          .star_rounded, // Puedes cambiarlo por Icons.warning_amber_rounded si prefieres
+                                                      size: 16,
+                                                      color: Colors
+                                                          .amber, // El color dorado resalta bien
+                                                    ),
+                                                  ],
+                                                  // ----------------------------------------
+                                                ],
                                               ),
                                             ),
                                             const SizedBox(width: 10),
 
-                                            /* ============================
-   VERSION VIEJA (RESPALDO)
-=============================*/
-                                            /*
-AnimatedContainer(
-  duration: const Duration(
-    milliseconds: 200,
-  ),
-  padding: const EdgeInsets.symmetric(
-    horizontal: 12,
-    vertical: 6,
-  ),
-  decoration: BoxDecoration(
-    color: marcado
-        ? _verde
-        : Colors.red.withValues(
-            alpha: 0.1,
-          ),
-    borderRadius: BorderRadius.circular(20),
-    border: Border.all(
-      color: marcado
-          ? _verde
-          : Colors.red[300]!,
-      width: 1,
-    ),
-  ),
-  child: Text(
-    marcado ? 'Tengo ✓' : 'Falta',
-    style: TextStyle(
-      fontSize: 11,
-      fontWeight: FontWeight.w600,
-      color: marcado
-          ? Colors.white
-          : Colors.red[700],
-    ),
-  ),
-),
-*/
-                                            /*
-widget.isAdmin
-    ? Row(
-        children: [
-          IconButton(
-            icon: const Icon(
-              Icons.edit,
-              color: Colors.blue,
-              size: 18,
-            ),
-            onPressed: () {
-              _editarIngrediente(i, ing);
-            },
-          ),
-
-          IconButton(
-            icon: const Icon(
-              Icons.delete,
-              color: Colors.red,
-              size: 18,
-            ),
-            onPressed: () {
-              setState(() {
-                _ingredientesEditables.removeAt(i);
-                _checks.removeAt(i);
-              });
-            },
-          ),
-        ],
-      )
-      
-    : AnimatedContainer(
-        duration: const Duration(
-          milliseconds: 200,
-        ),
-        padding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 6,
-        ),
-        decoration: BoxDecoration(
-          color: marcado
-              ? _verde
-              : Colors.red.withValues(
-                  alpha: 0.1,
-                ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: marcado
-                ? _verde
-                : Colors.red[300]!,
-            width: 1,
-          ),
-        ),
-        child: Text(
-          marcado ? 'Tengo ✓' : 'Falta',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: marcado
-                ? Colors.white
-                : Colors.red[700],
-          ),
-        ),
-      ),
-*/
-
-                                            /* ===== VERSION NUEVA ===== */
                                             widget.isAdmin
                                                 ? Row(
                                                     children: [
