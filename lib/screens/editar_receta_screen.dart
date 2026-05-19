@@ -1,6 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+String _pluralizarUnidad(String cantidad, String unidad) {
+  if (unidad.isEmpty) return unidad;
+  const invariables = {'g', 'kg', 'ml', 'l', 'al gusto'};
+  if (invariables.contains(unidad.toLowerCase())) return unidad;
+  final double? valor = double.tryParse(cantidad.replaceAll(',', '.'));
+  final bool plural = valor == null || valor > 1;
+  const plurales = {
+    'taza': 'tazas',
+    'cucharada': 'cucharadas',
+    'cucharadita': 'cucharaditas',
+    'unidad': 'unidades',
+    'pizca': 'pizcas',
+    'rebanada': 'rebanadas',
+    'trozo': 'trozos',
+    'diente': 'dientes',
+    'hoja': 'hojas',
+    'lata': 'latas',
+    'sobre': 'sobres',
+    'paquete': 'paquetes',
+    'rodaja': 'rodajas',
+  };
+  const singulares = {
+    'tazas': 'taza',
+    'cucharadas': 'cucharada',
+    'cucharaditas': 'cucharadita',
+    'unidades': 'unidad',
+    'pizcas': 'pizca',
+    'rebanadas': 'rebanada',
+    'trozos': 'trozo',
+    'dientes': 'diente',
+    'hojas': 'hoja',
+    'latas': 'lata',
+    'sobres': 'sobre',
+    'paquetes': 'paquete',
+    'rodajas': 'rodaja',
+  };
+  final base = singulares[unidad.toLowerCase()] ?? unidad;
+  return plural ? (plurales[base.toLowerCase()] ?? base) : base;
+}
+
 class _IngReceta {
   String ingredienteId;
   String nombre;
@@ -75,32 +115,26 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
   bool _cargandoMaestros = true;
   bool _guardando = false;
 
+  // Unidades en forma base (singular). _pluralizar las adapta según cantidad.
   static const List<String> _unidadesSugeridas = [
     'g',
     'kg',
     'ml',
     'L',
     'taza',
-    'tazas',
     'cucharada',
     'cucharadita',
     'unidad',
-    'unidades',
     'pizca',
     'al gusto',
     'rebanada',
-    'rebanadas',
     'trozo',
-    'trozos',
     'diente',
-    'dientes',
     'hoja',
-    'hojas',
     'lata',
     'sobre',
     'paquete',
     'rodaja',
-    'rodajas',
   ];
 
   @override
@@ -356,7 +390,7 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
     if (ok == true) await _guardar();
   }
 
-  // CORRECCIÓN 1: _guardar incluye subcategoria y agrega recetas_id en steps-recetas
+  // _guardar: incluye subcategoria y guarda pasos con campo receta_id (consistente con BD)
   Future<void> _guardar() async {
     setState(() => _guardando = true);
     try {
@@ -389,13 +423,12 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
         debugPrint(
           '[GUARDAR] Guardando ${_pasos.length} pasos en steps-recetas/$docId',
         );
-        // Usamos el ID de la receta como nombre del doc y guardamos recetas_id como vínculo
         await FirebaseFirestore.instance
             .collection('steps-recetas')
             .doc(docId)
             .set({
               'pasos_ordenados': _pasos.map((p) => p.toMap()).toList(),
-              'recetas_id': docId, // vínculo vital entre colecciones
+              'receta_id': docId, // mismo nombre que usa el resto de la BD
             });
         debugPrint(
           '[GUARDAR] ✅ Pasos guardados correctamente para docId: $docId',
@@ -602,7 +635,8 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
                           ),
                           if (cantidad.isNotEmpty || unidad.isNotEmpty)
                             Text(
-                              '$cantidad $unidad'.trim(),
+                              '$cantidad ${_pluralizarUnidad(cantidad, unidad)}'
+                                  .trim(),
                               style: TextStyle(
                                 fontSize: 11.5,
                                 color: Colors.grey[500],
@@ -2081,9 +2115,12 @@ class _IngredienteItemEditor extends StatelessWidget {
                 ),
               ),
               Text(
-                '${ing.cantidad} ${ing.unidad}'.trim().isEmpty
+                '${ing.cantidad} ${_pluralizarUnidad(ing.cantidad, ing.unidad)}'
+                        .trim()
+                        .isEmpty
                     ? 'Sin cantidad'
-                    : '${ing.cantidad} ${ing.unidad}'.trim(),
+                    : '${ing.cantidad} ${_pluralizarUnidad(ing.cantidad, ing.unidad)}'
+                          .trim(),
                 style: TextStyle(fontSize: 11, color: Colors.grey[500]),
               ),
             ],
