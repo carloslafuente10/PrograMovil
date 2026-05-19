@@ -38,7 +38,7 @@ dependencies:
   firebase_auth: ^6.3.0
   cloud_firestore: ^6.2.0
 
-  http: ^1.2.0
+  http: ^1.6.0
   iconsax: ^0.0.8
   provider: ^6.1.5+1
   google_generative_ai: ^0.4.7

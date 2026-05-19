@@ -80,7 +80,7 @@ class AppMainScreenState extends State<AppMainScreen> {
               child: GestureDetector(
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const SugerenciasChatScreen()),
+                  MaterialPageRoute(builder: (context) => SugerenciasChatScreen()),
                 ),
                 child: Container(
                   width: 80,
