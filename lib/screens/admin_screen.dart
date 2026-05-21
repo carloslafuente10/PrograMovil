@@ -4,6 +4,7 @@ import 'login_page.dart';
 import 'admin_recetas_screen.dart';
 import 'admin_categorias_screen.dart';
 import 'reportes_screen.dart';
+import 'gestionar_usuarios_screen.dart';
 
 class AdminScreen extends StatelessWidget {
   const AdminScreen({super.key});
@@ -176,6 +177,31 @@ class AdminScreen extends StatelessWidget {
                       );
                     },
                   ),
+                  const SizedBox(height: 12),
+
+_AdminCard(
+  titulo: 'Gestionar usuarios',
+
+  subtitulo:
+      'Administrar roles y permisos',
+
+  icono:
+      Icons.admin_panel_settings,
+
+  onTap: () {
+
+    Navigator.push(
+
+      context,
+
+      MaterialPageRoute(
+
+        builder: (_) =>
+            const GestionarUsuariosScreen(),
+      ),
+    );
+  },
+),
                   ],
               ),
             ),
