@@ -1142,8 +1142,10 @@ class _BuscadorRecetasDBSheetState extends State<_BuscadorRecetasDBSheet> {
       if (!mounted) return;
       Navigator.pop(context); // Cerrar buscador
 
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          duration: const Duration(seconds: 4),
           content: const Row(
             children: [
               Icon(Icons.check_circle_rounded, color: Colors.white),
