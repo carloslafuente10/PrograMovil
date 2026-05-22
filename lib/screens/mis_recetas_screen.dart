@@ -1140,34 +1140,85 @@ class _BuscadorRecetasDBSheetState extends State<_BuscadorRecetasDBSheet> {
           .add(payload);
 
       if (!mounted) return;
+
+      // Guardar el navigator raíz ANTES de cerrar el buscador
+      final nav = Navigator.of(context, rootNavigator: true);
+      final recetaId = docRef.id;
+      final payloadCopia = Map<String, dynamic>.from(payload);
+
       Navigator.pop(context); // Cerrar buscador
 
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          duration: const Duration(seconds: 4),
-          content: const Row(
-            children: [
-              Icon(Icons.check_circle_rounded, color: Colors.white),
-              SizedBox(width: 10),
-              Text('Receta copiada a Mis recetas'),
-            ],
-          ),
-          backgroundColor: _verde,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          margin: const EdgeInsets.all(16),
-          action: SnackBarAction(
-            label: 'Editar',
-            textColor: Colors.white,
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => CrearRecetaUsuarioScreen(
-                  recetaExistente: payload,
-                  recetaPersonalId: docRef.id,
+      // Mostrar diálogo de éxito usando el navigator raíz (no el contexto desmontado)
+      nav.push(
+        DialogRoute(
+          context: nav.context,
+          barrierDismissible: true,
+          builder: (dialogCtx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F7F1),
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: const Icon(Icons.check_circle_rounded, color: _verde, size: 32),
                 ),
-              ),
+                const SizedBox(height: 14),
+                const Text(
+                  '¡Receta copiada!',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'La receta fue guardada en Mis recetas personales.',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(dialogCtx),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.grey[300]!),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text('Cerrar'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(dialogCtx);
+                          nav.push(
+                            MaterialPageRoute(
+                              builder: (_) => CrearRecetaUsuarioScreen(
+                                recetaExistente: payloadCopia,
+                                recetaPersonalId: recetaId,
+                              ),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _verde,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: const Text('Editar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
