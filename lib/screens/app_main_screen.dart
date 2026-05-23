@@ -198,11 +198,16 @@ class AppMainScreenState extends State<AppMainScreen> {
   }
 }
 
-class _AjustesScreen extends StatelessWidget {
+class _AjustesScreen extends StatefulWidget {
+  const _AjustesScreen();
+
+  @override
+  State<_AjustesScreen> createState() => _AjustesScreenState();
+}
+
+class _AjustesScreenState extends State<_AjustesScreen> {
   static const Color _verde = Color(0xFF2D9E73);
   static const Color _verdeClaro = Color(0xFFE8F7F1);
-
-  const _AjustesScreen();
 
   @override
   Widget build(BuildContext context) {
@@ -310,7 +315,7 @@ class _AjustesScreen extends StatelessWidget {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => MisRecetasScreen(),
+                          builder: (context) => const MisRecetasScreen(),
                         ),
                       ),
                     ),

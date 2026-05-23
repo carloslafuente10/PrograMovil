@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'detalle_receta_screen.dart';
-import 'editar_receta_screen.dart';
+import 'ver_receta_admin_screen.dart';
+import 'crear_receta_admin_screen.dart';
 
 class AdminRecetasScreen extends StatelessWidget {
   const AdminRecetasScreen({super.key});
@@ -178,7 +178,7 @@ class AdminRecetasScreen extends StatelessWidget {
         elevation: 4,
         onPressed: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const EditarRecetaScreen()),
+          MaterialPageRoute(builder: (_) => const CrearRecetaAdminScreen()),
         ),
         icon: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
         label: const Text(
@@ -218,14 +218,12 @@ class _RecetaCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () {
-          // Aquí usamos 'data' que es como definiste tu variable arriba
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => DetalleRecetaScreen(
+              builder: (_) => VerRecetaAdminScreen(
                 recetaId: docId,
-                nombreReceta: nombre, // Usamos la variable local 'nombre'
-                isAdmin: true,
+                nombreReceta: nombre,
               ),
             ),
           );
