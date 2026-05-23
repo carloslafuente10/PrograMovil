@@ -5,6 +5,7 @@ import 'admin_recetas_screen.dart';
 import 'admin_categorias_screen.dart';
 import 'reportes_screen.dart';
 import 'admin_recetas_pendientes_screen.dart'; // ✅ nueva pantalla
+import 'components/notificacion_campana.dart';
 
 class AdminScreen extends StatelessWidget {
   const AdminScreen({super.key});
@@ -31,6 +32,7 @@ class AdminScreen extends StatelessWidget {
           ),
         ),
         actions: [
+          const NotificacionCampana(esAdmin: true),
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: CircleAvatar(

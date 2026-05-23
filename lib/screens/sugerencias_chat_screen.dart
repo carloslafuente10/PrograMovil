@@ -800,7 +800,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
                 ? Container(color: const Color(0xFFF5F5F5))
 
-                : Image.asset('assets/images/fondo.webp', fit: BoxFit.cover),
+                : Image.asset('assets/images/fondo2.webp', fit: BoxFit.cover),
 
           ),
 

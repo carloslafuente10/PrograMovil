@@ -83,7 +83,7 @@ flutter:
     - assets/images/ingredientes/
     - assets/animations/
     - assets/videos/
-    - assets/images/fondo.webp
+    - assets/images/
     - .env
 
   # To add assets to your application, add an assets section, like this:
