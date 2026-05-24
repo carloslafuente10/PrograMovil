@@ -6,7 +6,6 @@ import 'admin_categorias_screen.dart';
 import 'reportes_screen.dart';
 import 'admin_recetas_pendientes_screen.dart'; 
 import 'components/notificacion_campana.dart';
-import 'admin_recetas_pendientes_screen.dart'; // ✅ nueva pantalla
 import 'gestionar_usuarios_screen.dart';
 
 class AdminScreen extends StatelessWidget {

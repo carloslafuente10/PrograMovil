@@ -407,8 +407,21 @@ class _DetallePendienteSheetState extends State<_DetallePendienteSheet> {
       recetaParaPublicar['fechaCreacion'] = DateTime.now().toIso8601String();
       recetaParaPublicar['aprobadaPor'] = FirebaseAuth.instance.currentUser?.email ?? 'admin';
 
-      await FirebaseFirestore.instance.collection('app-recetas-completas').add(recetaParaPublicar);
+      final pasos = List.from(widget.receta['pasos'] ?? []);
 
+      // Crear doc y obtener su ID
+      final nuevaRef = await FirebaseFirestore.instance
+         .collection('app-recetas-completas').add(recetaParaPublicar);
+
+      if (pasos.isNotEmpty) {
+        await FirebaseFirestore.instance
+          .collection('steps-recetas')
+          .doc(nuevaRef.id)
+          .set({
+             'pasos_ordenados': pasos,
+             'receta_id': nuevaRef.id,
+          });
+      }
       await FirebaseFirestore.instance
           .collection('recetas-pendientes').doc(widget.docId)
           .update({'estado': 'aprobada', 'fechaAprobacion': FieldValue.serverTimestamp()});
