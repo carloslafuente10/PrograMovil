@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:http/http.dart' as http;
 
-import 'dart:convert'; // Necesario para JSON y UTF-8
+import 'dart:convert'; // Necesario para JSON 
 
 import 'detalle_receta_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -409,7 +409,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
       if (titulo == "Reporte") {
 
-        saludoChef = "Lamento mucho que tengas problemas que te separen de tu proxima comida. Por favor selecciona el problema que estas teniendo";
+        saludoChef = "Lamento mucho que tengas problemas que te separen de tu proxima comida. Por favor selecciona el problema que mas coincida con tu situacion.";
 
         tipoMensaje = "botones_reporte_categorias";
 
@@ -1040,14 +1040,18 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
 
   Widget _buildWelcomeLayout() {
-    return Align(
-      alignment: Alignment.bottomCenter, // Empuja todo el contenido hacia abajo
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.only(left: 24.0, right: 24.0, bottom: 16.0, top: 40.0), // Ajusta márgenes externos
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.end, // Alinea los elementos internos al final
-          children: [
-            const Text(
+  return Align(
+    alignment: Alignment.bottomCenter, // Empuja todo el contenido hacia abajo
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.only(left: 24.0, right: 24.0, bottom: 16.0, top: 40.0), // Ajusta márgenes externos
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end, // Alinea los elementos internos al final
+        children: [
+          
+         
+          Transform.translate(
+            offset: const Offset(0, -450), // Mueve SOLO el texto 50 píxeles hacia arriba sin mover los botones
+            child: const Text(
               "¿Qué tienes para contarme?",
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -1057,6 +1061,12 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                 shadows: [Shadow(color: Colors.black, blurRadius: 10)],
               ),
             ),
+          ),
+          // --------------------------------------------
+
+          // Aquí abajo siguen tus botones actuales (Reporte, Ayuda, etc.)
+          // Al usar Transform.translate arriba, estos elementos se quedan exactamente en su posición original.
+
             const SizedBox(height: 20), // Reducido de 40 a 20 para acercar los botones al título
             _buildMenuButton(
               titulo: "Reporte",
