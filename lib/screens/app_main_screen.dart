@@ -8,9 +8,11 @@ import 'login_page.dart';
 import 'sugerencias_chat_screen.dart';
 import 'mis_recetas_screen.dart';
 import 'package:lottie/lottie.dart';
+import 'components/notificacion_campana.dart'; 
 
 class AppMainScreen extends StatefulWidget {
   const AppMainScreen({super.key});
+  static final GlobalKey<AppMainScreenState> globalKey = GlobalKey<AppMainScreenState>();
 
   @override
   State<AppMainScreen> createState() => AppMainScreenState();
@@ -76,7 +78,6 @@ class AppMainScreenState extends State<AppMainScreen> {
               child: GestureDetector(
                 onTap: () => Navigator.push(
                   context,
-
                   MaterialPageRoute(
                     builder: (context) => SugerenciasChatScreen(),
                   ),
@@ -235,6 +236,13 @@ class _AjustesScreenState extends State<_AjustesScreen> {
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
                 child: Column(
                   children: [
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        NotificacionCampana(esAdmin: false),
+                      ],
+                    ),
+                    // Avatar
                     CircleAvatar(
                       radius: 38,
                       backgroundColor: Colors.white24,
