@@ -39,6 +39,7 @@ dependencies:
   cloud_firestore: ^6.2.0
 
   http: ^1.6.0
+  flutter_dotenv: ^5.1.0
   iconsax: ^0.0.8
   provider: ^6.1.5+1
   google_generative_ai: ^0.4.7
@@ -73,12 +74,13 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  assets:
+  assets:      # ← 2 espacios de indentación, dentro de flutter:
     - assets/images/
     - assets/images/platos/
     - assets/images/ingredientes/
     - assets/animations/
     - assets/videos/
+    - .env
 
   # To add assets to your application, add an assets section, like this:
   # assets:

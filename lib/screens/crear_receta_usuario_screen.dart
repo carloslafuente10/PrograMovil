@@ -1,56 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../servicios/notificaciones_servicio.dart';
 
-class _IngReceta {
-  String ingredienteId;
-  String nombre;
+class _IngredienteSeleccionado {
+  final String id;
+  final String nombre;
+  final String? imagen;
   String cantidad;
   String unidad;
   bool esPrimordial;
-  bool esMaestro;
 
-  _IngReceta({
-    required this.ingredienteId,
+  _IngredienteSeleccionado({
+    required this.id,
     required this.nombre,
-    required this.cantidad,
-    required this.unidad,
+    this.imagen,
+    this.cantidad = '1',
+    this.unidad = 'g',
     this.esPrimordial = false,
-    this.esMaestro = false,
   });
 
   Map<String, dynamic> toMap() => {
-    'ingrediente_id': ingredienteId,
-    'nombre': nombre,
-    'cantidad': double.tryParse(cantidad) ?? 0,
-    'unidad': unidad,
-    'es_primordial': esPrimordial,
-  };
+        'ingrediente_id': id,
+        'nombre': nombre,
+        'imagen': imagen ?? '',
+        'cantidad': double.tryParse(cantidad) ?? 1,
+        'unidad': unidad,
+        'es_primordial': esPrimordial,
+      };
 }
 
-class _Paso {
-  String instruccion;
-  int orden;
-  _Paso({required this.instruccion, required this.orden});
-  Map<String, dynamic> toMap() => {'instruccion': instruccion, 'orden': orden};
-}
-
-// SCREEN PRINCIPAL
 class CrearRecetaUsuarioScreen extends StatefulWidget {
-  final String? docId;
-  final Map<String, dynamic>? datosIniciales;
-  final bool soloLectura;
-
-  /// Colección de Firestore donde se guarda/edita la receta.
-  /// 'recetas_personales' para usuarios, 'app-recetas-completas' para admin.
-  final String coleccion;
+  final Map<String, dynamic>? recetaExistente;
+  final String? recetaPersonalId;
 
   const CrearRecetaUsuarioScreen({
     super.key,
-    this.docId,
-    this.datosIniciales,
-    this.soloLectura = false,
-    this.coleccion = 'recetas_personales',
+    this.recetaExistente,
+    this.recetaPersonalId,
   });
 
   @override
@@ -59,402 +47,304 @@ class CrearRecetaUsuarioScreen extends StatefulWidget {
 }
 
 class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static const Color _verde = Color(0xFF2D9E73);
-  static const Color _verdeClaro = Color(0xFFE8F7F1);
   static const Color _fondo = Color(0xFFF5F6FA);
 
-  late TabController _tabCtrl;
+  late PageController _pageCtrl;
+  int _paginaActual = 0;
 
-  late final TextEditingController _nombreCtrl;
-  late final TextEditingController _caloriasCtrl;
-  late final TextEditingController _tiempoCtrl;
-  late final TextEditingController _imagenCtrl;
-  late final TextEditingController _porcionCtrl;
-  String _categoriaSeleccionada = '';
-  late final TextEditingController _subcategoriaCtrl;
+  final _nombreCtrl       = TextEditingController();
+  final _caloriasCtrl     = TextEditingController();
+  final _tiempoCtrl       = TextEditingController();
+  final _imagenCtrl       = TextEditingController();
+  final _subcategoriaCtrl = TextEditingController();
+  int _porciones = 1;
+  String _categoria = '';
 
-  List<_IngReceta> _ingredientes = [];
-  List<_Paso> _pasos = [];
-  List<Map<String, dynamic>> _maestros = [];
-  bool _cargandoMaestros = true;
+  final List<_IngredienteSeleccionado> _ingredientes = [];
+  final List<TextEditingController> _pasosCtrl = [];
+
   bool _guardando = false;
-
-  Map<String, String> _nombresResueltos = {};
-  static const List<String> _unidadesSugeridas = [
-    'g',
-    'kg',
-    'ml',
-    'L',
-    'taza',
-    'tazas',
-    'cucharada',
-    'cucharadita',
-    'unidad',
-    'unidades',
-    'pizca',
-    'al gusto',
-    'rebanada',
-    'rebanadas',
-    'trozo',
-    'trozos',
-    'diente',
-    'dientes',
-    'hoja',
-    'hojas',
-    'lata',
-    'sobre',
-    'paquete',
-    'rodaja',
-    'rodajas',
-  ];
+  String? _recetaPersonalId;
+  String _estadoOriginal = 'borrador';
+  bool _fueEditado = false;
+  bool _intentoAvanzar = false;
 
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
-    final d = widget.datosIniciales ?? {};
-    _nombreCtrl = TextEditingController(text: d['nombre']?.toString() ?? '');
-    _caloriasCtrl = TextEditingController(
-      text: (d['calorias'] ?? d['calorías'])?.toString() ?? '',
-    );
-    _tiempoCtrl = TextEditingController(text: d['tiempo']?.toString() ?? '');
-    _imagenCtrl = TextEditingController(text: d['imagen']?.toString() ?? '');
-    _porcionCtrl = TextEditingController(
-      text: d['porcion_base']?.toString() ?? '1',
-    );
-    _categoriaSeleccionada = d['categoria']?.toString() ?? '';
-    _subcategoriaCtrl = TextEditingController(
-      text: d['subcategoria']?.toString() ?? '',
-    );
-    if (d['ingredientes'] != null) {
-      for (final item in d['ingredientes'] as List) {
-        if (item is Map) {
-          _ingredientes.add(
-            _IngReceta(
-              ingredienteId: item['ingrediente_id']?.toString() ?? '',
-              nombre:
-                  item['nombre']?.toString() ??
-                  item['ingrediente_id']?.toString() ??
-                  '',
-              cantidad: item['cantidad']?.toString() ?? '',
-              unidad: item['unidad']?.toString() ?? '',
-              esPrimordial: item['es_primordial'] == true,
-              esMaestro:
-                  item['ingrediente_id'] != null &&
-                  item['ingrediente_id'].toString().isNotEmpty,
-            ),
-          );
-        }
-      }
-    }
-    _cargarMaestros().then((_) => _resolverNombresIngredientes());
-    _cargarPasos();
-  }
+    _pageCtrl = PageController();
+    _recetaPersonalId = widget.recetaPersonalId;
 
-  /// ✅ FIX: Resuelve nombres Y actualiza la lista _ingredientes con ellos.
-  Future<void> _resolverNombresIngredientes() async {
-    final d = widget.datosIniciales ?? {};
-    final List ingredientesRaw = d['ingredientes'] ?? [];
-    final idsHuerfanos = ingredientesRaw
-        .whereType<Map>()
-        .where(
-          (item) =>
-              (item['nombre'] == null || item['nombre'].toString().isEmpty) &&
-              item['ingrediente_id'] != null &&
-              item['ingrediente_id'].toString().isNotEmpty,
-        )
-        .map((item) => item['ingrediente_id'].toString())
-        .toSet();
-
-    if (idsHuerfanos.isEmpty) return;
-    // 1. Busca primero en los maestros ya cargados en memoria (sin Firestore)
-    for (final id in idsHuerfanos) {
-      final maestro = _maestros.firstWhere(
-        (m) => m['id'] == id,
-        orElse: () => <String, dynamic>{},
-      );
-      if (maestro.isNotEmpty && maestro['nombre'] != null) {
-        _nombresResueltos[id] = maestro['nombre'].toString();
-      }
-    }
-
-    // 2. Los que no se encontraron localmente, los consulta en Firestore
-    final idsRestantes = idsHuerfanos
-        .where((id) => !_nombresResueltos.containsKey(id))
-        .toList();
-    for (final id in idsRestantes) {
-      try {
-        // Intento 1: el doc tiene el mismo ID que ingrediente_id
-        final doc = await FirebaseFirestore.instance
-            .collection('ingredientes_maestros')
-            .doc(id)
-            .get();
-        if (doc.exists && doc.data()?['nombre'] != null) {
-          _nombresResueltos[id] = doc.data()!['nombre'].toString();
-          continue;
-        }
-        // Intento 2: busca por nombre con guiones → espacios
-        final q = await FirebaseFirestore.instance
-            .collection('ingredientes_maestros')
-            .where('nombre', isEqualTo: id.replaceAll('-', ' '))
-            .limit(1)
-            .get();
-        if (q.docs.isNotEmpty) {
-          _nombresResueltos[id] = q.docs.first['nombre'].toString();
-        }
-      } catch (_) {}
-    }
-
-    // ✅ FIX: Actualiza _ingredientes con los nombres resueltos
-    if (mounted) {
-      setState(() {
-        for (int i = 0; i < _ingredientes.length; i++) {
-          if (_ingredientes[i].nombre.isEmpty) {
-            final id = _ingredientes[i].ingredienteId;
-            final nombreResuelto =
-                _nombresResueltos[id] ??
-                id
-                    .split('-')
-                    .map(
-                      (w) =>
-                          w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1),
-                    )
-                    .join(' ');
-            _ingredientes[i] = _IngReceta(
-              ingredienteId: id,
-              nombre: nombreResuelto,
-              cantidad: _ingredientes[i].cantidad,
-              unidad: _ingredientes[i].unidad,
-              esPrimordial: _ingredientes[i].esPrimordial,
-              esMaestro: _ingredientes[i].esMaestro,
-            );
-          }
-        }
-      });
+    if (widget.recetaExistente != null) {
+      _estadoOriginal = widget.recetaExistente!['estado'] ?? 'borrador';
+      _cargarDatosExistentes(widget.recetaExistente!);
+    } else {
+      _pasosCtrl.add(TextEditingController());
     }
   }
 
-  Future<void> _cargarMaestros() async {
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('ingredientes_maestros')
-          .orderBy('nombre')
-          .get();
-      if (mounted) {
-        setState(() {
-          _maestros = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
-          _cargandoMaestros = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _cargandoMaestros = false);
-    }
-  }
+  void _cargarDatosExistentes(Map<String, dynamic> data) {
+    _nombreCtrl.text       = data['nombre'] ?? '';
+    _caloriasCtrl.text     = data['calorias']?.toString() ?? '';
+    _tiempoCtrl.text       = data['tiempo']?.toString() ?? '';
+    _imagenCtrl.text       = data['imagen'] ?? '';
+    _subcategoriaCtrl.text = data['subcategoria'] ?? '';
+    _porciones = data['porciones'] ?? 1;
+    _categoria = data['categoria'] ?? '';
 
-  Future<void> _cargarPasos() async {
-    final d = widget.datosIniciales ?? {};
-    // ✅ FIX: Primero intenta leer pasos desde el propio documento
-    // (recetas_personales guardan pasos dentro del doc como 'pasos' o 'pasos_ordenados')
-    final pasosEnDoc = d['pasos'] ?? d['pasos_ordenados'];
-    if (pasosEnDoc != null && pasosEnDoc is List && pasosEnDoc.isNotEmpty) {
-      debugPrint(
-        '[PASOS] Encontrados ${pasosEnDoc.length} pasos dentro del documento',
-      );
-      _procesarDatosPasos({'pasos_ordenados': pasosEnDoc});
-      return;
+    final ings = data['ingredientes'] as List? ?? [];
+    for (final i in ings) {
+      _ingredientes.add(_IngredienteSeleccionado(
+        id:       i['ingrediente_id'] ?? '',
+        nombre:   i['nombre'] ?? '',
+        imagen:   i['imagen'],
+        cantidad: i['cantidad']?.toString() ?? '1',
+        unidad:   i['unidad'] ?? 'g',
+      ));
     }
 
-    // Si no hay pasos en el doc, busca en steps-recetas (app-recetas-completas)
-    if (widget.docId == null) {
-      debugPrint('[PASOS] docId es null, abortando carga');
-      return;
+    final pasos = data['pasos'] as List? ?? [];
+    for (final p in pasos) {
+      _pasosCtrl.add(TextEditingController(text: p['instruccion'] ?? ''));
     }
-
-    debugPrint(
-      '[PASOS] Buscando pasos en steps-recetas para docId: ${widget.docId}',
-    );
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('steps-recetas')
-          .doc(widget.docId)
-          .get();
-      if (doc.exists) {
-        debugPrint('[PASOS] Intento 1 OK — doc encontrado por ID');
-        _procesarDatosPasos(doc.data());
-        return;
-      }
-      debugPrint(
-        '[PASOS] Intento 1 fallido — no existe doc con ID ${widget.docId}',
-      );
-      final q2 = await FirebaseFirestore.instance
-          .collection('steps-recetas')
-          .where('receta_id', isEqualTo: widget.docId)
-          .limit(1)
-          .get();
-      if (q2.docs.isNotEmpty) {
-        debugPrint('[PASOS] Intento 2 OK — encontrado por campo receta_id');
-        _procesarDatosPasos(q2.docs.first.data());
-        return;
-      }
-      debugPrint('[PASOS] Intento 2 fallido — sin resultados para receta_id');
-      final q3 = await FirebaseFirestore.instance
-          .collection('steps-recetas')
-          .where('recetas_id', isEqualTo: widget.docId)
-          .limit(1)
-          .get();
-      if (q3.docs.isNotEmpty) {
-        debugPrint('[PASOS] Intento 3 OK — encontrado por campo recetas_id');
-        _procesarDatosPasos(q3.docs.first.data());
-        return;
-      }
-      debugPrint(
-        '[PASOS] ❌ Ningún intento encontró pasos para ${widget.docId}',
-      );
-    } catch (e) {
-      debugPrint('[PASOS] Error al cargar pasos: $e');
-    }
-  }
-
-  void _procesarDatosPasos(Map<String, dynamic>? data) {
-    if (data == null) return;
-    // Fix: acepta 'pasos' (recetas_personales) o 'pasos_ordenados' (steps-recetas)
-    final raw = data['pasos_ordenados'] ?? data['pasos'];
-    if (raw == null) return;
-    final lista = raw as List;
-    if (mounted) {
-      setState(() {
-        _pasos =
-            lista
-                .map(
-                  (p) => _Paso(
-                    instruccion: p['instruccion']?.toString() ?? '',
-                    orden: (p['orden'] as num?)?.toInt() ?? 0,
-                  ),
-                )
-                .toList()
-              ..sort((a, b) => a.orden.compareTo(b.orden));
-      });
-    }
+    if (_pasosCtrl.isEmpty) _pasosCtrl.add(TextEditingController());
   }
 
   @override
   void dispose() {
-    _tabCtrl.dispose();
+    _pageCtrl.dispose();
     _nombreCtrl.dispose();
     _caloriasCtrl.dispose();
     _tiempoCtrl.dispose();
     _imagenCtrl.dispose();
-    _porcionCtrl.dispose();
     _subcategoriaCtrl.dispose();
+    for (final c in _pasosCtrl) c.dispose();
     super.dispose();
   }
 
-  Future<void> _mostrarConfirmacion() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Guardar receta',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
-        ),
-        content: const Text(
-          '¿Deseas guardar esta receta?',
-          style: TextStyle(fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancelar', style: TextStyle(color: Colors.grey[600])),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _verde,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 0,
-            ),
-            child: const Text(
-              'Guardar',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) await _guardar();
+  bool get _esReenvio =>
+      (_estadoOriginal == 'rechazada' || _estadoOriginal == 'rechazada_editada') &&
+      _fueEditado;
+
+  bool get _esModoEdicion => widget.recetaExistente != null;
+
+  bool get _infoValida =>
+      _nombreCtrl.text.trim().isNotEmpty &&
+      _caloriasCtrl.text.trim().isNotEmpty &&
+      (_esModoEdicion || _categoria.isNotEmpty);
+
+  bool get _ingredientesValidos => _ingredientes.isNotEmpty;
+  bool get _pasosValidos => _pasosCtrl.any((c) => c.text.trim().isNotEmpty);
+  bool get _todoValido => _infoValida && _ingredientesValidos && _pasosValidos;
+
+  void _marcarEditado() {
+    if (!_fueEditado) setState(() => _fueEditado = true);
   }
 
-  Future<void> _guardar() async {
+  void _irAPagina(int pagina) {
+    if (pagina > _paginaActual) {
+      setState(() => _intentoAvanzar = true);
+      if (_paginaActual == 0 && !_infoValida) {
+        _mostrarSnack('Completa nombre, calorías y categoría'); return;
+      }
+      if (_paginaActual == 1 && !_ingredientesValidos) {
+        _mostrarSnack('Agrega al menos un ingrediente'); return;
+      }
+    }
+    setState(() { _paginaActual = pagina; _intentoAvanzar = false; });
+    _pageCtrl.animateToPage(pagina,
+        duration: const Duration(milliseconds: 350), curve: Curves.easeInOut);
+  }
+
+  void _mostrarSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg), backgroundColor: const Color(0xFFE53935),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.all(16)));
+  }
+
+  void _mostrarSnackVerde(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg), backgroundColor: _verde,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.all(16)));
+  }
+
+  Map<String, dynamic> _buildPayload(String estado, {String? estadoRevision}) {
+    final uid   = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final email = FirebaseAuth.instance.currentUser?.email ?? '';
+    final payload = <String, dynamic>{
+      'nombre':        _nombreCtrl.text.trim(),
+      'calorias':      double.tryParse(_caloriasCtrl.text) ?? 0,
+      'tiempo':        int.tryParse(_tiempoCtrl.text) ?? 0,
+      'imagen':        _imagenCtrl.text.trim(),
+      'porciones':     _porciones,
+      'categoria':     _categoria,
+      'subcategoria':  _subcategoriaCtrl.text.trim(),
+      'ingredientes':  _ingredientes.map((i) => i.toMap()).toList(),
+      'pasos': _pasosCtrl.asMap().entries
+          .where((e) => e.value.text.trim().isNotEmpty)
+          .map((e) => {'orden': e.key + 1, 'instruccion': e.value.text.trim()})
+          .toList(),
+      'estado':        estado,
+      'usuarioId':     uid,
+      'usuarioEmail':  email,
+      'fechaCreacion': DateTime.now().toIso8601String(),
+    };
+
+    if (estadoRevision != null) {
+      payload['estadoRevision'] = estadoRevision;
+    }
+    return payload;
+  }
+
+  Future<void> _guardarReceta() async {
+    if (_guardando) return;
     setState(() => _guardando = true);
     try {
-      final userId =
-          FirebaseAuth.instance.currentUser?.uid ?? 'usuario_desconocido';
+      final nuevoEstado = (_estadoOriginal == 'rechazada' || _estadoOriginal == 'rechazada_editada')
+          ? 'rechazada_editada'
+          : 'guardada';
 
-      final datos = {
-        'nombre': _nombreCtrl.text.trim(),
-        'calorias': _caloriasCtrl.text.trim(),
-        'tiempo': _tiempoCtrl.text.trim(),
-        'imagen': _imagenCtrl.text.trim(),
-        'categoria': _categoriaSeleccionada,
-        'subcategoria': _subcategoriaCtrl.text.trim(),
-        'porcion_base': _porcionCtrl.text.trim(),
-        'ingredientes': _ingredientes.map((i) => i.toMap()).toList(),
-        'creador_id': userId,
-        // FIX: el StreamBuilder filtra por 'usuarioId'
-        'usuarioId': userId,
-        // FIX: guardar pasos dentro del doc para que _cargarPasos() los encuentre
-        if (_pasos.isNotEmpty) 'pasos': _pasos.map((p) => p.toMap()).toList(),
-        'fechaCreacion': DateTime.now().toIso8601String(),
-      };
-      String docId;
-      if (widget.docId != null) {
+      final payload = _buildPayload(nuevoEstado);
+      if (_recetaPersonalId != null) {
         await FirebaseFirestore.instance
-            .collection(widget.coleccion)
-            .doc(widget.docId)
-            .update(datos);
-        docId = widget.docId!;
+            .collection('recetas_personales').doc(_recetaPersonalId).update(payload);
       } else {
-        final ref = await FirebaseFirestore.instance
-            .collection(widget.coleccion)
-            .add(datos);
-        docId = ref.id;
-      }
-
-      if (_pasos.isNotEmpty) {
-        debugPrint(
-          '[GUARDAR] Guardando ${_pasos.length} pasos en steps-recetas/$docId',
-        );
-        await FirebaseFirestore.instance
-            .collection('steps-recetas')
-            .doc(docId)
-            .set({
-              'pasos_ordenados': _pasos.map((p) => p.toMap()).toList(),
-              'recetas_id': docId,
-            });
-        debugPrint(
-          '[GUARDAR] ✅ Pasos guardados correctamente para docId: $docId',
-        );
-      } else {
-        debugPrint('[GUARDAR] ⚠️ Sin pasos para guardar (_pasos está vacío)');
+        final doc = await FirebaseFirestore.instance
+            .collection('recetas_personales').add(payload);
+        _recetaPersonalId = doc.id;
       }
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al guardar: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+      if (mounted) _mostrarSnack('Error al guardar: $e');
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  Future<void> _guardarBorrador() async {
+    if (_guardando) return;
+    setState(() => _guardando = true);
+    try {
+      String nuevoEstado;
+      if (_estadoOriginal == 'rechazada' || _estadoOriginal == 'rechazada_editada') {
+        nuevoEstado = 'rechazada_editada';
+      } else if (_estadoOriginal == 'guardada') {
+        nuevoEstado = 'guardada'; 
+      } else {
+        nuevoEstado = 'borrador';
       }
+
+      final payload = _buildPayload(nuevoEstado);
+      if (_recetaPersonalId != null) {
+        await FirebaseFirestore.instance
+            .collection('recetas_personales').doc(_recetaPersonalId).update(payload);
+      } else {
+        final doc = await FirebaseFirestore.instance
+            .collection('recetas_personales').add(payload);
+        _recetaPersonalId = doc.id;
+      }
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) _mostrarSnack('Error al guardar: $e');
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  Future<void> _guardarComoGuardada() async {
+    if (!_todoValido) {
+      _mostrarSnack('Completa todos los campos para guardar la receta'); return;
+    }
+    if (_guardando) return;
+    setState(() => _guardando = true);
+    try {
+      final payload = _buildPayload('guardada');
+      if (_recetaPersonalId != null) {
+        await FirebaseFirestore.instance
+            .collection('recetas_personales').doc(_recetaPersonalId).update(payload);
+      } else {
+        final doc = await FirebaseFirestore.instance
+            .collection('recetas_personales').add(payload);
+        _recetaPersonalId = doc.id;
+      }
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) _mostrarSnack('Error al guardar: $e');
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  Future<void> _enviarARevision() async {
+    if (!_todoValido) {
+      if (!_infoValida) { _irAPagina(0); _mostrarSnack('Completa la información básica'); }
+      else if (!_ingredientesValidos) { _irAPagina(1); _mostrarSnack('Agrega al menos un ingrediente'); }
+      else { _irAPagina(2); _mostrarSnack('Agrega al menos un paso'); }
+      return;
+    }
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => _DialogConfirmar(
+        nombre: _nombreCtrl.text.trim(),
+        esReenvio: _esReenvio,
+      ),
+    );
+    if (confirmar != true) return;
+
+    setState(() => _guardando = true);
+    try {
+      final estadoActual = _estadoOriginal == 'rechazada' || _estadoOriginal == 'rechazada_editada'
+          ? 'rechazada_editada'
+          : _estadoOriginal == 'guardada' ? 'guardada' : 'borrador';
+
+      final payloadPersonal = _buildPayload(estadoActual, estadoRevision: 'pendiente');
+      if (_recetaPersonalId != null) {
+        await FirebaseFirestore.instance
+            .collection('recetas_personales').doc(_recetaPersonalId).update(payloadPersonal);
+      } else {
+        final doc = await FirebaseFirestore.instance
+            .collection('recetas_personales').add(payloadPersonal);
+        _recetaPersonalId = doc.id;
+      }
+
+      // Crear en recetas-pendientes
+      final payloadPendiente = _buildPayload('pendiente');
+      payloadPendiente['origenPersonalDocId'] = _recetaPersonalId;
+      payloadPendiente['fechaEnvio'] = FieldValue.serverTimestamp();
+      final pendienteRef = await FirebaseFirestore.instance
+          .collection('recetas-pendientes').add(payloadPendiente);
+
+      // Notificar admins
+      await NotificacionesServicio.notificarAdmins(
+        recipeId:     pendienteRef.id,
+        recipeName:   _nombreCtrl.text.trim(),
+        usuarioEmail: FirebaseAuth.instance.currentUser?.email ?? '',
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Row(children: [
+            const Icon(Icons.check_circle_rounded, color: Colors.white),
+            const SizedBox(width: 10),
+            Text(_esReenvio ? 'Receta reenviada a revisión' : 'Receta enviada a revisión'),
+          ]),
+          backgroundColor: _verde,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16)));
+      }
+    } catch (e) {
+      if (mounted) _mostrarSnack('Error al enviar: $e');
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
@@ -462,2105 +352,838 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
 
   @override
   Widget build(BuildContext context) {
-    final esNueva = widget.docId == null;
-    final titulo = widget.soloLectura
-        ? 'Detalle de receta'
-        : (esNueva ? 'Nueva receta' : 'Editar receta');
     return Scaffold(
       backgroundColor: _fondo,
-      appBar: AppBar(
-        backgroundColor: _verde,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Colors.white,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          titulo,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-          ),
-        ),
-        bottom: widget.soloLectura
-            ? null
-            : TabBar(
-                controller: _tabCtrl,
-                indicatorColor: Colors.white,
-                indicatorWeight: 3,
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white60,
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
-                ),
-                tabs: const [
-                  Tab(
-                    icon: Icon(Icons.info_outline_rounded, size: 18),
-                    text: 'Info',
-                  ),
-                  Tab(
-                    icon: Icon(Icons.egg_alt_rounded, size: 18),
-                    text: 'Ingredientes',
-                  ),
-                  Tab(
-                    icon: Icon(Icons.format_list_numbered_rounded, size: 18),
-                    text: 'Pasos',
-                  ),
-                ],
-              ),
-      ),
-      body: widget.soloLectura ? _buildSoloLectura() : _buildEditor(),
-      bottomNavigationBar: widget.soloLectura
-          ? null
-          : SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: ElevatedButton(
-                  onPressed: _guardando ? null : _mostrarConfirmacion,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _verde,
-                    minimumSize: const Size.fromHeight(50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: _guardando
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          'Guardar receta',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                          ),
-                        ),
-                ),
-              ),
-            ),
-    );
-  }
-
-  // SOLO LECTURA
-  Widget _buildSoloLectura() {
-    final d = widget.datosIniciales ?? {};
-    final img = _imagenCtrl.text;
-    final List ingredientesRaw = d['ingredientes'] ?? [];
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (img.isNotEmpty)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.network(
-                img,
-                height: 200,
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
-            )
-          else
-            _PlaceholderImagen(),
-          const SizedBox(height: 20),
-          _SeccionTitulo('Información básica'),
-          const SizedBox(height: 10),
-          _InfoCard(
-            children: [
-              _InfoFila('Nombre', _nombreCtrl.text),
-              _InfoFila('Calorías', '${_caloriasCtrl.text} Cal'),
-              _InfoFila('Tiempo', '${_tiempoCtrl.text} min'),
-              _InfoFila('Porción base', _porcionCtrl.text),
-              _InfoFila('Categoría', _categoriaSeleccionada),
-              if (_subcategoriaCtrl.text.isNotEmpty)
-                _InfoFila('Subcategoría', _subcategoriaCtrl.text),
-            ],
-          ),
-          const SizedBox(height: 20),
-          _SeccionTitulo('Ingredientes (${ingredientesRaw.length})'),
-          const SizedBox(height: 10),
-          if (ingredientesRaw.isEmpty)
-            _VacioMsg('Sin ingredientes')
-          else
-            ...ingredientesRaw.map((item) {
-              if (item is! Map) return const SizedBox();
-
-              String nombre = item['nombre']?.toString() ?? '';
-              if (nombre.isEmpty) {
-                final id = item['ingrediente_id']?.toString() ?? '';
-                nombre =
-                    _nombresResueltos[id] ??
-                    id
-                        .split('-')
-                        .map(
-                          (w) => w.isEmpty
-                              ? ''
-                              : w[0].toUpperCase() + w.substring(1),
-                        )
-                        .join(' ');
-              }
-              if (nombre.isEmpty) nombre = 'Ingrediente';
-              final cantidad = item['cantidad']?.toString() ?? '';
-              final unidad = item['unidad']?.toString() ?? '';
-              final primordial = item['es_primordial'] == true;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8F7F1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.egg_alt_rounded,
-                        color: Color(0xFF2D9E73),
-                        size: 16,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            nombre,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                              color: Color(0xFF1A1A2E),
-                            ),
-                          ),
-                          if (cantidad.isNotEmpty || unidad.isNotEmpty)
-                            Text(
-                              '$cantidad $unidad'.trim(),
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                color: Colors.grey[500],
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    if (primordial)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE8F7F1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          'Primordial',
-                          style: TextStyle(
-                            color: Color(0xFF2D9E73),
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              );
-            }),
-          const SizedBox(height: 20),
-          _SeccionTitulo('Pasos de preparación (${_pasos.length})'),
-          const SizedBox(height: 10),
-          if (_pasos.isEmpty)
-            _VacioMsg('Sin pasos registrados')
-          else
-            ..._pasos.map(
-              (p) => Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2D9E73),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${p.orden}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        p.instruccion,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF1A1A2E),
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEditor() => TabBarView(
-    controller: _tabCtrl,
-    children: [_tabInfo(), _tabIngredientes(), _tabPasos()],
-  );
-
-  // TAB INFO
-  Widget _tabInfo() => SingleChildScrollView(
-    padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SeccionTitulo('Imagen'),
-        const SizedBox(height: 8),
-        _CampoTexto(
-          ctrl: _imagenCtrl,
-          label: 'URL de imagen',
-          icono: Icons.image_rounded,
-        ),
-        if (_imagenCtrl.text.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              _imagenCtrl.text,
-              height: 140,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const SizedBox(),
-            ),
-          ),
-        ],
-        const SizedBox(height: 20),
-        _SeccionTitulo('Información básica'),
-        const SizedBox(height: 10),
-        _CampoTexto(
-          ctrl: _nombreCtrl,
-          label: 'Nombre de la receta',
-          icono: Icons.restaurant_menu_rounded,
-        ),
-        const SizedBox(height: 10),
-        Row(
+      appBar: _buildAppBar(),
+      body: Column(children: [
+        _StepIndicator(
+          paso: _paginaActual,
+          infoValida: _infoValida,
+          ingredientesValidos: _ingredientesValidos,
+          pasosValidos: _pasosValidos,
+          onTap: _irAPagina),
+        Expanded(child: PageView(
+          controller: _pageCtrl,
+          physics: const NeverScrollableScrollPhysics(),
+          onPageChanged: (_) => _marcarEditado(),
           children: [
-            Expanded(
-              child: _CampoTexto(
-                ctrl: _caloriasCtrl,
-                label: 'Calorías',
-                icono: Icons.local_fire_department_rounded,
-                tipo: TextInputType.number,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _CampoTexto(
-                ctrl: _tiempoCtrl,
-                label: 'Tiempo (min)',
-                icono: Icons.timer_rounded,
-                tipo: TextInputType.number,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        _CampoTexto(
-          ctrl: _porcionCtrl,
-          label: 'Porción base (ej: 4 porciones)',
-          icono: Icons.people_outline_rounded,
-          tipo: TextInputType.number,
-        ),
-        const SizedBox(height: 20),
-        _SeccionTitulo('Categoría'),
-        const SizedBox(height: 10),
-        _SelectorCategoria(
-          seleccionada: _categoriaSeleccionada,
-          onSeleccionar: (cat) => setState(() => _categoriaSeleccionada = cat),
-        ),
-        const SizedBox(height: 16),
-        _SeccionTitulo('Subcategoría'),
-        const SizedBox(height: 4),
-        Text(
-          'Ej: Sopas, Postres, Jugos... (opcional)',
-          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-        ),
-        const SizedBox(height: 8),
-        _CampoTexto(
-          ctrl: _subcategoriaCtrl,
-          label: 'Subcategoría',
-          icono: Icons.label_outline_rounded,
-        ),
+            _PaginaInfo(
+              nombreCtrl: _nombreCtrl, caloriasCtrl: _caloriasCtrl,
+              tiempoCtrl: _tiempoCtrl, imagenCtrl: _imagenCtrl,
+              subcategoriaCtrl: _subcategoriaCtrl, porciones: _porciones,
+              categoria: _categoria,
+              mostrarError: _intentoAvanzar && !_infoValida,
+              onPorcionesChanged: (v) { setState(() => _porciones = v); _marcarEditado(); },
+              onCategoriaChanged: (v) { setState(() => _categoria = v); _marcarEditado(); },
+              onSiguiente: () => _irAPagina(1),
+              onChanged: _marcarEditado),
+            _PaginaIngredientes(
+              ingredientes: _ingredientes,
+              onChanged: () { setState(() {}); _marcarEditado(); },
+              onSiguiente: () => _irAPagina(2)),
+            _PaginaPasos(
+              pasosCtrl: _pasosCtrl,
+              onChanged: () { setState(() {}); _marcarEditado(); }),
+          ])),
+        _BottomBar(
+          pagina: _paginaActual,
+          todoValido: _todoValido,
+          guardando: _guardando,
+          esReenvio: _esReenvio,
+          fueEditado: _fueEditado,
+          estadoOriginal: _estadoOriginal,
+          onGuardarBorrador: _guardarBorrador,
+          onGuardarReceta: _guardarComoGuardada,
+          onEnviarRevision: _enviarARevision,
+          onAnterior: _paginaActual > 0 ? () => _irAPagina(_paginaActual - 1) : null,
+          onSiguiente: _paginaActual < 2 ? () => _irAPagina(_paginaActual + 1) : null),
+      ]),
+    );
+  }
+
+  AppBar _buildAppBar() {
+    final titles = ['Información', 'Ingredientes', 'Pasos'];
+    return AppBar(
+      backgroundColor: _verde, elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+        onPressed: () => Navigator.pop(context)),
+      title: Text(titles[_paginaActual],
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18)),
+      actions: [
+        if (_guardando)
+          const Padding(padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Center(child: SizedBox(width: 18, height: 18,
+                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))))
+        else
+          TextButton(
+            onPressed: _guardarReceta,
+            child: const Text('Guardar', style: TextStyle(color: Colors.white70, fontSize: 13))),
       ],
-    ),
-  );
-
-  // TABLA INGREDIENTES
-  Widget _tabIngredientes() => Column(
-    children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-        child: Row(
-          children: [
-            Text(
-              '${_ingredientes.length} ingredientes',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                color: Color(0xFF1A1A2E),
-              ),
-            ),
-            const Spacer(),
-            _BotonAgregar(
-              label: 'Agregar',
-              onTap: () => _mostrarDialogoIngrediente(),
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 10),
-      Expanded(
-        child: _ingredientes.isEmpty
-            ? _VacioMsg('Toca "Agregar" para añadir ingredientes')
-            : ReorderableListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
-                itemCount: _ingredientes.length,
-                onReorder: (o, n) => setState(() {
-                  if (n > o) n--;
-                  _ingredientes.insert(n, _ingredientes.removeAt(o));
-                }),
-                itemBuilder: (context, i) => _IngredienteItemEditor(
-                  key: ValueKey('ing_$i'),
-                  ing: _ingredientes[i],
-                  onEditar: () => _mostrarDialogoIngrediente(index: i),
-                  onEliminar: () => setState(() => _ingredientes.removeAt(i)),
-                  onTogglePrimordial: () => setState(
-                    () => _ingredientes[i].esPrimordial =
-                        !_ingredientes[i].esPrimordial,
-                  ),
-                ),
-              ),
-      ),
-    ],
-  );
-
-  void _mostrarDialogoIngrediente({int? index}) {
-    final ing = index != null ? _ingredientes[index] : null;
-    Map<String, dynamic>? maestroInicial;
-    if (ing != null && ing.esMaestro && ing.ingredienteId.isNotEmpty) {
-      maestroInicial = _maestros.firstWhere(
-        (m) => m['id'] == ing.ingredienteId,
-        orElse: () => <String, dynamic>{},
-      );
-      if (maestroInicial.isEmpty) maestroInicial = null;
-    }
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _DialogoIngrediente(
-        maestros: _maestros,
-        cargandoMaestros: _cargandoMaestros,
-        unidadesSugeridas: _unidadesSugeridas,
-        ingInicial: ing,
-        maestroInicial: maestroInicial,
-        onGuardar: (nuevo) => setState(() {
-          if (index != null) {
-            _ingredientes[index] = nuevo;
-          } else {
-            _ingredientes.add(nuevo);
-          }
-        }),
-        onNuevoMaestroCreado: (nuevo) => setState(() => _maestros.add(nuevo)),
-      ),
-    );
-  }
-
-  // TAB PASOS
-  Widget _tabPasos() => Column(
-    children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-        child: Row(
-          children: [
-            Text(
-              '${_pasos.length} pasos',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                color: Color(0xFF1A1A2E),
-              ),
-            ),
-            const Spacer(),
-            _BotonAgregar(label: 'Agregar paso', onTap: _mostrarDialogoPaso),
-          ],
-        ),
-      ),
-      const SizedBox(height: 10),
-      Expanded(
-        child: _pasos.isEmpty
-            ? _VacioMsg('Toca "Agregar paso" para añadir instrucciones')
-            : ReorderableListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
-                itemCount: _pasos.length,
-                onReorder: (o, n) => setState(() {
-                  if (n > o) n--;
-                  _pasos.insert(n, _pasos.removeAt(o));
-                  for (int i = 0; i < _pasos.length; i++) {
-                    _pasos[i] = _Paso(
-                      instruccion: _pasos[i].instruccion,
-                      orden: i + 1,
-                    );
-                  }
-                }),
-                itemBuilder: (context, i) => _PasoItemEditor(
-                  key: ValueKey('paso_$i'),
-                  paso: _pasos[i],
-                  numero: i + 1,
-                  onEditar: () => _mostrarDialogoPaso(index: i),
-                  onEliminar: () => setState(() {
-                    _pasos.removeAt(i);
-                    for (int j = 0; j < _pasos.length; j++) {
-                      _pasos[j] = _Paso(
-                        instruccion: _pasos[j].instruccion,
-                        orden: j + 1,
-                      );
-                    }
-                  }),
-                ),
-              ),
-      ),
-    ],
-  );
-
-  void _mostrarDialogoPaso({int? index}) {
-    final paso = index != null ? _pasos[index] : null;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _DialogoPaso(
-        pasoInicial: paso,
-        ingredientes: _ingredientes,
-        numeroPaso: index != null ? index + 1 : _pasos.length + 1,
-        onGuardar: (instruccion) => setState(() {
-          if (index != null) {
-            _pasos[index] = _Paso(instruccion: instruccion, orden: index + 1);
-          } else {
-            _pasos.add(
-              _Paso(instruccion: instruccion, orden: _pasos.length + 1),
-            );
-          }
-        }),
-      ),
     );
   }
 }
 
-// INGREDIENTE
-class _DialogoIngrediente extends StatefulWidget {
-  final List<Map<String, dynamic>> maestros;
-  final bool cargandoMaestros;
-  final List<String> unidadesSugeridas;
-  final _IngReceta? ingInicial;
-  final Map<String, dynamic>? maestroInicial;
-  final ValueChanged<_IngReceta> onGuardar;
-  final ValueChanged<Map<String, dynamic>> onNuevoMaestroCreado;
+class _StepIndicator extends StatelessWidget {
+  final int paso;
+  final bool infoValida, ingredientesValidos, pasosValidos;
+  final void Function(int) onTap;
+  static const Color _verde = Color(0xFF2D9E73);
 
-  const _DialogoIngrediente({
-    required this.maestros,
-    required this.cargandoMaestros,
-    required this.unidadesSugeridas,
-    required this.onGuardar,
-    required this.onNuevoMaestroCreado,
-    this.ingInicial,
-    this.maestroInicial,
-  });
+  const _StepIndicator({required this.paso, required this.infoValida,
+      required this.ingredientesValidos, required this.pasosValidos, required this.onTap});
 
   @override
-  State<_DialogoIngrediente> createState() => _DialogoIngredienteState();
+  Widget build(BuildContext context) {
+    final steps = [
+      (Icons.info_outline_rounded, 'Info', infoValida),
+      (Icons.egg_alt_outlined, 'Ingredientes', ingredientesValidos),
+      (Icons.format_list_numbered_rounded, 'Pasos', pasosValidos),
+    ];
+    return Container(
+      color: _verde,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFF5F6FA),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+        child: Row(children: steps.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final (icon, label, valid) = entry.value;
+          final isActive = paso == idx;
+          final isDone   = valid && paso > idx;
+          return Expanded(child: GestureDetector(
+            onTap: () => onTap(idx),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isActive ? _verde : isDone ? const Color(0xFFE8F7F1) : Colors.grey[200],
+                  border: isActive ? null : Border.all(
+                      color: isDone ? _verde : Colors.grey[300]!, width: 1.5)),
+                child: Icon(isDone ? Icons.check_rounded : icon,
+                    color: isActive ? Colors.white : isDone ? _verde : Colors.grey[400], size: 18)),
+              const SizedBox(height: 4),
+              Text(label, style: TextStyle(fontSize: 11,
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
+                  color: isActive ? _verde : Colors.grey[500])),
+              const SizedBox(height: 6),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250), height: 3,
+                decoration: BoxDecoration(
+                    color: isActive ? _verde : Colors.transparent,
+                    borderRadius: BorderRadius.circular(2))),
+            ])));
+        }).toList())));
+  }
 }
 
-class _DialogoIngredienteState extends State<_DialogoIngrediente> {
+class _PaginaInfo extends StatefulWidget {
+  final TextEditingController nombreCtrl, caloriasCtrl, tiempoCtrl, imagenCtrl, subcategoriaCtrl;
+  final int porciones;
+  final String categoria;
+  final bool mostrarError;
+  final void Function(int) onPorcionesChanged;
+  final void Function(String) onCategoriaChanged;
+  final VoidCallback onSiguiente;
+  final VoidCallback onChanged;
+
+  const _PaginaInfo({
+    required this.nombreCtrl, required this.caloriasCtrl, required this.tiempoCtrl,
+    required this.imagenCtrl, required this.subcategoriaCtrl, required this.porciones,
+    required this.categoria, required this.mostrarError, required this.onPorcionesChanged,
+    required this.onCategoriaChanged, required this.onSiguiente, required this.onChanged});
+
+  @override
+  State<_PaginaInfo> createState() => _PaginaInfoState();
+}
+
+class _PaginaInfoState extends State<_PaginaInfo> {
   static const Color _verde = Color(0xFF2D9E73);
-  static const Color _verdeClaro = Color(0xFFE8F7F1);
-
-  final _busquedaCtrl = TextEditingController();
-  final _cantidadCtrl = TextEditingController();
-  final _unidadCtrl = TextEditingController();
-  final _nombreLibreCtrl = TextEditingController();
-
-  List<Map<String, dynamic>> _filtrados = [];
-  Map<String, dynamic>? _maestroSeleccionado;
-  bool _esLibre = false;
-  bool _esPrimordial = false;
-  bool _mostrarSugerenciasUnidad = false;
-  List<String> _sugerenciasUnidadFiltradas = [];
+  static const List<String> _categorias = [
+    'Desayuno','Almuerzo','Cena','Snacks','Refrescos',
+    'Postres','Sopas','Ensaladas','Bebidas','Panadería','Vegano','Vegetariano','Otras',
+  ];
+  bool _imagenValida = false;
 
   @override
   void initState() {
     super.initState();
-    _filtrados = widget.maestros;
-    _sugerenciasUnidadFiltradas = widget.unidadesSugeridas;
-
-    if (widget.ingInicial != null) {
-      final ing = widget.ingInicial!;
-      _cantidadCtrl.text = ing.cantidad;
-      _unidadCtrl.text = ing.unidad;
-      _esPrimordial = ing.esPrimordial;
-      if (ing.esMaestro && widget.maestroInicial != null) {
-        _maestroSeleccionado = widget.maestroInicial;
-        _busquedaCtrl.text = widget.maestroInicial!['nombre']?.toString() ?? '';
-      } else if (!ing.esMaestro) {
-        _esLibre = true;
-        _nombreLibreCtrl.text = ing.nombre;
-      }
-    }
-
-    _unidadCtrl.addListener(() {
-      final q = _unidadCtrl.text.toLowerCase();
-      setState(() {
-        _mostrarSugerenciasUnidad = _unidadCtrl.text.isNotEmpty;
-        _sugerenciasUnidadFiltradas = q.isEmpty
-            ? widget.unidadesSugeridas
-            : widget.unidadesSugeridas
-                  .where((u) => u.toLowerCase().contains(q))
-                  .toList();
-      });
-    });
+    widget.imagenCtrl.addListener(_checkImagen);
+    widget.nombreCtrl.addListener(widget.onChanged);
+    widget.caloriasCtrl.addListener(widget.onChanged);
   }
 
-  @override
-  void dispose() {
-    _busquedaCtrl.dispose();
-    _cantidadCtrl.dispose();
-    _unidadCtrl.dispose();
-    _nombreLibreCtrl.dispose();
-    super.dispose();
-  }
-
-  void _filtrar(String q) => setState(() {
-    _filtrados = q.isEmpty
-        ? widget.maestros
-        : widget.maestros
-              .where(
-                (m) =>
-                    m['nombre']?.toString().toLowerCase().contains(
-                      q.toLowerCase(),
-                    ) ??
-                    false,
-              )
-              .toList();
-  });
-
-  Future<void> _crearNuevoMaestro() async {
-    final nombre = _nombreLibreCtrl.text.trim();
-    if (nombre.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Escribe primero el nombre del ingrediente'),
-        ),
-      );
-      return;
-    }
-    await showDialog(
-      context: context,
-      builder: (_) => _DialogoCrearMaestro(
-        nombreInicial: nombre,
-        onCrear: (datos) async {
-          try {
-            final ref = await FirebaseFirestore.instance
-                .collection('ingredientes_maestros')
-                .add(datos);
-            final nuevoMaestro = {'id': ref.id, ...datos};
-            widget.onNuevoMaestroCreado(nuevoMaestro);
-            setState(() {
-              _maestroSeleccionado = nuevoMaestro;
-              _esLibre = false;
-              _busquedaCtrl.text = datos['nombre']?.toString() ?? '';
-            });
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    '"${datos['nombre']}" agregado a ingredientes maestros',
-                  ),
-                  backgroundColor: _verde,
-                ),
-              );
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Error: $e'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          }
-        },
-      ),
-    );
-  }
-
-  void _guardar() {
-    if (!_esLibre && _maestroSeleccionado == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Selecciona un ingrediente o usa uno libre'),
-        ),
-      );
-      return;
-    }
-    if (_esLibre && _nombreLibreCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Escribe el nombre del ingrediente')),
-      );
-      return;
-    }
-    final ingrediente = _esLibre
-        ? _IngReceta(
-            ingredienteId: _nombreLibreCtrl.text
-                .trim()
-                .toLowerCase()
-                .replaceAll(' ', '-'),
-            nombre: _nombreLibreCtrl.text.trim(),
-            cantidad: _cantidadCtrl.text.trim(),
-            unidad: _unidadCtrl.text.trim(),
-            esPrimordial: _esPrimordial,
-            esMaestro: false,
-          )
-        : _IngReceta(
-            ingredienteId: _maestroSeleccionado!['id']?.toString() ?? '',
-            nombre: _maestroSeleccionado!['nombre']?.toString() ?? '',
-            cantidad: _cantidadCtrl.text.trim(),
-            unidad: _unidadCtrl.text.trim(),
-            esPrimordial: _esPrimordial,
-            esMaestro: true,
-          );
-    widget.onGuardar(ingrediente);
-    Navigator.pop(context);
+  void _checkImagen() {
+    setState(() => _imagenValida = widget.imagenCtrl.text.trim().startsWith('http'));
+    widget.onChanged();
   }
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.92,
-      minChildSize: 0.5,
-      maxChildSize: 0.97,
-      builder: (_, scrollCtrl) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  const Text(
-                    'Ingrediente',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: () => setState(() {
-                      _esLibre = !_esLibre;
-                      _maestroSeleccionado = null;
-                      _busquedaCtrl.clear();
-                      _nombreLibreCtrl.clear();
-                    }),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _esLibre ? Colors.orange[50] : _verdeClaro,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: _esLibre
-                              ? Colors.orange[300]!
-                              : _verde.withOpacity(0.3),
-                        ),
-                      ),
-                      child: Text(
-                        _esLibre ? '✎ Libre' : '🔍 Maestro',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: _esLibre ? Colors.orange[800] : _verde,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: SingleChildScrollView(
-                controller: scrollCtrl,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_esLibre) ...[
-                      const _Label('Nombre libre'),
-                      const SizedBox(height: 8),
-                      _Campo(
-                        ctrl: _nombreLibreCtrl,
-                        hint: 'Ej: Pan tostado integral',
-                        icono: Icons.edit_rounded,
-                      ),
-                      const SizedBox(height: 10),
-                      GestureDetector(
-                        onTap: _crearNuevoMaestro,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF0FFF8),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: _verde.withOpacity(0.3)),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(
-                                Icons.add_circle_outline_rounded,
-                                color: _verde,
-                                size: 18,
-                              ),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Guardar en ingredientes maestros',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 12.5,
-                                        color: _verde,
-                                      ),
-                                    ),
-                                    Text(
-                                      'Estará disponible para otras recetas',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(
-                                Icons.arrow_forward_ios_rounded,
-                                color: _verde,
-                                size: 12,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ] else ...[
-                      const _Label('Buscar en ingredientes maestros'),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _busquedaCtrl,
-                        onChanged: _filtrar,
-                        decoration: InputDecoration(
-                          hintText: 'Buscar ingrediente...',
-                          prefixIcon: const Icon(
-                            Icons.search_rounded,
-                            color: _verde,
-                            size: 18,
-                          ),
-                          filled: true,
-                          fillColor: const Color(0xFFF5F6FA),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          suffixIcon: _busquedaCtrl.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(
-                                    Icons.clear_rounded,
-                                    size: 18,
-                                  ),
-                                  onPressed: () {
-                                    _busquedaCtrl.clear();
-                                    _filtrar('');
-                                  },
-                                )
-                              : null,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      if (_maestroSeleccionado != null)
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: _verdeClaro,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: _verde.withOpacity(0.3)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.check_circle_rounded,
-                                color: _verde,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                _maestroSeleccionado!['nombre']?.toString() ??
-                                    '',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: _verde,
-                                ),
-                              ),
-                              const Spacer(),
-                              GestureDetector(
-                                onTap: () =>
-                                    setState(() => _maestroSeleccionado = null),
-                                child: const Icon(
-                                  Icons.close_rounded,
-                                  size: 16,
-                                  color: _verde,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      else if (widget.cargandoMaestros)
-                        const Center(
-                          child: CircularProgressIndicator(color: _verde),
-                        )
-                      else
-                        Container(
-                          constraints: const BoxConstraints(maxHeight: 200),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey[200]!),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: ListView.builder(
-                              shrinkWrap: true,
-                              itemCount: _filtrados.length,
-                              itemBuilder: (context, i) {
-                                final m = _filtrados[i];
-                                return ListTile(
-                                  dense: true,
-                                  leading: const Icon(
-                                    Icons.egg_alt_rounded,
-                                    color: _verde,
-                                    size: 20,
-                                  ),
-                                  title: Text(
-                                    m['nombre']?.toString() ?? '',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  subtitle: m['categoria'] != null
-                                      ? Text(
-                                          m['categoria'].toString(),
-                                          style: const TextStyle(fontSize: 11),
-                                        )
-                                      : null,
-                                  onTap: () => setState(() {
-                                    _maestroSeleccionado = m;
-                                    _busquedaCtrl.text =
-                                        m['nombre']?.toString() ?? '';
-                                  }),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                    ],
-
-                    const SizedBox(height: 20),
-                    const _Label('Cantidad'),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _cantidadCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Ej: 200  /  1  /  al gusto',
-                        prefixIcon: const Icon(
-                          Icons.scale_rounded,
-                          color: _verde,
-                          size: 18,
-                        ),
-                        filled: true,
-                        fillColor: const Color(0xFFF5F6FA),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-                    const _Label('Unidad de medida'),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Ej: "g", "taza", "pan tostado", "hoja"',
-                      style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _unidadCtrl,
-                      onTap: () =>
-                          setState(() => _mostrarSugerenciasUnidad = true),
-                      onTapOutside: (_) =>
-                          setState(() => _mostrarSugerenciasUnidad = false),
-                      decoration: InputDecoration(
-                        hintText: 'Ej: g, taza, hoja...',
-                        prefixIcon: const Icon(
-                          Icons.straighten_rounded,
-                          color: _verde,
-                          size: 18,
-                        ),
-                        suffixIcon: _unidadCtrl.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear_rounded, size: 16),
-                                onPressed: () {
-                                  _unidadCtrl.clear();
-                                  setState(() {});
-                                },
-                              )
-                            : null,
-                        filled: true,
-                        fillColor: const Color(0xFFF5F6FA),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: _verde,
-                            width: 1.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (_mostrarSugerenciasUnidad &&
-                        _sugerenciasUnidadFiltradas.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: _sugerenciasUnidadFiltradas
-                            .take(12)
-                            .map(
-                              (u) => GestureDetector(
-                                onTap: () => setState(() {
-                                  _unidadCtrl.text = u;
-                                  _mostrarSugerenciasUnidad = false;
-                                }),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 11,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _verdeClaro,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: _verde.withOpacity(0.25),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    u,
-                                    style: const TextStyle(
-                                      color: _verde,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ],
-
-                    const SizedBox(height: 20),
-                    GestureDetector(
-                      onTap: () =>
-                          setState(() => _esPrimordial = !_esPrimordial),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: _esPrimordial
-                              ? _verdeClaro
-                              : const Color(0xFFF5F6FA),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: _esPrimordial
-                                ? _verde.withOpacity(0.4)
-                                : Colors.grey.shade200,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              _esPrimordial
-                                  ? Icons.star_rounded
-                                  : Icons.star_outline_rounded,
-                              color: _esPrimordial ? _verde : Colors.grey[400],
-                              size: 20,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Ingrediente primordial',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  Text(
-                                    'El usuario necesita tenerlo sí o sí para cocinar',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey[500],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Switch(
-                              value: _esPrimordial,
-                              onChanged: (v) =>
-                                  setState(() => _esPrimordial = v),
-                              activeColor: _verde,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 30),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _guardar,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _verde,
-                          minimumSize: const Size.fromHeight(50),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'Agregar ingrediente',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        AnimatedContainer(duration: const Duration(milliseconds: 400),
+          height: _imagenValida ? 160 : 0,
+          child: _imagenValida ? ClipRRect(borderRadius: BorderRadius.circular(16),
+              child: Image.network(widget.imagenCtrl.text.trim(),
+                  width: double.infinity, height: 160, fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink()))
+              : const SizedBox.shrink()),
+        if (_imagenValida) const SizedBox(height: 12),
+        _Label('Imagen (URL)'),
+        _Campo(ctrl: widget.imagenCtrl, hint: 'https://...', icono: Icons.image_outlined),
+        const SizedBox(height: 16),
+        _Label('Nombre de la receta', obligatorio: true,
+            error: widget.mostrarError && widget.nombreCtrl.text.isEmpty),
+        _Campo(ctrl: widget.nombreCtrl, hint: 'Ej: Ensalada mediterránea',
+            icono: Icons.restaurant_rounded,
+            error: widget.mostrarError && widget.nombreCtrl.text.isEmpty),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _Label('Calorías', obligatorio: true,
+                error: widget.mostrarError && widget.caloriasCtrl.text.isEmpty),
+            _Campo(ctrl: widget.caloriasCtrl, hint: '350',
+                icono: Icons.local_fire_department_rounded,
+                teclado: TextInputType.number,
+                error: widget.mostrarError && widget.caloriasCtrl.text.isEmpty),
+          ])),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _Label('Tiempo (min)'),
+            _Campo(ctrl: widget.tiempoCtrl, hint: '30', icono: Icons.timer_outlined,
+                teclado: TextInputType.number),
+          ])),
+        ]),
+        const SizedBox(height: 12),
+        _Label('Porciones'),
+        _SelectorPorciones(valor: widget.porciones, onChanged: widget.onPorcionesChanged),
+        const SizedBox(height: 16),
+        _Label('Categoría', obligatorio: true,
+            error: widget.mostrarError && widget.categoria.isEmpty),
+        Wrap(spacing: 8, runSpacing: 8,
+          children: _categorias.map((cat) {
+            final sel = widget.categoria == cat;
+            return GestureDetector(
+              onTap: () => widget.onCategoriaChanged(cat),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: sel ? _verde : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: sel ? _verde
+                      : (widget.mostrarError && widget.categoria.isEmpty
+                          ? Colors.red[300]! : Colors.grey[300]!))),
+                child: Text(cat, style: TextStyle(
+                    color: sel ? Colors.white : Colors.grey[700],
+                    fontWeight: sel ? FontWeight.w600 : FontWeight.w400,
+                    fontSize: 13))));
+          }).toList()),
+        const SizedBox(height: 20),
+        _Label('Subcategoría (opcional)'),
+        _Campo(ctrl: widget.subcategoriaCtrl, hint: 'Ej: saludable, rápida...',
+            icono: Icons.label_outline_rounded),
+        const SizedBox(height: 20),
+        SizedBox(width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: widget.onSiguiente,
+            icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white),
+            label: const Text('Siguiente: Ingredientes',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            style: ElevatedButton.styleFrom(backgroundColor: _verde,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))))),
+      ]));
   }
 }
 
-// DIÁLOGO CREAR MAESTRO
-class _DialogoCrearMaestro extends StatefulWidget {
-  final String nombreInicial;
-  final ValueChanged<Map<String, dynamic>> onCrear;
-  const _DialogoCrearMaestro({
-    required this.nombreInicial,
-    required this.onCrear,
-  });
+class _PaginaIngredientes extends StatefulWidget {
+  final List<_IngredienteSeleccionado> ingredientes;
+  final VoidCallback onChanged;
+  final VoidCallback onSiguiente;
+
+  const _PaginaIngredientes({required this.ingredientes, required this.onChanged, required this.onSiguiente});
+
   @override
-  State<_DialogoCrearMaestro> createState() => _DialogoCrearMaestroState();
+  State<_PaginaIngredientes> createState() => _PaginaIngredientesState();
 }
 
-class _DialogoCrearMaestroState extends State<_DialogoCrearMaestro> {
+class _PaginaIngredientesState extends State<_PaginaIngredientes> {
   static const Color _verde = Color(0xFF2D9E73);
-  late final TextEditingController _nombreCtrl;
-  final _fotoCtrl = TextEditingController();
-  final _sustCtrl = TextEditingController();
-  String _cat = '';
-  final List<String> _sustitutos = [];
-  static const List<String> _cats = [
-    'Proteínas',
-    'Grasas',
-    'Carbohidratos',
-    'Lácteos',
-    'Frutas',
-    'Verduras',
-    'Especias',
-    'Legumbres',
-    'Otros',
-  ];
-  @override
-  void initState() {
-    super.initState();
-    _nombreCtrl = TextEditingController(text: widget.nombreInicial);
-  }
+  final _searchCtrl = TextEditingController();
+  List<Map<String, dynamic>> _resultados = [];
+  bool _buscando = false;
+  static const List<String> _unidades = ['g','kg','ml','l','taza','cdta','cda','unidad','pizca'];
 
   @override
-  void dispose() {
-    _nombreCtrl.dispose();
-    _fotoCtrl.dispose();
-    _sustCtrl.dispose();
-    super.dispose();
-  }
+  void initState() { super.initState(); _searchCtrl.addListener(_buscar); }
+  @override
+  void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
-  void _addSust() {
-    final s = _sustCtrl.text.trim();
-    if (s.isNotEmpty && !_sustitutos.contains(s)) {
-      setState(() {
-        _sustitutos.add(s);
-        _sustCtrl.clear();
+  Future<void> _buscar() async {
+    final q = _searchCtrl.text.trim().toLowerCase();
+    if (q.isEmpty) { setState(() => _resultados = []); return; }
+    setState(() => _buscando = true);
+    try {
+      QuerySnapshot snap = await FirebaseFirestore.instance
+          .collection('ingredientes_maestros')
+          .where('nombreLower', isGreaterThanOrEqualTo: q)
+          .where('nombreLower', isLessThan: '${q}z').limit(20).get();
+      if (snap.docs.isEmpty) {
+        snap = await FirebaseFirestore.instance.collection('ingredientes_maestros')
+            .where('nombre', isGreaterThanOrEqualTo: q)
+            .where('nombre', isLessThan: '${q}z').limit(20).get();
+      }
+      if (mounted) setState(() {
+        _resultados = snap.docs.map((d) => {'id': d.id, ...d.data() as Map<String, dynamic>}).toList();
+        _buscando = false;
       });
-    }
+    } catch (_) { if (mounted) setState(() => _buscando = false); }
   }
 
+  void _agregarIngredientePersonalizado() {
+    final nombreCtrl = TextEditingController(text: _searchCtrl.text.trim());
+    String unidadSel = _unidades.first;
+    showDialog(context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Agregar ingrediente', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(decoration: BoxDecoration(color: Colors.white,
+              borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey[200]!)),
+            child: TextField(controller: nombreCtrl, decoration: const InputDecoration(
+                hintText: 'Nombre del ingrediente',
+                prefixIcon: Icon(Icons.egg_alt_outlined, color: Color(0xFF2D9E73), size: 18),
+                border: InputBorder.none, contentPadding: EdgeInsets.symmetric(vertical: 14)))),
+          const SizedBox(height: 10),
+          Row(children: [
+            const Text('Unidad:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(width: 10),
+            DropdownButton<String>(value: unidadSel,
+              items: _unidades.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+              onChanged: (v) => setDlg(() => unidadSel = v ?? unidadSel)),
+          ]),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancelar', style: TextStyle(color: Colors.grey[600]))),
+          ElevatedButton(
+            onPressed: () {
+              final nombre = nombreCtrl.text.trim();
+              if (nombre.isEmpty) return;
+              widget.ingredientes.add(_IngredienteSeleccionado(
+                  id: 'custom-${nombre.toLowerCase().replaceAll(' ', '-')}',
+                  nombre: nombre, unidad: unidadSel));
+              _searchCtrl.clear(); setState(() => _resultados = []);
+              widget.onChanged(); Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: _verde,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            child: const Text('Agregar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
+        ])));
+  }
+
+  void _agregarIngrediente(Map<String, dynamic> ing) {
+    if (widget.ingredientes.any((i) => i.id == ing['id'])) return;
+    widget.ingredientes.add(_IngredienteSeleccionado(
+        id: ing['id'] ?? '', nombre: ing['nombre'] ?? '', imagen: ing['imagen']));
+    _searchCtrl.clear(); setState(() => _resultados = []); widget.onChanged();
+  }
+
+  void _eliminar(int idx) { widget.ingredientes.removeAt(idx); widget.onChanged(); setState(() {}); }
+
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-    title: Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: const Color(0xFFE8F7F1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(Icons.add_circle_rounded, color: _verde, size: 20),
-        ),
-        const SizedBox(width: 10),
-        const Expanded(
-          child: Text(
-            'Nuevo ingrediente maestro',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-          ),
-        ),
-      ],
-    ),
-    content: SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const _Label('Nombre *'),
-          const SizedBox(height: 6),
-          _Campo(
-            ctrl: _nombreCtrl,
-            hint: 'Ej: Aceite de girasol',
-            icono: Icons.label_rounded,
-          ),
-          const SizedBox(height: 14),
-          const _Label('URL de foto (opcional)'),
-          const SizedBox(height: 6),
-          _Campo(
-            ctrl: _fotoCtrl,
-            hint: 'https://...',
-            icono: Icons.image_rounded,
-          ),
-          const SizedBox(height: 14),
-          const _Label('Categoría'),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: _cats.map((c) {
-              final sel = c == _cat;
-              return GestureDetector(
-                onTap: () => setState(() => _cat = sel ? '' : c),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: sel ? _verde : Colors.grey[100],
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    c,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: sel ? Colors.white : Colors.grey[700],
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 14),
-          const _Label('Sustitutos (opcional)'),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: _Campo(
-                  ctrl: _sustCtrl,
-                  hint: 'Ej: manteca',
-                  icono: Icons.swap_horiz_rounded,
-                ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: _addSust,
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8F7F1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.add_rounded, color: _verde, size: 20),
-                ),
-              ),
-            ],
-          ),
-          if (_sustitutos.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: _sustitutos
-                  .map(
-                    (s) => Chip(
-                      label: Text(s, style: const TextStyle(fontSize: 12)),
-                      deleteIcon: const Icon(Icons.close, size: 14),
-                      onDeleted: () => setState(() => _sustitutos.remove(s)),
-                      backgroundColor: const Color(0xFFE8F7F1),
-                      side: BorderSide.none,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  )
-                  .toList(),
-            ),
-          ],
-        ],
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: Text('Cancelar', style: TextStyle(color: Colors.grey[600])),
-      ),
-      ElevatedButton(
-        onPressed: () {
-          if (_nombreCtrl.text.trim().isEmpty) return;
-          widget.onCrear({
-            'nombre': _nombreCtrl.text.trim(),
-            'foto': _fotoCtrl.text.trim(),
-            'categoria': _cat,
-            'sustitutos': _sustitutos,
-          });
-          Navigator.pop(context);
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _verde,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          elevation: 0,
-        ),
-        child: const Text(
-          'Crear ingrediente',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
-        ),
-      ),
-    ],
-  );
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        child: Container(
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8)]),
+          child: TextField(controller: _searchCtrl,
+            decoration: InputDecoration(hintText: 'Buscar ingrediente...',
+              hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+              prefixIcon: _buscando
+                  ? const Padding(padding: EdgeInsets.all(12),
+                      child: SizedBox(width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2D9E73))))
+                  : const Icon(Icons.search_rounded, color: Color(0xFF2D9E73)),
+              border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 14))))),
+      if (_resultados.isNotEmpty)
+        Container(constraints: const BoxConstraints(maxHeight: 200),
+          margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 12)]),
+          child: ListView.builder(shrinkWrap: true, padding: const EdgeInsets.symmetric(vertical: 6),
+            itemCount: _resultados.length,
+            itemBuilder: (ctx, i) {
+              final ing = _resultados[i];
+              return ListTile(dense: true,
+                leading: _MiniImagen(url: ing['imagen']?.toString() ?? '', size: 36),
+                title: Text(ing['nombre'] ?? '', style: const TextStyle(fontSize: 14)),
+                trailing: const Icon(Icons.add_circle_rounded, color: Color(0xFF2D9E73), size: 20),
+                onTap: () => _agregarIngrediente(ing));
+            })),
+      if (_searchCtrl.text.trim().isNotEmpty && !_buscando)
+        Padding(padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+          child: GestureDetector(onTap: _agregarIngredientePersonalizado,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(color: const Color(0xFFE8F7F1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF2D9E73).withOpacity(0.3))),
+              child: Row(children: [
+                const Icon(Icons.add_rounded, color: Color(0xFF2D9E73), size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text('¿No está? Agregar "${_searchCtrl.text.trim()}" como ingrediente libre',
+                    style: const TextStyle(color: Color(0xFF2D9E73), fontSize: 12.5, fontWeight: FontWeight.w600))),
+              ])))),
+      const SizedBox(height: 8),
+      Expanded(child: widget.ingredientes.isEmpty
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.egg_alt_outlined, size: 56, color: Colors.grey[300]),
+              const SizedBox(height: 12),
+              Text('Busca y agrega ingredientes', style: TextStyle(color: Colors.grey[500])),
+            ]))
+          : ListView.separated(padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+              itemCount: widget.ingredientes.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (ctx, i) => _IngredienteCard(
+                  ing: widget.ingredientes[i], unidades: _unidades,
+                  onEliminar: () => _eliminar(i), onChanged: widget.onChanged))),
+      if (widget.ingredientes.isNotEmpty)
+        Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: SizedBox(width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: widget.onSiguiente,
+              icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white),
+              label: Text('${widget.ingredientes.length} ingrediente${widget.ingredientes.length != 1 ? 's' : ''} · Siguiente: Pasos',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2D9E73),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)))))),
+    ]);
+  }
 }
 
-// DIÁLOGO PASO
-class _DialogoPaso extends StatefulWidget {
-  final _Paso? pasoInicial;
-  final List<_IngReceta> ingredientes;
-  final int numeroPaso;
-  final ValueChanged<String> onGuardar;
-  const _DialogoPaso({
-    required this.onGuardar,
-    required this.ingredientes,
-    required this.numeroPaso,
-    this.pasoInicial,
-  });
+class _IngredienteCard extends StatefulWidget {
+  final _IngredienteSeleccionado ing;
+  final List<String> unidades;
+  final VoidCallback onEliminar;
+  final VoidCallback onChanged;
+  const _IngredienteCard({required this.ing, required this.unidades, required this.onEliminar, required this.onChanged});
   @override
-  State<_DialogoPaso> createState() => _DialogoPasoState();
+  State<_IngredienteCard> createState() => _IngredienteCardState();
 }
 
-class _DialogoPasoState extends State<_DialogoPaso> {
+class _IngredienteCardState extends State<_IngredienteCard> {
   static const Color _verde = Color(0xFF2D9E73);
-  late final TextEditingController _ctrl;
 
-  List<String> get _sugerencias {
-    final ings = widget.ingredientes.map((i) => i.nombre).toList();
-    final n = widget.numeroPaso;
-    final p = ings.isNotEmpty ? ings[0] : 'los ingredientes';
-    final s = ings.length > 1 ? ings[1] : 'el resto';
+  void _abrirEditor() {
+    final cantCtrl = TextEditingController(text: widget.ing.cantidad);
+    String unidadSel = widget.unidades.contains(widget.ing.unidad) ? widget.ing.unidad : widget.unidades.first;
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
+      contentPadding: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Padding(padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+        child: Text(widget.ing.nombre, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16))),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if ((widget.ing.imagen ?? '').isNotEmpty)
+          ClipRRect(borderRadius: BorderRadius.circular(4),
+            child: Image.network(widget.ing.imagen!, width: double.infinity, height: 120, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink()))
+        else
+          Container(height: 80, color: const Color(0xFFE8F7F1),
+            child: const Center(child: Icon(Icons.restaurant_rounded, size: 40, color: _verde))),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Cantidad', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 6),
+            Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[200]!)),
+              child: TextField(controller: cantCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                decoration: const InputDecoration(border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 12)))),
+            const SizedBox(height: 12),
+            const Text('Unidad', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 6),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[200]!)),
+              child: DropdownButtonHideUnderline(child: DropdownButton<String>(
+                value: unidadSel, isExpanded: true,
+                items: widget.unidades.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                onChanged: (v) => setDlg(() => unidadSel = v ?? unidadSel)))),
+          ])),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancelar', style: TextStyle(color: Colors.grey[600]))),
+        ElevatedButton(
+          onPressed: () {
+            setState(() {
+              widget.ing.cantidad = cantCtrl.text.trim().isEmpty ? '1' : cantCtrl.text.trim();
+              widget.ing.unidad = unidadSel;
+            });
+            widget.onChanged(); Navigator.pop(ctx);
+          },
+          style: ElevatedButton.styleFrom(backgroundColor: _verde,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+          child: const Text('Guardar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
+      ])));
+  }
 
-    if (n == 1) {
-      return [
-        'Lava y prepara $p correctamente antes de usar.',
-        'Pesa y mide todos los ingredientes: $p${ings.length > 1 ? ', $s' : ''} y el resto.',
-        'Precalienta el horno y organiza los utensilios sobre la mesa.',
-      ];
+  String _formatCantidad(String raw) {
+    final d = double.tryParse(raw);
+    if (d == null) return raw;
+    final entero = d.floor();
+    final decimal = d - entero;
+    final fracs = {0.25: '1/4', 0.33: '1/3', 0.5: '1/2', 0.67: '2/3', 0.75: '3/4'};
+    String? frac;
+    for (final e in fracs.entries) {
+      if ((decimal - e.key).abs() < 0.05) { frac = e.value; break; }
     }
-    if (n == 2) {
-      return [
-        'Corta $p en trozos del tamaño indicado en la receta.',
-        'Mezcla $p con $s hasta obtener una mezcla uniforme.',
-        'Calienta una sartén a fuego medio y añade $p.',
-      ];
-    }
-    if (n == 3) {
-      return [
-        'Agrega $s a la preparación y mezcla bien.',
-        'Cocina a fuego bajo, removiendo ocasionalmente.',
-        'Sazona con sal y pimienta al gusto.',
-      ];
-    }
-    return [
-      'Verifica la cocción y ajusta el calor si es necesario.',
-      'Agrega los ingredientes restantes y mezcla suavemente.',
-      'Retira del fuego y deja reposar 2 minutos antes de servir.',
-      'Sirve inmediatamente acompañado de tu preferencia.',
-    ];
+    if (decimal < 0.05) return '$entero';
+    if (frac != null && entero == 0) return frac;
+    if (frac != null) return '$entero $frac';
+    return d.toStringAsFixed(1);
   }
 
   @override
-  void initState() {
-    super.initState();
-    _ctrl = TextEditingController(text: widget.pasoInicial?.instruccion ?? '');
+  Widget build(BuildContext context) {
+    final cantidadTexto = _formatCantidad(widget.ing.cantidad);
+    final unidadTexto   = widget.ing.unidad.trim();
+    return GestureDetector(onTap: _abrirEditor,
+      child: Container(
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)]),
+        child: Row(children: [
+          Container(width: 52, height: 52, margin: const EdgeInsets.only(left: 10),
+            decoration: BoxDecoration(color: const Color(0xFFE8F7F1), borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.restaurant_rounded, size: 24, color: _verde)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Row(children: [
+              Text(cantidadTexto, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF1A1A2E))),
+              if (unidadTexto.isNotEmpty) ...[
+                const SizedBox(width: 4),
+                Text(unidadTexto, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey[500])),
+              ],
+            ]),
+            const SizedBox(height: 3),
+            Text(widget.ing.nombre, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF444455)),
+                maxLines: 2, overflow: TextOverflow.ellipsis),
+          ])),
+          GestureDetector(onTap: widget.onEliminar,
+            child: Container(margin: const EdgeInsets.only(right: 10), padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(color: const Color(0xFFFFEEEE), borderRadius: BorderRadius.circular(8)),
+              child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFE53935), size: 16))),
+        ])));
+  }
+}
+
+class _MiniImagen extends StatelessWidget {
+  final String url; final double size;
+  const _MiniImagen({required this.url, required this.size});
+  @override
+  Widget build(BuildContext context) {
+    if (url.startsWith('http')) {
+      return SizedBox(width: size, height: size,
+          child: Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _placeholder()));
+    }
+    return _placeholder();
+  }
+  Widget _placeholder() => Container(width: size, height: size, color: const Color(0xFFE8F7F1),
+      child: const Center(child: Icon(Icons.egg_alt_rounded, color: Color(0xFF2D9E73), size: 20)));
+}
+
+class _PaginaPasos extends StatefulWidget {
+  final List<TextEditingController> pasosCtrl;
+  final VoidCallback onChanged;
+  const _PaginaPasos({required this.pasosCtrl, required this.onChanged});
+  @override
+  State<_PaginaPasos> createState() => _PaginaPasosState();
+}
+
+class _PaginaPasosState extends State<_PaginaPasos> {
+  static const Color _verde = Color(0xFF2D9E73);
+  void _agregarPaso() { widget.pasosCtrl.add(TextEditingController()); widget.onChanged(); setState(() {}); }
+  void _eliminarPaso(int idx) {
+    if (widget.pasosCtrl.length <= 1) return;
+    widget.pasosCtrl[idx].dispose(); widget.pasosCtrl.removeAt(idx);
+    widget.onChanged(); setState(() {});
+  }
+  void _moverPaso(int idx, int delta) {
+    final destino = idx + delta;
+    if (destino < 0 || destino >= widget.pasosCtrl.length) return;
+    final temp = widget.pasosCtrl[idx];
+    widget.pasosCtrl[idx] = widget.pasosCtrl[destino];
+    widget.pasosCtrl[destino] = temp;
+    widget.onChanged(); setState(() {});
   }
 
   @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Expanded(child: ReorderableListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+        onReorder: (oldIdx, newIdx) {
+          if (newIdx > oldIdx) newIdx--;
+          final temp = widget.pasosCtrl.removeAt(oldIdx);
+          widget.pasosCtrl.insert(newIdx, temp);
+          widget.onChanged(); setState(() {});
+        },
+        itemCount: widget.pasosCtrl.length,
+        itemBuilder: (ctx, i) => _PasoCard(
+          key: ValueKey(widget.pasosCtrl[i]), numero: i + 1, ctrl: widget.pasosCtrl[i],
+          puedeSubir: i > 0, puedeBajar: i < widget.pasosCtrl.length - 1,
+          puedeEliminar: widget.pasosCtrl.length > 1,
+          onSubir: () => _moverPaso(i, -1), onBajar: () => _moverPaso(i, 1),
+          onEliminar: () => _eliminarPaso(i), onChanged: widget.onChanged))),
+      Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: OutlinedButton.icon(
+          onPressed: _agregarPaso,
+          icon: const Icon(Icons.add_rounded, color: Color(0xFF2D9E73)),
+          label: const Text('Agregar paso', style: TextStyle(color: Color(0xFF2D9E73), fontWeight: FontWeight.w600)),
+          style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(0xFF2D9E73)),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              minimumSize: const Size(double.infinity, 0)))),
+    ]);
   }
+}
 
+class _PasoCard extends StatelessWidget {
+  final int numero; final TextEditingController ctrl;
+  final bool puedeSubir, puedeBajar, puedeEliminar;
+  final VoidCallback onSubir, onBajar, onEliminar, onChanged;
+  const _PasoCard({super.key, required this.numero, required this.ctrl,
+      required this.puedeSubir, required this.puedeBajar, required this.puedeEliminar,
+      required this.onSubir, required this.onBajar, required this.onEliminar, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)]),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(width: 44, padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: const BoxDecoration(color: Color(0xFF2D9E73),
+              borderRadius: BorderRadius.horizontal(left: Radius.circular(14))),
+          child: Column(children: [
+            Text('$numero', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+            const SizedBox(height: 6),
+            const Icon(Icons.drag_handle_rounded, color: Colors.white60, size: 16),
+          ])),
+        Expanded(child: Padding(padding: const EdgeInsets.all(10),
+          child: TextField(controller: ctrl, minLines: 2, maxLines: 6,
+            style: const TextStyle(fontSize: 13.5, height: 1.45),
+            decoration: InputDecoration(hintText: 'Describe este paso...',
+                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
+                border: InputBorder.none, isDense: true),
+            onChanged: (_) => onChanged()))),
+        Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 6),
+          if (puedeSubir) _MicroBtn(Icons.keyboard_arrow_up_rounded, Colors.grey[600]!, onSubir),
+          if (puedeBajar) _MicroBtn(Icons.keyboard_arrow_down_rounded, Colors.grey[600]!, onBajar),
+          if (puedeEliminar) _MicroBtn(Icons.delete_outline_rounded, const Color(0xFFE53935), onEliminar),
+          const SizedBox(height: 6),
+        ]),
+        const SizedBox(width: 4),
+      ]));
+  }
+}
+
+class _MicroBtn extends StatelessWidget {
+  final IconData icon; final Color color; final VoidCallback onTap;
+  const _MicroBtn(this.icon, this.color, this.onTap);
+  @override
+  Widget build(BuildContext context) => IconButton(onPressed: onTap,
+      icon: Icon(icon, color: color, size: 18), padding: const EdgeInsets.all(4),
+      constraints: const BoxConstraints());
+}
+
+class _BottomBar extends StatelessWidget {
+  final int pagina;
+  final bool todoValido, guardando, esReenvio, fueEditado;
+  final String estadoOriginal;
+  final VoidCallback onGuardarBorrador;
+  final VoidCallback onGuardarReceta;
+  final VoidCallback onEnviarRevision;
+  final VoidCallback? onAnterior, onSiguiente;
+
+  static const Color _verde = Color(0xFF2D9E73);
+
+  const _BottomBar({
+    required this.pagina, required this.todoValido, required this.guardando,
+    required this.esReenvio, required this.fueEditado, required this.estadoOriginal,
+    required this.onGuardarBorrador, required this.onGuardarReceta,
+    required this.onEnviarRevision, required this.onAnterior, required this.onSiguiente});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool esBorrador  = estadoOriginal == 'borrador' || estadoOriginal == '';
+    final bool puedeEnviar = estadoOriginal == 'guardada' || estadoOriginal == 'rechazada_editada';
+    final bool btnEnviarActivo = puedeEnviar && todoValido;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+      decoration: BoxDecoration(color: Colors.white,
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, -2))]),
+      child: Row(children: [
+
+        OutlinedButton(
+          onPressed: guardando ? null : onGuardarBorrador,
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: Colors.grey[300]!),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12)),
+          child: Text('Borrador',
+              style: TextStyle(color: Colors.grey[600], fontSize: 12))),
+        const SizedBox(width: 8),
+
+        if (pagina == 2 && esBorrador)
+          Expanded(child: ElevatedButton.icon(
+            onPressed: guardando ? null : onGuardarReceta,
+            icon: guardando
+                ? const SizedBox(width: 16, height: 16,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : const Icon(Icons.bookmark_rounded, color: Colors.white, size: 16),
+            label: const Text('Guardar receta',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: todoValido ? _verde : Colors.grey[400],
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)))))
+
+        else if (pagina == 2 && !esBorrador)
+          Expanded(child: ElevatedButton.icon(
+            onPressed: (guardando || (!btnEnviarActivo && !esReenvio)) ? null : onEnviarRevision,
+            icon: guardando
+                ? const SizedBox(width: 16, height: 16,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : const Icon(Icons.send_rounded, color: Colors.white, size: 16),
+            label: Text(
+              esReenvio ? 'Reenviar a revisión'
+                  : puedeEnviar ? 'Enviar a revisión'
+                  : 'Guarda para publicar',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: (btnEnviarActivo || esReenvio) ? _verde : Colors.grey[400],
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)))))
+
+        else
+          Expanded(child: ElevatedButton.icon(
+            onPressed: onSiguiente,
+            icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 16),
+            label: const Text('Siguiente',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            style: ElevatedButton.styleFrom(backgroundColor: _verde,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))))),
+      ]));
+  }
+}
+
+class _DialogConfirmar extends StatelessWidget {
+  final String nombre;
+  final bool esReenvio;
+  const _DialogConfirmar({required this.nombre, this.esReenvio = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(esReenvio ? 'Reenviar a revisión' : 'Enviar a revisión',
+          style: const TextStyle(fontWeight: FontWeight.w700)),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(esReenvio
+            ? 'Tu receta "$nombre" será reenviada al administrador para una nueva revisión.'
+            : 'Tu receta "$nombre" será enviada al administrador para revisión.'),
+        const SizedBox(height: 10),
+        Container(padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: const Color(0xFFE8F7F1), borderRadius: BorderRadius.circular(10)),
+          child: Row(children: [
+            const Icon(Icons.info_outline_rounded, color: Color(0xFF2D9E73), size: 16),
+            const SizedBox(width: 8),
+            Expanded(child: Text(
+              esReenvio ? 'El administrador revisará los cambios que realizaste.'
+                  : 'Tu receta permanecerá en "Mis recetas" mientras está en revisión.',
+              style: const TextStyle(fontSize: 12, color: Color(0xFF2D9E73)))),
+          ])),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancelar', style: TextStyle(color: Colors.grey[600]))),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2D9E73),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+          child: Text(esReenvio ? 'Reenviar' : 'Enviar',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
+      ]);
+  }
+}
+
+class _Label extends StatelessWidget {
+  final String texto; final bool obligatorio; final bool error;
+  const _Label(this.texto, {this.obligatorio = false, this.error = false});
   @override
   Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-    child: Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: _verde,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${widget.numeroPaso}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Text(
-                  'Instrucción del paso',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _ctrl,
-              maxLines: 5,
-              decoration: InputDecoration(
-                hintText: 'Describe este paso con detalle...',
-                filled: true,
-                fillColor: const Color(0xFFF5F6FA),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: _verde, width: 1.5),
-                ),
-                contentPadding: const EdgeInsets.all(14),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: const [
-                Icon(
-                  Icons.lightbulb_outline_rounded,
-                  color: Color(0xFFFF8F00),
-                  size: 16,
-                ),
-                SizedBox(width: 6),
-                Text(
-                  'Sugerencias para este paso',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ..._sugerencias.map(
-              (s) => GestureDetector(
-                onTap: () => setState(() {
-                  final actual = _ctrl.text.trim();
-                  _ctrl.text = actual.isEmpty ? s : '$actual $s';
-                  _ctrl.selection = TextSelection.fromPosition(
-                    TextPosition(offset: _ctrl.text.length),
-                  );
-                }),
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF8E1),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: const Color(0xFFFFCC02).withOpacity(0.4),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          s,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: Colors.grey[700],
-                            height: 1.3,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(
-                        Icons.add_circle_outline_rounded,
-                        color: Color(0xFFFF8F00),
-                        size: 18,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  if (_ctrl.text.trim().isEmpty) return;
-                  widget.onGuardar(_ctrl.text.trim());
-                  Navigator.pop(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _verde,
-                  minimumSize: const Size.fromHeight(50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  'Guardar paso',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-// ITEMS DE LISTA
-class _IngredienteItemEditor extends StatelessWidget {
-  final _IngReceta ing;
-  final VoidCallback onEditar, onEliminar, onTogglePrimordial;
-  static const Color _verde = Color(0xFF2D9E73);
-  static const Color _verdeClaro = Color(0xFFE8F7F1);
-  const _IngredienteItemEditor({
-    super.key,
-    required this.ing,
-    required this.onEditar,
-    required this.onEliminar,
-    required this.onTogglePrimordial,
-  });
-  @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 8),
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.04),
-          blurRadius: 4,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    ),
-    child: Row(
-      children: [
-        const Icon(Icons.drag_handle_rounded, color: Colors.grey, size: 18),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.all(7),
-          decoration: BoxDecoration(
-            color: _verdeClaro,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            ing.esMaestro ? Icons.verified_rounded : Icons.egg_alt_rounded,
-            color: _verde,
-            size: 16,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                ing.nombre,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12.5,
-                  color: Color(0xFF1A1A2E),
-                ),
-              ),
-              Text(
-                '${ing.cantidad} ${ing.unidad}'.trim().isEmpty
-                    ? 'Sin cantidad'
-                    : '${ing.cantidad} ${ing.unidad}'.trim(),
-                style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-              ),
-            ],
-          ),
-        ),
-        if (ing.esPrimordial)
-          Container(
-            margin: const EdgeInsets.only(right: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-            decoration: BoxDecoration(
-              color: _verdeClaro,
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: const Text(
-              '★',
-              style: TextStyle(color: _verde, fontSize: 10),
-            ),
-          ),
-        GestureDetector(
-          onTap: onEditar,
-          child: Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: _verdeClaro,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.edit_rounded, color: _verde, size: 14),
-          ),
-        ),
-        const SizedBox(width: 6),
-        GestureDetector(
-          onTap: onEliminar,
-          child: Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFEBEE),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.delete_rounded,
-              color: Color(0xFFE53935),
-              size: 14,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-class _PasoItemEditor extends StatelessWidget {
-  final _Paso paso;
-  final int numero;
-  final VoidCallback onEditar, onEliminar;
-  static const Color _verde = Color(0xFF2D9E73);
-  static const Color _verdeClaro = Color(0xFFE8F7F1);
-  const _PasoItemEditor({
-    super.key,
-    required this.paso,
-    required this.numero,
-    required this.onEditar,
-    required this.onEliminar,
-  });
-  @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 10),
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.04),
-          blurRadius: 4,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(Icons.drag_handle_rounded, color: Colors.grey, size: 18),
-        const SizedBox(width: 8),
-        Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: _verde,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Center(
-            child: Text(
-              '$numero',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            paso.instruccion,
-            style: const TextStyle(
-              fontSize: 12.5,
-              color: Color(0xFF1A1A2E),
-              height: 1.4,
-            ),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(width: 6),
-        Column(
-          children: [
-            GestureDetector(
-              onTap: onEditar,
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: _verdeClaro,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.edit_rounded, color: _verde, size: 14),
-              ),
-            ),
-            const SizedBox(height: 4),
-            GestureDetector(
-              onTap: onEliminar,
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFEBEE),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.delete_rounded,
-                  color: Color(0xFFE53935),
-                  size: 14,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
-}
-
-// SELECTOR CATEGORÍA
-class _SelectorCategoria extends StatelessWidget {
-  final String seleccionada;
-  final ValueChanged<String> onSeleccionar;
-  static const Color _verde = Color(0xFF2D9E73);
-  const _SelectorCategoria({
-    required this.seleccionada,
-    required this.onSeleccionar,
-  });
-  @override
-  Widget build(BuildContext context) => StreamBuilder<QuerySnapshot>(
-    stream: FirebaseFirestore.instance
-        .collection('app-Categorías')
-        .orderBy('nombre')
-        .snapshots(),
-    builder: (context, snapshot) {
-      if (!snapshot.hasData) {
-        return const SizedBox(
-          height: 40,
-          child: Center(
-            child: CircularProgressIndicator(color: _verde, strokeWidth: 2),
-          ),
-        );
-      }
-      final cats = snapshot.data!.docs
-          .map((d) => d['nombre']?.toString() ?? '')
-          .where((n) => n.isNotEmpty)
-          .toList();
-      return SizedBox(
-        height: 38,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: cats.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
-          itemBuilder: (context, i) {
-            final cat = cats[i];
-            final activa = cat == seleccionada;
-            return GestureDetector(
-              onTap: () => onSeleccionar(cat),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: activa ? _verde : Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: activa ? _verde : Colors.grey.shade300,
-                  ),
-                ),
-                child: Text(
-                  cat,
-                  style: TextStyle(
-                    color: activa ? Colors.white : Colors.grey[700],
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12.5,
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      );
-    },
-  );
-}
-
-// WIDGETS AUXILIARES
-class _Label extends StatelessWidget {
-  final String texto;
-  const _Label(this.texto);
-  @override
-  Widget build(BuildContext context) => Text(
-    texto,
-    style: const TextStyle(
-      fontWeight: FontWeight.w600,
-      fontSize: 12.5,
-      color: Color(0xFF1A1A2E),
-    ),
-  );
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Row(children: [
+      Text(texto, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600,
+          color: error ? Colors.red[700] : const Color(0xFF444466))),
+      if (obligatorio)
+        Text(' *', style: TextStyle(color: error ? Colors.red[700] : Colors.red[400], fontSize: 12)),
+    ]));
 }
 
 class _Campo extends StatelessWidget {
   final TextEditingController ctrl;
-  final String hint;
-  final IconData icono;
-  const _Campo({required this.ctrl, required this.hint, required this.icono});
-
-  @override
-  Widget build(BuildContext context) => TextField(
-    controller: ctrl,
-    style: const TextStyle(fontSize: 13),
-    decoration: InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(fontSize: 12),
-      prefixIcon: Icon(icono, color: const Color(0xFF2D9E73), size: 16),
-      filled: true,
-      fillColor: const Color(0xFFF5F6FA),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide.none,
-      ),
-    ),
-  );
-}
-
-class _SeccionTitulo extends StatelessWidget {
-  final String titulo;
-  const _SeccionTitulo(this.titulo);
-  @override
-  Widget build(BuildContext context) => Text(
-    titulo,
-    style: const TextStyle(
-      fontWeight: FontWeight.w700,
-      fontSize: 14,
-      color: Color(0xFF1A1A2E),
-    ),
-  );
-}
-
-class _InfoFila extends StatelessWidget {
-  final String label, valor;
-  const _InfoFila(this.label, this.valor);
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Row(
-      children: [
-        Text(
-          '$label: ',
-          style: TextStyle(
-            color: Colors.grey[600],
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        Expanded(
-          child: Text(
-            valor,
-            style: const TextStyle(
-              color: Color(0xFF1A1A2E),
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-class _InfoCard extends StatelessWidget {
-  final List<Widget> children;
-  const _InfoCard({required this.children});
+  final String hint; final IconData icono;
+  final TextInputType teclado; final bool error;
+  const _Campo({required this.ctrl, required this.hint, required this.icono,
+      this.teclado = TextInputType.text, this.error = false});
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: children,
-    ),
-  );
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
+        border: error ? Border.all(color: Colors.red[300]!) : Border.all(color: Colors.grey[200]!),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6)]),
+    child: TextField(controller: ctrl, keyboardType: teclado, style: const TextStyle(fontSize: 14),
+      decoration: InputDecoration(hintText: hint, hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+          prefixIcon: Icon(icono, color: const Color(0xFF2D9E73), size: 18),
+          border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 14))));
 }
 
-class _PlaceholderImagen extends StatelessWidget {
+class _SelectorPorciones extends StatelessWidget {
+  final int valor; final void Function(int) onChanged;
+  const _SelectorPorciones({required this.valor, required this.onChanged});
   @override
   Widget build(BuildContext context) => Container(
-    height: 120,
-    decoration: BoxDecoration(
-      color: const Color(0xFFE8F7F1),
-      borderRadius: BorderRadius.circular(14),
-    ),
-    child: const Center(
-      child: Icon(Icons.image_rounded, color: Color(0xFF2D9E73), size: 40),
-    ),
-  );
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!)),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      _BtnPorcion(Icons.remove_rounded, () => onChanged((valor - 1).clamp(1, 99))),
+      Padding(padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text('$valor', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
+      _BtnPorcion(Icons.add_rounded, () => onChanged((valor + 1).clamp(1, 99))),
+    ]));
 }
 
-class _VacioMsg extends StatelessWidget {
-  final String msg;
-  const _VacioMsg(this.msg);
+class _BtnPorcion extends StatelessWidget {
+  final IconData icon; final VoidCallback onTap;
+  const _BtnPorcion(this.icon, this.onTap);
   @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(40),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.inbox_rounded, size: 48, color: Colors.grey[300]),
-          const SizedBox(height: 12),
-          Text(
-            msg,
-            style: TextStyle(color: Colors.grey[400], fontSize: 13),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _BotonAgregar extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  static const Color _verde = Color(0xFF2D9E73);
-  static const Color _verdeClaro = Color(0xFFE8F7F1);
-
-  const _BotonAgregar({required this.label, required this.onTap});
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-      decoration: BoxDecoration(
-        color: _verdeClaro,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.add_rounded, color: _verde, size: 16),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: _verde,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _CampoTexto extends StatelessWidget {
-  final TextEditingController ctrl;
-  final String label;
-  final IconData icono;
-  final TextInputType tipo;
-  const _CampoTexto({
-    required this.ctrl,
-    required this.label,
-    required this.icono,
-    this.tipo = TextInputType.text,
-  });
-  @override
-  Widget build(BuildContext context) => TextField(
-    controller: ctrl,
-    keyboardType: tipo,
-    decoration: InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icono, color: const Color(0xFF2D9E73), size: 18),
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF2D9E73), width: 1.5),
-      ),
-      labelStyle: TextStyle(color: Colors.grey[500], fontSize: 13),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
-    ),
-  );
+  Widget build(BuildContext context) => IconButton(onPressed: onTap,
+      icon: Icon(icon, color: const Color(0xFF2D9E73), size: 20),
+      padding: const EdgeInsets.all(10), constraints: const BoxConstraints());
 }
