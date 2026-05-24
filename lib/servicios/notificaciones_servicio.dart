@@ -54,30 +54,20 @@ class AppNotificacion {
 
 class NotificacionesServicio {
   static final _col = FirebaseFirestore.instance.collection('notifications');
-
-  // ── Notificar TODOS los admins cuando llega receta pendiente ──
-  // ✅ CORREGIDO: busca por campo 'rol' = 'admin' y usa el UID de Firebase Auth
-  // como userId en la notificación. El admin ve la notif con su UID actual.
   static Future<void> notificarAdmins({
     required String recipeId,
     required String recipeName,
     required String usuarioEmail,
   }) async {
-    // Obtener el UID actual del admin autenticado (si hay sesión admin abierta)
-    // Como no podemos saber el UID del admin desde el cliente usuario,
-    // guardamos la notif con userId = 'admin_broadcast' y el admin
-    // la lee con su propio stream filtrado por role = 'admin'
     final adminsSnap = await FirebaseFirestore.instance
         .collection('app-usuarios')
         .where('rol', isEqualTo: 'admin')
         .get();
 
     for (final doc in adminsSnap.docs) {
-      // El ID del documento en app-usuarios puede ser el UID de Auth
-      // Guardamos también el email del admin para identificarlo
       final adminEmail = doc.data()['usuario'] ?? doc.data()['email'] ?? '';
       await _col.add({
-        'userId':       doc.id, // ID del doc en app-usuarios
+        'userId':       doc.id, 
         'adminEmail':   adminEmail,
         'role':         'admin',
         'type':         TipoNotificacion.recetaPendiente,
@@ -90,7 +80,6 @@ class NotificacionesServicio {
     }
   }
 
-  // ── Versión legacy que acepta adminUserId directo ──
   static Future<void> notificarAdminRecetaPendiente({
     required String adminUserId,
     required String recipeId,
@@ -109,7 +98,7 @@ class NotificacionesServicio {
     });
   }
 
-  // ── Usuario: receta aprobada ──
+  // Usuario: receta aprobada
   static Future<void> notificarUsuarioAprobada({
     required String userId,
     required String recipeId,
@@ -127,7 +116,7 @@ class NotificacionesServicio {
     });
   }
 
-  // ── Usuario: receta rechazada ──
+  // Usuario: receta rechazada
   static Future<void> notificarUsuarioRechazada({
     required String userId,
     required String recipeId,
@@ -149,7 +138,6 @@ class NotificacionesServicio {
     });
   }
 
-  // ── Contador no leídas usuario ──
   static Stream<int> streamContadorNoLeidas(String userId) {
     return _col
         .where('userId', isEqualTo: userId)
@@ -158,7 +146,6 @@ class NotificacionesServicio {
         .map((snap) => snap.docs.length);
   }
 
-  // ── Stream notificaciones por UID ──
   static Stream<List<AppNotificacion>> streamNotificaciones(String userId) {
     return _col
         .where('userId', isEqualTo: userId)
@@ -168,8 +155,6 @@ class NotificacionesServicio {
         .map((snap) => snap.docs.map(AppNotificacion.fromDoc).toList());
   }
 
-  // ── Stream notificaciones admin por email ──
-  // ✅ NUEVO: el admin busca sus notifs por su email además de por userId
   static Stream<List<AppNotificacion>> streamNotificacionesAdmin(String adminEmail) {
     return _col
         .where('adminEmail', isEqualTo: adminEmail)
@@ -180,7 +165,6 @@ class NotificacionesServicio {
         .map((snap) => snap.docs.map(AppNotificacion.fromDoc).toList());
   }
 
-  // ── Contador no leídas admin por email ──
   static Stream<int> streamContadorNoLeidasAdmin(String adminEmail) {
     return _col
         .where('adminEmail', isEqualTo: adminEmail)

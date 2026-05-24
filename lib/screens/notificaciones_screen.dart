@@ -45,7 +45,6 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
         ],
       ),
       body: StreamBuilder<List<AppNotificacion>>(
-        // ✅ Admin usa stream por email, usuario usa stream por UID
         stream: widget.esAdmin
             ? NotificacionesServicio.streamNotificacionesAdmin(adminEmail)
             : NotificacionesServicio.streamNotificaciones(userId),
@@ -110,13 +109,8 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
         Navigator.push(context, MaterialPageRoute(
             builder: (_) => const AdminRecetasPendientesScreen()));
         break;
-
-      // ✅ DEFINITIVO: usa GlobalKey para acceder a AppMainScreenState
-      // desde cualquier pantalla sin importar la jerarquía de navegación
       case TipoNotificacion.recetaAprobada:
-        // Cerrar todas las pantallas encima de AppMainScreen
         Navigator.of(context).popUntil((route) => route.isFirst);
-        // Cambiar a tab Inicio usando el GlobalKey
         AppMainScreen.globalKey.currentState?.setState(() {
           AppMainScreen.globalKey.currentState!.selectedIndex = 0;
         });

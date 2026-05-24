@@ -230,8 +230,6 @@ class _DetallePendienteSheetState extends State<_DetallePendienteSheet> {
   static const Color _verde = Color(0xFF2D9E73);
   bool _procesando = false;
 
-  // ✅ FIX Bug 4: marcar como leída la notificación del admin asociada
-  // a este recipeId para que el contador baje al atender la receta
   Future<void> _marcarNotifLeidaPorRecipeId(String recipeId) async {
     try {
       final adminEmail = FirebaseAuth.instance.currentUser?.email ?? '';
@@ -431,7 +429,6 @@ class _DetallePendienteSheetState extends State<_DetallePendienteSheet> {
           userId: userId, recipeId: widget.docId, recipeName: widget.receta['nombre'] ?? '');
       }
 
-      // ✅ FIX Bug 4: marcar notif del admin como leída al aprobar
       await _marcarNotifLeidaPorRecipeId(widget.docId);
 
       if (mounted) {
@@ -538,7 +535,6 @@ class _DetallePendienteSheetState extends State<_DetallePendienteSheet> {
         );
       }
 
-      // ✅ FIX Bug 4: marcar notif del admin como leída al rechazar
       await _marcarNotifLeidaPorRecipeId(widget.docId);
 
       if (mounted) {

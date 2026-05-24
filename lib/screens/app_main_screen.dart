@@ -8,12 +8,10 @@ import 'login_page.dart';
 import 'sugerencias_chat_screen.dart';
 import 'mis_recetas_screen.dart';
 import 'package:lottie/lottie.dart';
-import 'components/notificacion_campana.dart'; // ✅ NUEVO
+import 'components/notificacion_campana.dart'; 
 
 class AppMainScreen extends StatefulWidget {
   const AppMainScreen({super.key});
-
-  // ✅ Key global para acceder al state desde cualquier parte
   static final GlobalKey<AppMainScreenState> globalKey = GlobalKey<AppMainScreenState>();
 
   @override
@@ -226,7 +224,6 @@ class _AjustesScreenState extends State<_AjustesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Header verde con campana ──────────────────
               Container(
                 width: double.infinity,
                 decoration: const BoxDecoration(
@@ -239,7 +236,6 @@ class _AjustesScreenState extends State<_AjustesScreen> {
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
                 child: Column(
                   children: [
-                    // ✅ NUEVO: fila con campana alineada a la derecha
                     const Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
@@ -288,7 +284,6 @@ class _AjustesScreenState extends State<_AjustesScreen> {
                   ],
                 ),
               ),
-              // ─────────────────────────────────────────────
 
               const SizedBox(height: 24),
 

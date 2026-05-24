@@ -18,7 +18,6 @@ class _MisRecetasScreenState extends State<MisRecetasScreen>
   static const Color _fondo = Color(0xFFF5F6FA);
   late TabController _tabController;
 
-  // ✅ Mapa de configuración visual por estado
   static const _estadosConfig = {
     'guardada':          (Color(0xFFE8F7F1), Color(0xFF065F46), Icons.bookmark_rounded,        'Guardada'),
     'borrador':          (Color(0xFFFFF3CD), Color(0xFF856404), Icons.edit_note_rounded,        'Borrador'),
@@ -32,7 +31,6 @@ class _MisRecetasScreenState extends State<MisRecetasScreen>
   @override
   void initState() {
     super.initState();
-    // ✅ 6 pestañas: Guardadas | Borradores | Copias | Publicadas | Revisión | Rechazadas
     _tabController = TabController(length: 6, vsync: this);
   }
 
@@ -82,42 +80,42 @@ class _MisRecetasScreenState extends State<MisRecetasScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          // ✅ Guardadas: todas las recetas propias (no copias, no borradores)
+          // Guardadas: todas las recetas propias (no copias, no borradores)
           _TabRecetas(
             uid: uid,
             estadosConfig: _estadosConfig,
             filtro: (e, esCopia) => !esCopia && e != 'borrador',
             emptyMsg: 'No tienes recetas guardadas',
             emptySubMsg: 'Crea y guarda tus propias recetas'),
-          // ✅ Borradores
+          // Borradores
           _TabRecetas(
             uid: uid,
             estadosConfig: _estadosConfig,
             filtro: (e, esCopia) => !esCopia && e == 'borrador',
             emptyMsg: 'No tienes borradores',
             emptySubMsg: 'Los borradores son recetas en proceso'),
-          // ✅ Copias
+          // Copias
           _TabRecetas(
             uid: uid,
             estadosConfig: _estadosConfig,
             filtro: (e, esCopia) => esCopia,
             emptyMsg: 'No tienes copias',
             emptySubMsg: 'Copia recetas del catálogo para editarlas'),
-          // ✅ Publicadas
+          // Publicadas
           _TabRecetas(
             uid: uid,
             estadosConfig: _estadosConfig,
             filtro: (e, esCopia) => !esCopia && e == 'publicada',
             emptyMsg: 'No tienes recetas publicadas',
             emptySubMsg: 'Envía tus recetas para que el admin las apruebe'),
-          // ✅ Revisión
+          // Revisión
           _TabRecetas(
             uid: uid,
             estadosConfig: _estadosConfig,
             filtro: (e, esCopia) => !esCopia && e == 'en_revision',
             emptyMsg: 'Ninguna receta en revisión',
             emptySubMsg: 'Aquí aparecen las que enviaste al admin'),
-          // ✅ Rechazadas
+          // Rechazadas
           _TabRecetas(
             uid: uid,
             estadosConfig: _estadosConfig,
@@ -146,9 +144,6 @@ class _MisRecetasScreenState extends State<MisRecetasScreen>
   }
 }
 
-// ═══════════════════════════════════════════════════
-//  TAB DE RECETAS POR FILTRO
-// ═══════════════════════════════════════════════════
 class _TabRecetas extends StatelessWidget {
   final String uid;
   final Map<String, dynamic> estadosConfig;
@@ -213,9 +208,6 @@ class _TabRecetas extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════
-//  CARD DE RECETA
-// ═══════════════════════════════════════════════════
 class _RecetaPersonalCard extends StatelessWidget {
   final String docId;
   final Map<String, dynamic> data;
@@ -306,9 +298,6 @@ class _ImgPlaceholder extends StatelessWidget {
     child: const Center(child: Icon(Icons.restaurant_rounded, color: Color(0xFF2D9E73), size: 28)));
 }
 
-// ═══════════════════════════════════════════════════
-//  BOTTOM SHEET OPCIONES
-// ═══════════════════════════════════════════════════
 class _OpcionesRecetaSheet extends StatefulWidget {
   final String docId;
   final Map<String, dynamic> data;
@@ -333,9 +322,10 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
   bool get _puedeEnviar =>
       !_esCopia && _estado == 'guardada' && _estadoRevision != 'pendiente';
 
-  // ✅ FIX Bug 2: rechazada puede reenviar directo sin obligar a editar primero
   bool get _puedeReenviar =>
-      !_esCopia && (_estado == 'rechazada' || _estado == 'rechazada_editada');
+      !_esCopia && _estado == 'rechazada_editada';
+
+  bool get _estaRechazadaSinEditar => !_esCopia && _estado == 'rechazada';
 
   bool get _puedeEditar =>
       _estado == 'borrador' || _estado == 'guardada' ||
@@ -442,6 +432,23 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
                   style: TextStyle(fontSize: 11, color: Color(0xFF0D6EFD)))),
             ])),
 
+        if (_estaRechazadaSinEditar)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFEBEE),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE53935).withOpacity(0.3))),
+            child: const Row(children: [
+              Icon(Icons.edit_notifications_rounded, color: Color(0xFFE53935), size: 16),
+              SizedBox(width: 8),
+              Expanded(child: Text(
+                'Esta receta fue rechazada. Debes editarla y corregir los errores señalados antes de poder reenviarla.',
+                style: TextStyle(fontSize: 11, color: Color(0xFFE53935), height: 1.4))),
+            ])),
+
         Row(children: [
           Expanded(child: _OpcionBtn(
             icon: Icons.play_circle_fill_rounded, label: 'Ver receta',
@@ -500,8 +507,6 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
       builder: (_) => _DetalleRecetaPersonalSheet(data: widget.data));
   }
 
-  // ✅ FIX APLICADO: payload['estado'] = 'pendiente' para que
-  // AdminRecetasPendientesScreen pueda encontrar la receta con su filtro
   Future<void> _confirmarEnvio(BuildContext context) async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -538,13 +543,11 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
       payload['estadoRevision']      = 'pendiente';
       payload['origenPersonalDocId'] = widget.docId;
       payload['fechaEnvio']          = FieldValue.serverTimestamp();
-      payload['estado']              = 'pendiente'; // ✅ FIX: sobreescribir 'guardada' → 'pendiente'
+      payload['estado']              = 'pendiente'; 
 
       final pendienteRef = await FirebaseFirestore.instance
           .collection('recetas-pendientes').add(payload);
 
-      // ✅ FIX Bug 1: actualizar estado a 'en_revision' para que aparezca
-      // en la pestaña Revisión del usuario (filtro: estado == 'en_revision')
       await FirebaseFirestore.instance
           .collection('recetas_personales').doc(widget.docId)
           .update({'estadoRevision': 'pendiente', 'estado': 'en_revision'});
@@ -574,7 +577,6 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
     }
   }
 
-  // ✅ FIX APLICADO: mismo fix en reenvío para consistencia
   Future<void> _confirmarReenvio(BuildContext context) async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -601,7 +603,7 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
       payload['estadoRevision']      = 'pendiente';
       payload['origenPersonalDocId'] = widget.docId;
       payload['fechaEnvio']          = FieldValue.serverTimestamp();
-      payload['estado']              = 'pendiente'; // ✅ FIX: mismo fix que _confirmarEnvio
+      payload['estado']              = 'pendiente'; 
       payload.remove('motivoRechazo');
 
       final pendienteRef = await FirebaseFirestore.instance
@@ -610,7 +612,7 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
       await FirebaseFirestore.instance
           .collection('recetas_personales').doc(widget.docId)
           .update({
-            'estado':         'en_revision', // ✅ FIX Bug 1: aparece en pestaña Revisión
+            'estado':         'en_revision', 
             'estadoRevision': 'pendiente',
             'motivoRechazo':  FieldValue.delete(),
           });
@@ -636,12 +638,37 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
   }
 
   Future<void> _confirmarEliminar(BuildContext context) async {
+    final enRevision = _estado == 'en_revision';
+
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Eliminar receta', style: TextStyle(fontWeight: FontWeight.w700)),
-        content: Text('¿Seguro que quieres eliminar "${widget.data['nombre']}"?\n\nEsto solo borra tu copia personal.'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('¿Seguro que quieres eliminar "${widget.data['nombre']}"?'),
+            const SizedBox(height: 10),
+            if (enRevision)
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFEBEE),
+                  borderRadius: BorderRadius.circular(10)),
+                child: const Row(children: [
+                  Icon(Icons.warning_rounded, color: Color(0xFFE53935), size: 14),
+                  SizedBox(width: 8),
+                  Expanded(child: Text(
+                    'Esta receta está en revisión. Al eliminarla se cancelará la solicitud al administrador.',
+                    style: TextStyle(fontSize: 11, color: Color(0xFFE53935), height: 1.4))),
+                ]))
+            else
+              Text('Esto solo borra tu copia personal.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+          ],
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false),
               child: Text('Cancelar', style: TextStyle(color: Colors.grey[600]))),
@@ -655,8 +682,34 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
     if (confirmar != true) return;
     setState(() => _eliminando = true);
     try {
+      if (enRevision) {
+        final batch = FirebaseFirestore.instance.batch();
+
+        final pendientesSnap = await FirebaseFirestore.instance
+            .collection('recetas-pendientes')
+            .where('origenPersonalDocId', isEqualTo: widget.docId)
+            .where('estado', isEqualTo: 'pendiente')
+            .get();
+        for (final doc in pendientesSnap.docs) {
+          batch.delete(doc.reference);
+        }
+
+        final notifsSnap = await FirebaseFirestore.instance
+            .collection('notifications')
+            .where('type', isEqualTo: 'recipe_pending')
+            .get();
+        for (final doc in notifsSnap.docs) {
+          final recipeId = doc.data()['recipeId'] as String? ?? '';
+          final esDePendiente = pendientesSnap.docs.any((p) => p.id == recipeId);
+          if (esDePendiente) batch.delete(doc.reference);
+        }
+
+        await batch.commit();
+      }
+
       await FirebaseFirestore.instance
           .collection('recetas_personales').doc(widget.docId).delete();
+
       if (context.mounted) Navigator.pop(context);
     } catch (e) {
       setState(() => _eliminando = false);
@@ -666,7 +719,6 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
   }
 }
 
-// ─── Botón opción ─────────────────────────────────
 class _OpcionBtn extends StatelessWidget {
   final IconData icon; final String label; final String sublabel;
   final Color color; final Color bgColor; final VoidCallback? onTap;
@@ -691,9 +743,6 @@ class _OpcionBtn extends StatelessWidget {
       ])));
 }
 
-// ═══════════════════════════════════════════════════
-//  VISTA SOLO LECTURA
-// ═══════════════════════════════════════════════════
 class _DetalleRecetaPersonalSheet extends StatefulWidget {
   final Map<String, dynamic> data;
   const _DetalleRecetaPersonalSheet({required this.data});
@@ -829,9 +878,6 @@ class _IngPlaceholder extends StatelessWidget {
     child: const Icon(Icons.egg_alt_rounded, color: Color(0xFF2D9E73), size: 18));
 }
 
-// ═══════════════════════════════════════════════════
-//  BUSCADOR DB
-// ═══════════════════════════════════════════════════
 class _BuscadorRecetasDBSheet extends StatefulWidget {
   const _BuscadorRecetasDBSheet();
   @override

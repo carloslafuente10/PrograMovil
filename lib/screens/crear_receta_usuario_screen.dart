@@ -67,8 +67,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
 
   bool _guardando = false;
   String? _recetaPersonalId;
-
-  // ✅ Estado original de la receta al abrir
   String _estadoOriginal = 'borrador';
   bool _fueEditado = false;
   bool _intentoAvanzar = false;
@@ -126,7 +124,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     super.dispose();
   }
 
-  // ✅ Es reenvío solo si venía rechazada y fue editada
   bool get _esReenvio =>
       (_estadoOriginal == 'rechazada' || _estadoOriginal == 'rechazada_editada') &&
       _fueEditado;
@@ -177,9 +174,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       margin: const EdgeInsets.all(16)));
   }
 
-  // ─────────────────────────────────────────────
-  //  BUILD PAYLOAD
-  // ─────────────────────────────────────────────
   Map<String, dynamic> _buildPayload(String estado, {String? estadoRevision}) {
     final uid   = FirebaseAuth.instance.currentUser?.uid ?? '';
     final email = FirebaseAuth.instance.currentUser?.email ?? '';
@@ -201,22 +195,17 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       'usuarioEmail':  email,
       'fechaCreacion': DateTime.now().toIso8601String(),
     };
-    // ✅ estadoRevision: null | 'pendiente' | 'aprobada' | 'rechazada'
+
     if (estadoRevision != null) {
       payload['estadoRevision'] = estadoRevision;
     }
     return payload;
   }
 
-  // ─────────────────────────────────────────────
-  //  GUARDAR — cierra pantalla
-  // ─────────────────────────────────────────────
   Future<void> _guardarReceta() async {
     if (_guardando) return;
     setState(() => _guardando = true);
     try {
-      // ✅ Botón "Guardar" siempre guarda como 'guardada'
-      // Excepción: si venía rechazada, guarda como 'rechazada_editada' para habilitar reenvío
       final nuevoEstado = (_estadoOriginal == 'rechazada' || _estadoOriginal == 'rechazada_editada')
           ? 'rechazada_editada'
           : 'guardada';
@@ -238,9 +227,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     }
   }
 
-  // ─────────────────────────────────────────────
-  //  GUARDAR BORRADOR — cierra pantalla
-  // ─────────────────────────────────────────────
   Future<void> _guardarBorrador() async {
     if (_guardando) return;
     setState(() => _guardando = true);
@@ -249,7 +235,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       if (_estadoOriginal == 'rechazada' || _estadoOriginal == 'rechazada_editada') {
         nuevoEstado = 'rechazada_editada';
       } else if (_estadoOriginal == 'guardada') {
-        nuevoEstado = 'guardada'; // guardada sigue siendo guardada
+        nuevoEstado = 'guardada'; 
       } else {
         nuevoEstado = 'borrador';
       }
@@ -271,9 +257,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     }
   }
 
-  // ─────────────────────────────────────────────
-  //  GUARDAR COMO "GUARDADA" (receta terminada)
-  // ─────────────────────────────────────────────
   Future<void> _guardarComoGuardada() async {
     if (!_todoValido) {
       _mostrarSnack('Completa todos los campos para guardar la receta'); return;
@@ -292,7 +275,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       }
       if (mounted) {
         Navigator.pop(context);
-        // Mostrar snack en pantalla anterior
       }
     } catch (e) {
       if (mounted) _mostrarSnack('Error al guardar: $e');
@@ -301,10 +283,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     }
   }
 
-  // ─────────────────────────────────────────────
-  //  ENVIAR A REVISIÓN
-  //  ✅ El estado personal NO cambia, solo se agrega estadoRevision
-  // ─────────────────────────────────────────────
   Future<void> _enviarARevision() async {
     if (!_todoValido) {
       if (!_infoValida) { _irAPagina(0); _mostrarSnack('Completa la información básica'); }
@@ -324,7 +302,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
 
     setState(() => _guardando = true);
     try {
-      // ✅ Guardamos el estado actual SIN cambiarlo, solo actualizamos estadoRevision
       final estadoActual = _estadoOriginal == 'rechazada' || _estadoOriginal == 'rechazada_editada'
           ? 'rechazada_editada'
           : _estadoOriginal == 'guardada' ? 'guardada' : 'borrador';
@@ -434,20 +411,19 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       title: Text(titles[_paginaActual],
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18)),
       actions: [
-        // ✅ FIX Bug 3: eliminado el TextButton 'Guardar' duplicado del AppBar.
-        // El único Guardar/Borrador está en _BottomBar para evitar confusión.
         if (_guardando)
           const Padding(padding: EdgeInsets.symmetric(horizontal: 16),
             child: Center(child: SizedBox(width: 18, height: 18,
-                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)))),
+                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))))
+        else
+          TextButton(
+            onPressed: _guardarReceta,
+            child: const Text('Guardar', style: TextStyle(color: Colors.white70, fontSize: 13))),
       ],
     );
   }
 }
 
-// ═══════════════════════════════════════════════
-//  STEP INDICATOR
-// ═══════════════════════════════════════════════
 class _StepIndicator extends StatelessWidget {
   final int paso;
   final bool infoValida, ingredientesValidos, pasosValidos;
@@ -504,9 +480,6 @@ class _StepIndicator extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════
-//  PÁGINA INFO
-// ═══════════════════════════════════════════════
 class _PaginaInfo extends StatefulWidget {
   final TextEditingController nombreCtrl, caloriasCtrl, tiempoCtrl, imagenCtrl, subcategoriaCtrl;
   final int porciones;
@@ -629,9 +602,6 @@ class _PaginaInfoState extends State<_PaginaInfo> {
   }
 }
 
-// ═══════════════════════════════════════════════
-//  PÁGINA INGREDIENTES
-// ═══════════════════════════════════════════════
 class _PaginaIngredientes extends StatefulWidget {
   final List<_IngredienteSeleccionado> ingredientes;
   final VoidCallback onChanged;
@@ -934,9 +904,6 @@ class _MiniImagen extends StatelessWidget {
       child: const Center(child: Icon(Icons.egg_alt_rounded, color: Color(0xFF2D9E73), size: 20)));
 }
 
-// ═══════════════════════════════════════════════
-//  PÁGINA PASOS
-// ═══════════════════════════════════════════════
 class _PaginaPasos extends StatefulWidget {
   final List<TextEditingController> pasosCtrl;
   final VoidCallback onChanged;
@@ -1043,9 +1010,6 @@ class _MicroBtn extends StatelessWidget {
       constraints: const BoxConstraints());
 }
 
-// ═══════════════════════════════════════════════
-//  BOTTOM BAR — con lógica de estados
-// ═══════════════════════════════════════════════
 class _BottomBar extends StatelessWidget {
   final int pagina;
   final bool todoValido, guardando, esReenvio, fueEditado;
@@ -1065,10 +1029,7 @@ class _BottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Determinar qué botón izquierdo mostrar
-    // - Si es borrador nuevo: "Borrador"
-    // - Si es guardada o rechazada: "Guardar"
-    final bool esBorrador = estadoOriginal == 'borrador' || estadoOriginal == '';
+    final bool esBorrador  = estadoOriginal == 'borrador' || estadoOriginal == '';
     final bool puedeEnviar = estadoOriginal == 'guardada' || estadoOriginal == 'rechazada_editada';
     final bool btnEnviarActivo = puedeEnviar && todoValido;
 
@@ -1077,18 +1038,32 @@ class _BottomBar extends StatelessWidget {
       decoration: BoxDecoration(color: Colors.white,
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, -2))]),
       child: Row(children: [
-        // Botón izquierdo: Borrador o Guardar
+
         OutlinedButton(
-          onPressed: guardando ? null : (esBorrador ? onGuardarBorrador : onGuardarReceta),
+          onPressed: guardando ? null : onGuardarBorrador,
           style: OutlinedButton.styleFrom(
             side: BorderSide(color: Colors.grey[300]!),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12)),
-          child: Text(esBorrador ? 'Borrador' : 'Guardar',
+          child: Text('Borrador',
               style: TextStyle(color: Colors.grey[600], fontSize: 12))),
         const SizedBox(width: 8),
 
-        if (pagina == 2)
+        if (pagina == 2 && esBorrador)
+          Expanded(child: ElevatedButton.icon(
+            onPressed: guardando ? null : onGuardarReceta,
+            icon: guardando
+                ? const SizedBox(width: 16, height: 16,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : const Icon(Icons.bookmark_rounded, color: Colors.white, size: 16),
+            label: const Text('Guardar receta',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: todoValido ? _verde : Colors.grey[400],
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)))))
+
+        else if (pagina == 2 && !esBorrador)
           Expanded(child: ElevatedButton.icon(
             onPressed: (guardando || (!btnEnviarActivo && !esReenvio)) ? null : onEnviarRevision,
             icon: guardando
@@ -1104,11 +1079,13 @@ class _BottomBar extends StatelessWidget {
               backgroundColor: (btnEnviarActivo || esReenvio) ? _verde : Colors.grey[400],
               padding: const EdgeInsets.symmetric(vertical: 13),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)))))
+
         else
           Expanded(child: ElevatedButton.icon(
             onPressed: onSiguiente,
             icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 16),
-            label: const Text('Siguiente', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            label: const Text('Siguiente',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
             style: ElevatedButton.styleFrom(backgroundColor: _verde,
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))))),
@@ -1116,9 +1093,6 @@ class _BottomBar extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────
-//  DIÁLOGO DE CONFIRMACIÓN
-// ─────────────────────────────────────────────
 class _DialogConfirmar extends StatelessWidget {
   final String nombre;
   final bool esReenvio;
@@ -1159,7 +1133,6 @@ class _DialogConfirmar extends StatelessWidget {
   }
 }
 
-// Widgets auxiliares
 class _Label extends StatelessWidget {
   final String texto; final bool obligatorio; final bool error;
   const _Label(this.texto, {this.obligatorio = false, this.error = false});

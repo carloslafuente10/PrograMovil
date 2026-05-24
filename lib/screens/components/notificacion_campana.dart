@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../servicios/notificaciones_servicio.dart';
 import '../notificaciones_screen.dart';
 
-// ✅ CORREGIDO: admin usa email para buscar notificaciones
 class NotificacionCampana extends StatelessWidget {
   final bool esAdmin;
   const NotificacionCampana({super.key, required this.esAdmin});
@@ -15,7 +14,6 @@ class NotificacionCampana extends StatelessWidget {
 
     return StreamBuilder<int>(
       stream: esAdmin
-          // Admin usa su email para encontrar notificaciones
           ? NotificacionesServicio.streamContadorNoLeidasAdmin(user.email ?? '')
           : NotificacionesServicio.streamContadorNoLeidas(user.uid),
       builder: (context, snap) {
