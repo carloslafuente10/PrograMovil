@@ -6,6 +6,8 @@ import 'admin_categorias_screen.dart';
 import 'reportes_screen.dart';
 import 'admin_recetas_pendientes_screen.dart'; // ✅ nueva pantalla
 import 'gestionar_usuarios_screen.dart';
+import 'historial_screen.dart';
+import '../servicios/historial_servicio.dart';
 
 class AdminScreen extends StatelessWidget {
   const AdminScreen({super.key});
@@ -103,6 +105,15 @@ class AdminScreen extends StatelessWidget {
                 alignment: Alignment.centerRight,
                 child: GestureDetector(
                   onTap: () async {
+                    await HistorialService
+    .registrar(
+
+  accion:
+      'Cerró sesión',
+
+  tipo:
+      'logout',
+);
                     await FirebaseAuth.instance.signOut();
                     Navigator.pushReplacement(
                       context,
@@ -207,6 +218,32 @@ _AdminCard(
 
         builder: (_) =>
             const GestionarUsuariosScreen(),
+      ),
+    );
+  },
+),
+const SizedBox(height: 12),
+
+_AdminCard(
+
+  titulo: 'Historial',
+
+  subtitulo:
+      'Actividad y auditoría',
+
+  icono:
+      Icons.history,
+
+  onTap: () {
+
+    Navigator.push(
+
+      context,
+
+      MaterialPageRoute(
+
+        builder: (_) =>
+            const HistorialScreen(),
       ),
     );
   },

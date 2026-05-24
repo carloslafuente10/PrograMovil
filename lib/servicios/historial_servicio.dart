@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 
 class HistorialService {
 
@@ -60,9 +61,9 @@ class HistorialService {
 
     catch (e) {
 
-      print(
-        'Error historial: $e',
-      );
-    }
+  debugPrint(
+    'ERROR HISTORIAL: $e',
+  );
+}
   }
 }

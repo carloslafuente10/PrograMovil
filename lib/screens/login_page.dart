@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'package:programovil/screens/app_main_screen.dart';
 import 'admin_screen.dart';
+import '../servicios/historial_servicio.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -121,6 +122,15 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     }
     if (!mounted) return;
     _snack('¡Bienvenido!');
+    await HistorialService
+    .registrar(
+
+  accion:
+      'Inició sesión',
+
+  tipo:
+      'login',
+);
     if (rol == "admin") {
       Navigator.pushReplacement(
         context,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'ver_receta_admin_screen.dart';
 import 'crear_receta_admin_screen.dart';
+import '../servicios/historial_servicio.dart';
 
 class AdminRecetasScreen extends StatelessWidget {
   const AdminRecetasScreen({super.key});
@@ -360,11 +361,24 @@ class _RecetaCard extends StatelessWidget {
             child: Text('Cancelar', style: TextStyle(color: Colors.grey[600])),
           ),
           ElevatedButton(
-            onPressed: () {
-              FirebaseFirestore.instance
-                  .collection('app-recetas-completas')
-                  .doc(docId)
-                  .delete();
+            onPressed: ()  async{
+              await FirebaseFirestore
+    .instance
+    .collection(
+      'app-recetas-completas',
+    )
+    .doc(docId)
+    .delete();
+
+await HistorialService
+    .registrar(
+
+  accion:
+      'Eliminó receta ${data['nombre']}',
+
+  tipo:
+      'recetas',
+);
               Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
