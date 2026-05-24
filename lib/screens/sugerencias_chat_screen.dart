@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'detalle_receta_screen.dart';
+import 'voice_call_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class SugerenciasChatScreen extends StatefulWidget {
@@ -807,9 +808,11 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           ],
         ),
         child: ElevatedButton(
-          onPressed: () => _seleccionarOpcion(
-              "Consulta Especifica",
-              "Tengo una consulta mas específica de lo normal"),
+          // Navega a la pantalla de videollamada con T'anta-Wawa
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const VoiceCallScreen()),
+          ),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
             foregroundColor: Colors.white,
@@ -820,15 +823,27 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           ),
           child: const Row(
             children: [
-              Icon(Icons.psychology_alt, color: Colors.white, size: 32),
+              Icon(Icons.mic, color: Colors.white, size: 32),
               SizedBox(width: 15),
               Expanded(
-                child: Text(
-                  "Tengo una consulta más específica de lo normal",
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.3),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Consultar a T'anta-Wawa",
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.3),
+                    ),
+                    Text(
+                      "Asistente de voz ciberpunk andino",
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w400,
+                          color: Colors.white70),
+                    ),
+                  ],
                 ),
               ),
             ],
