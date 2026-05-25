@@ -58,8 +58,6 @@ class _RegistroScreenState extends State<RegistroScreen>
     super.dispose();
   }
 
-  // ─── Validadores ────────────────────────────────────────────────────────────
-
   String? _validarNombre(String? valor) {
     if (valor == null || valor.trim().isEmpty) {
       return 'Por favor ingresa tu nombre completo';
@@ -100,8 +98,6 @@ class _RegistroScreenState extends State<RegistroScreen>
     }
     return null;
   }
-
-  // ─── Acción de registro ─────────────────────────────────────────────────────
 
   Future<void> _crearCuenta() async {
     if (!_formKey.currentState!.validate()) return;
@@ -154,7 +150,7 @@ class _RegistroScreenState extends State<RegistroScreen>
       // 4. Navegar eliminando toda la pila anterior
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const AppMainScreen()),
+        MaterialPageRoute(builder: (_) => AppMainScreen(key: AppMainScreen.globalKey)),
         (route) => false,
       );
     } on FirebaseAuthException catch (e) {
@@ -199,8 +195,6 @@ class _RegistroScreenState extends State<RegistroScreen>
     }
   }
 
-  // ─── Widgets auxiliares ─────────────────────────────────────────────────────
-
   InputDecoration _decoracionCampo({
     required String label,
     required String hint,
@@ -236,8 +230,6 @@ class _RegistroScreenState extends State<RegistroScreen>
     );
   }
 
-  // ─── Build ──────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -255,8 +247,6 @@ class _RegistroScreenState extends State<RegistroScreen>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 12),
-
-                    // ── Cabecera con ícono ──────────────────────────────────
                     Center(
                       child: Container(
                         width: 100,
@@ -286,7 +276,6 @@ class _RegistroScreenState extends State<RegistroScreen>
 
                     const SizedBox(height: 20),
 
-                    // ── Título ─────────────────────────────────────────────
                     const Text(
                       'Sabores de Bolivia',
                       textAlign: TextAlign.center,
@@ -310,7 +299,6 @@ class _RegistroScreenState extends State<RegistroScreen>
 
                     const SizedBox(height: 32),
 
-                    // ── Campo: Nombre Completo ──────────────────────────────
                     TextFormField(
                       controller: _nombreController,
                       textCapitalization: TextCapitalization.words,
@@ -327,7 +315,6 @@ class _RegistroScreenState extends State<RegistroScreen>
 
                     const SizedBox(height: 16),
 
-                    // ── Campo: Correo Electrónico ───────────────────────────
                     TextFormField(
                       controller: _correoController,
                       keyboardType: TextInputType.emailAddress,
@@ -343,7 +330,6 @@ class _RegistroScreenState extends State<RegistroScreen>
 
                     const SizedBox(height: 16),
 
-                    // ── Campo: Contraseña ───────────────────────────────────
                     TextFormField(
                       controller: _contrasenaController,
                       obscureText: _ocultarContrasena,
@@ -370,7 +356,6 @@ class _RegistroScreenState extends State<RegistroScreen>
 
                     const SizedBox(height: 16),
 
-                    // ── Campo: Confirmar Contraseña ─────────────────────────
                     TextFormField(
                       controller: _confirmarContrasenaController,
                       obscureText: _ocultarConfirmarContrasena,
@@ -399,7 +384,6 @@ class _RegistroScreenState extends State<RegistroScreen>
 
                     const SizedBox(height: 32),
 
-                    // ── Botón CREAR CUENTA ──────────────────────────────────
                     SizedBox(
                       height: 56,
                       child: ElevatedButton(
@@ -445,7 +429,6 @@ class _RegistroScreenState extends State<RegistroScreen>
 
                     const SizedBox(height: 8),
 
-                    // ── Divisor decorativo ──────────────────────────────────
                     Row(
                       children: [
                         Expanded(
@@ -467,7 +450,6 @@ class _RegistroScreenState extends State<RegistroScreen>
                       ],
                     ),
 
-                    // ── TextButton → Ir al Login ────────────────────────────
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
                       style: TextButton.styleFrom(

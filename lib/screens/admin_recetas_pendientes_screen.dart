@@ -366,6 +366,7 @@ class _DetallePendienteSheetState extends State<_DetallePendienteSheet> {
                       label: const Text('Rechazar'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _procesando ? Colors.grey : Colors.red,
+                        foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
@@ -382,6 +383,7 @@ class _DetallePendienteSheetState extends State<_DetallePendienteSheet> {
                       label: Text(_procesando ? 'Aprobando...' : 'Aprobar'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _procesando ? Colors.grey : _verde,
+                        foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
