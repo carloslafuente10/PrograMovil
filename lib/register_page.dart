@@ -145,6 +145,7 @@ class _RegistroScreenState extends State<RegistroScreen>
           .set({
             'nombre': _nombreController.text.trim(),
             'correo': _correoController.text.trim(),
+            'rol': 'user',
             'creadoEn': FieldValue.serverTimestamp(),
           });
 
