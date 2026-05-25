@@ -66,7 +66,15 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   // _recetasData       → datos estructurados para el IntentRouter local
   // _catalogoCargado   → semáforo UI
   // ─────────────────────────────────────────────
+  /// Índice slim: solo "ID | Nombre | Categoría | Calorías | Tiempo"
+  /// Se inyecta en Groq cuando NO hay receta activa (~500 tokens máx.)
   String _catalogoContexto = "";
+
+  /// Texto completo de la receta que el usuario eligió en esta sesión.
+  /// Se inyecta en Groq EN LUGAR del catálogo una vez que el usuario
+  /// menciona una receta concreta. Reduce el contexto de ~5 000 → ~300 tokens.
+  String _recetaActivaContexto = "";
+
   bool   _catalogoCargado  = false;
 
   /// Cada entrada: { 'nombre', 'categoria', 'calorias', 'tiempo',
@@ -223,6 +231,9 @@ Máximo 3 oraciones por respuesta.
           .collection('app-recetas-completas')
           .get();
 
+      // ── Índice slim para el catálogo (solo metadatos básicos, sin ingredientes ni pasos) ──
+      // Objetivo: mantener el contexto inicial < 500 tokens aunque haya muchas recetas.
+      // Los ingredientes y pasos SOLO se envían a Groq cuando el usuario elige una receta.
       final StringBuffer buffer = StringBuffer();
 
       for (final doc in snapshot.docs) {
@@ -234,10 +245,12 @@ Máximo 3 oraciones por respuesta.
         final String calorias  = (data['calorias']  ?? '').toString();
         final String tiempo    = (data['tiempo']    ?? '').toString();
 
-        buffer.writeln("RECETA: $nombre");
-        if (categoria.isNotEmpty) buffer.writeln("  Categoría: $categoria");
-        if (calorias.isNotEmpty)  buffer.writeln("  Calorías: $calorias");
-        if (tiempo.isNotEmpty)    buffer.writeln("  Tiempo: $tiempo");
+        // ── Línea slim: ID | Nombre | meta ──
+        final List<String> meta = ["ID:${doc.id}", "RECETA:$nombre"];
+        if (categoria.isNotEmpty) meta.add("Categoría:$categoria");
+        if (calorias.isNotEmpty)  meta.add("Calorías:$calorias");
+        if (tiempo.isNotEmpty)    meta.add("Tiempo:$tiempo");
+        buffer.writeln(meta.join(" | "));
 
         // ── Ingredientes: tolerante a String y Map ──
         final List rawIngredientes = data['ingredientes'] ?? [];
@@ -249,10 +262,6 @@ Máximo 3 oraciones por respuesta.
           }
           return ing.toString();
         }).where((s) => s.isNotEmpty).toList();
-
-        if (ingredientesLimpios.isNotEmpty) {
-          buffer.writeln("  Ingredientes: ${ingredientesLimpios.join(', ')}");
-        }
 
         // ── Pasos: tolerante a String y Map con claves variables ──
         final List rawPasos = data['pasos'] ?? [];
@@ -267,17 +276,10 @@ Máximo 3 oraciones por respuesta.
           return paso.toString();
         }).where((s) => s.isNotEmpty).toList();
 
-        if (pasosLimpios.isNotEmpty) {
-          buffer.writeln("  Pasos de preparación:");
-          for (int i = 0; i < pasosLimpios.length; i++) {
-            buffer.writeln("    Paso ${i + 1}: ${pasosLimpios[i]}");
-          }
-        }
-
-        buffer.writeln();
-
-        // ── Guardar estructura local para el IntentRouter ──
+        // ── Guardar estructura completa LOCAL para el IntentRouter y para
+        //    construir _recetaActivaContexto cuando el usuario elija una receta ──
         _recetasData.add({
+          'id':           doc.id,
           'nombre':       nombre,
           'categoria':    categoria,
           'calorias':     calorias,
@@ -544,10 +546,16 @@ Máximo 3 oraciones por respuesta.
     _historial.add({"role": "user", "content": pregunta});
 
     // ── B. Construir payload ──
+    // Si ya hay una receta activa → inyectar SOLO su texto completo (~300 tokens).
+    // Si aún no → inyectar el índice slim con todos los nombres/meta (~<500 tokens).
+    final String catalogoParaApi = _recetaActivaContexto.isNotEmpty
+        ? _recetaActivaContexto
+        : _catalogoContexto;
+
     final String systemFinal = _systemPromptTemplate.replaceFirst(
       "{{CATALOGO}}",
-      _catalogoContexto.isNotEmpty
-          ? _catalogoContexto
+      catalogoParaApi.isNotEmpty
+          ? catalogoParaApi
           : "(Catálogo vacío — rechazar toda consulta de recetas)",
     );
 
@@ -653,13 +661,31 @@ Máximo 3 oraciones por respuesta.
     for (final receta in _recetasData) {
       final String nombre = receta['nombre'].toString().toLowerCase();
       if (p.contains(nombre) || nombre.split(' ').any((w) => w.length > 3 && p.contains(w))) {
+
+        // ── Construir el texto completo de esta receta para inyectar en Groq ──
+        // A partir de este punto, cada llamada a Groq usará SOLO este texto
+        // en lugar del catálogo completo. Pasa de ~5 000 tokens a ~300 tokens.
+        final StringBuffer rb = StringBuffer();
+        rb.writeln("RECETA: ${receta['nombre']}");
+        if ((receta['categoria'] as String).isNotEmpty) rb.writeln("  Categoría: ${receta['categoria']}");
+        if ((receta['calorias']  as String).isNotEmpty) rb.writeln("  Calorías: ${receta['calorias']}");
+        if ((receta['tiempo']    as String).isNotEmpty) rb.writeln("  Tiempo: ${receta['tiempo']}");
+        final List<String> ings = List<String>.from(receta['ingredientes']);
+        if (ings.isNotEmpty) rb.writeln("  Ingredientes: ${ings.join(', ')}");
+        final List<String> pasos = List<String>.from(receta['pasos']);
+        for (int i = 0; i < pasos.length; i++) {
+          rb.writeln("  Paso ${i + 1}: ${pasos[i]}");
+        }
+
         setState(() {
+          _recetaActivaContexto  = rb.toString();   // ← contexto acotado para Groq
           _recetaActivaNombre    = receta['nombre'].toString();
           _pasosActivos          = List<String>.from(receta['pasos']);
           _ingredientesActivos   = List<String>.from(receta['ingredientes']);
-          _pasoActualIndex       = -1; // Reset: no se han iniciado los pasos
+          _pasoActualIndex       = -1;
         });
         debugPrint("Receta activada: $_recetaActivaNombre");
+        debugPrint("Tokens aprox. contexto receta: ${_recetaActivaContexto.length ~/ 4}");
         return;
       }
     }
@@ -718,13 +744,14 @@ Máximo 3 oraciones por respuesta.
               onPressed: () {
                 setState(() {
                   _historial.clear();
-                  _preguntaFinal       = "";
-                  _respuestaNID        = "";
-                  _textoEscuchado      = "";
-                  _recetaActivaNombre  = null;
-                  _pasosActivos        = [];
-                  _ingredientesActivos = [];
-                  _pasoActualIndex     = -1;
+                  _preguntaFinal        = "";
+                  _respuestaNID         = "";
+                  _textoEscuchado       = "";
+                  _recetaActivaNombre   = null;
+                  _recetaActivaContexto = "";  // ← liberar contexto acotado
+                  _pasosActivos         = [];
+                  _ingredientesActivos  = [];
+                  _pasoActualIndex      = -1;
                 });
               },
             ),

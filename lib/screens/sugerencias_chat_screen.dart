@@ -200,44 +200,94 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
   }
 
   // ─────────────────────────────────────────────
-  // _buscarRecetasRecomendadas  (sin cambios)
+  // _generarVariantes
+  // Genera variantes de una categoría para tolerar
+  // tildes, mayúsculas y plural/singular en Firestore.
+  // ─────────────────────────────────────────────
+  List<String> _generarVariantes(String categoria) {
+    String base = categoria.trim();
+    String singular = base.endsWith('s')
+        ? base.substring(0, base.length - 1)
+        : base;
+    String plural = base.endsWith('s') ? base : '${base}s';
+
+    return [
+      base,
+      base.toLowerCase(),
+      base.toUpperCase(),
+      base[0].toUpperCase() + base.substring(1).toLowerCase(),
+      singular,
+      singular.toLowerCase(),
+      plural,
+      plural.toLowerCase(),
+    ].toSet().toList();
+  }
+
+  // ─────────────────────────────────────────────
+  // _buscarRecetasRecomendadas
   // ─────────────────────────────────────────────
   Future<void> _buscarRecetasRecomendadas() async {
+    if (_categoriaComidaElegida == null || _ingredientesSeleccionados.isEmpty) return;
+
     setState(() => _estaCargando = true);
     try {
+      final variantes = _generarVariantes(_categoriaComidaElegida!);
+
+      // Consulta amplia tolerante a tildes en el campo categoría
       final snapshot = await FirebaseFirestore.instance
           .collection('app-recetas-completas')
-          .where('categoria', isEqualTo: _categoriaComidaElegida)
+          .where(
+            Filter.or(
+              Filter('categoria', whereIn: variantes),
+              Filter('categoría', whereIn: variantes),
+            ),
+          )
           .get();
+
       List<Map<String, String>> recetasEncontradas = [];
+
       for (var doc in snapshot.docs) {
         final data = doc.data();
-        String nombreReceta = data['nombre'] ?? "Receta sin nombre";
-        List ingredientes = data['ingredientes'] ?? [];
-        bool tieneIngrediente = ingredientes.any((ing) =>
-            _ingredientesSeleccionados.contains(ing['nombre'].toString()));
+        List ingredientesDoc = data['ingredientes'] ?? [];
+
+        // Normalizar nombres de ingredientes: quitar guiones y espacios extra
+        List<String> nombresReceta = ingredientesDoc
+            .map((i) => (i['nombre'] ?? i['ingrediente_id'] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase()
+                .replaceAll('-', ' '))
+            .toList();
+
+        // La receta aparece si tiene AL MENOS UNO de los ingredientes seleccionados
+        bool tieneIngrediente = _ingredientesSeleccionados.any(
+          (ingSel) => nombresReceta.contains(ingSel.toLowerCase().trim()),
+        );
+
         if (tieneIngrediente) {
-          recetasEncontradas.add({'id': doc.id, 'nombre': nombreReceta});
+          recetasEncontradas.add({
+            'id': doc.id,
+            'nombre': data['nombre'] ?? "Receta",
+          });
         }
       }
-      if (recetasEncontradas.isNotEmpty) {
-        setState(() {
+
+      setState(() {
+        if (recetasEncontradas.isEmpty) {
+          _mensajes.add({
+            "rol": "llama",
+            "texto": "He buscado en mi alacena pero no tengo una receta exacta con esa combinación. 🥣 ¿Intentamos con otros ingredientes?",
+            "tipo": "texto",
+          });
+        } else {
           _mensajes.add({
             "rol": "llama",
             "texto": "¡He encontrado el maridaje perfecto! 👨‍🍳 Aquí tienes las opciones que mejor combinan con tu selección.",
             "tipo": "recetas_grid",
-            "recetas": recetasEncontradas
+            "recetas": recetasEncontradas,
           });
-        });
-      } else {
-        setState(() {
-          _mensajes.add({
-            "rol": "llama",
-            "texto": "He buscado en mi alacena pero no tengo una receta exacta con esa combinación. 🥣 ¿Intentamos con otros ingredientes?",
-            "tipo": "texto"
-          });
-        });
-      }
+        }
+      });
     } catch (e) {
       debugPrint("Error buscar recetas: $e");
       setState(() => _mensajes.add({"rol": "llama", "texto": "Se nos ha derramado el caldo... Error en la conexión."}));
@@ -507,26 +557,46 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
   }
 
   // ─────────────────────────────────────────────
-  // _cargarIngredientesPrimordiales  (sin cambios)
+  // _cargarIngredientesPrimordiales
   // ─────────────────────────────────────────────
   Future<void> _cargarIngredientesPrimordiales(String categoria) async {
     setState(() => _estaCargando = true);
     try {
+      final variantes = _generarVariantes(categoria);
+
+      // Consulta tolerante a tildes en el campo categoría
       final snapshot = await FirebaseFirestore.instance
           .collection('app-recetas-completas')
-          .where('categoria', isEqualTo: categoria)
+          .where(
+            Filter.or(
+              Filter('categoria', whereIn: variantes),
+              Filter('categoría', whereIn: variantes),
+            ),
+          )
           .get();
-      Set<String> primordialesSet = {};
+
+      Set<String> setIngs = {};
       for (var doc in snapshot.docs) {
-        List ingredientes = doc.data()['ingredientes'] ?? [];
-        for (var ing in ingredientes) {
-          if (ing['es_primordial'] == true) {
-            primordialesSet.add(ing['nombre'].toString());
+        for (var ing in (doc.data()['ingredientes'] ?? [])) {
+          if (ing is Map &&
+              (ing['es_primordial'] == true ||
+                  ing['es_primordial'].toString().toLowerCase() == 'true')) {
+            // Rescata nombre o ingrediente_id si el nombre falla
+            String nom = (ing['nombre'] ?? ing['ingrediente_id'] ?? '')
+                .toString()
+                .replaceAll('-', ' ')
+                .trim();
+            if (nom.isNotEmpty) {
+              // Capitalizar primera letra
+              nom = nom[0].toUpperCase() + nom.substring(1).toLowerCase();
+              setIngs.add(nom);
+            }
           }
         }
       }
+
       setState(() {
-        _ingredientesPrimordiales = primordialesSet.toList();
+        _ingredientesPrimordiales = setIngs.toList()..sort();
         _mostrarGridIngredientes = true;
         _mensajes.add({
           "rol": "llama",
@@ -1522,27 +1592,31 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
   Widget _buildCategoriasGrid() {
     final cats = ["Almuerzo", "Cena", "Desayuno", "Snack", "Refrescos"];
     return Wrap(
-      spacing: 8,
+      spacing: 8.0,
+      runSpacing: 8.0,
+      alignment: WrapAlignment.center,
       children: cats.map((cat) {
-        bool desactivarCat = _bloquearCategorias ||
-            (_categoriaComidaElegida != null &&
-                _categoriaComidaElegida != cat);
-        return ActionChip(
-          label: Text(cat),
-          backgroundColor: _categoriaComidaElegida == cat
-              ? _verde.withOpacity(0.2)
-              : Colors.white,
-          onPressed: desactivarCat
-              ? null
-              : () {
-                  setState(() {
-                    _bloquearCategorias = true;
-                    _categoriaComidaElegida = cat;
-                    _mensajes.add(
-                        {"rol": "usuario", "texto": "Categoría: $cat", "tipo": "texto"});
-                  });
-                  _cargarIngredientesPrimordiales(cat);
-                },
+        bool isSelected = _categoriaComidaElegida == cat;
+        return FilterChip(
+          label: Text(cat, style: const TextStyle(fontSize: 12)),
+          selected: isSelected,
+          selectedColor: _verde.withOpacity(0.3),
+          checkmarkColor: _verde,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+                color: isSelected ? _verde : Colors.grey.shade300),
+          ),
+          onSelected: (_) {
+            if (_bloquearCategorias) return;
+            setState(() {
+              _bloquearCategorias = true;
+              _categoriaComidaElegida = cat;
+              _mensajes.add(
+                  {"rol": "usuario", "texto": "Categoría: $cat", "tipo": "texto"});
+            });
+            _cargarIngredientesPrimordiales(cat);
+          },
         );
       }).toList(),
     );
@@ -1556,30 +1630,25 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
         children: [
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate:
-                const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 2.2,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-            ),
-            itemCount: _ingredientesPrimordiales.length,
-            itemBuilder: (context, index) {
-              final ing = _ingredientesPrimordiales[index];
+          Wrap(
+            spacing: 8.0,
+            runSpacing: 8.0,
+            alignment: WrapAlignment.center,
+            children: _ingredientesPrimordiales.map((ing) {
               final isSel = _ingredientesSeleccionados.contains(ing);
               return FilterChip(
-                label: Text(ing,
-                    style: const TextStyle(fontSize: 11),
-                    overflow: TextOverflow.ellipsis),
+                label: Text(ing, style: const TextStyle(fontSize: 12)),
                 selected: isSel,
                 selectedColor: _verde.withOpacity(0.3),
+                checkmarkColor: _verde,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(
+                      color: isSel ? _verde : Colors.grey.shade300),
+                ),
                 onSelected: (val) {
                   setState(() {
-                    if (val &&
-                        _ingredientesSeleccionados.length < 3) {
+                    if (val && _ingredientesSeleccionados.length < 3) {
                       _ingredientesSeleccionados.add(ing);
                     } else if (!val) {
                       _ingredientesSeleccionados.remove(ing);
@@ -1587,9 +1656,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                   });
                 },
               );
-            },
+            }).toList(),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: _ingredientesSeleccionados.isNotEmpty
                 ? () {
