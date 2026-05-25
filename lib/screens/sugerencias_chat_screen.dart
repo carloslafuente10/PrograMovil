@@ -10,7 +10,6 @@ import 'detalle_receta_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 
-
 class SugerenciasChatScreen extends StatefulWidget {
 
   const SugerenciasChatScreen({super.key});
@@ -81,8 +80,8 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen> {
 
   // --- CONFIGURACIÓN DE GROQ (xAI API) ---
 
-final String _apiKeyGrok = dotenv.env['GROQ_API_KEY'] ?? '';
-final String _systemPrompt = """
+  final String _apiKeyGrok = dotenv.env['GROQ_API_KEY'] ?? '';
+  final String _systemPrompt = """
 
 Eres A.L.I.C.I.A., la chef virtual oficial de PrograMovil.
 
@@ -975,38 +974,67 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
 
   Widget _buildResponsiveLayout() {
+
     if (_categoriaActual == "Reporte") {
+
       return Column(
+
         children: [
-          // Mitad superior: 50% de la pantalla para el contenedor y la animación
-          Expanded(
-            flex: 1,
-            child: Container(
-              width: double.infinity,
-              color: Colors.white,
-              child: Center(
-                child: SizedBox.expand( // Hace que la imagen o animación llene su espacio asignado
-                  child: Image.asset(
-                    'assets/images/fondo1.webp',
-                    fit: BoxFit.contain, // Mantiene la proporción de A.L.I.C.I.A. sin recortarla
+
+          Container(
+
+            height: 140,
+
+            width: double.infinity,
+
+            color: Colors.white,
+
+            child: const Center(
+
+              child: Column(
+
+                mainAxisAlignment: MainAxisAlignment.center,
+
+                children: [
+
+                  Icon(Icons.restaurant, size: 36, color: Color(0xFF2D9E73)),
+
+                  SizedBox(height: 6),
+
+                  Text(
+
+                    "[ Animación de la Llama ]",
+
+                    style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+
                   ),
-                ),
+
+                ],
+
               ),
+
             ),
+
           ),
-          
+
           const Divider(height: 1, color: Colors.black12),
-          
-          // Mitad inferior: 50% de la pantalla dedicado al flujo del chat
+
           Expanded(
-            flex: 1,
+
             child: _buildChatLayout(),
+
           ),
+
         ],
+
       );
+
     } else {
+
       return _buildChatLayout();
+
     }
+
   }
 
 
@@ -1298,7 +1326,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
                           backgroundColor: _verde.withOpacity(0.2),
 
-                          backgroundImage: const AssetImage('assets/images/iconllama.png'),
+                          backgroundImage: const AssetImage('assets/images/chef_avatar.png'),
 
                           child: const Icon(Icons.restaurant, size: 16, color: Color(0xFF2D9E73)),
 
