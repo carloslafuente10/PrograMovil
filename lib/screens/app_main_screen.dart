@@ -8,9 +8,12 @@ import 'login_page.dart';
 import 'sugerencias_chat_screen.dart';
 import 'mis_recetas_screen.dart';
 import 'package:lottie/lottie.dart';
+import 'components/notificacion_campana.dart';
 
 class AppMainScreen extends StatefulWidget {
   const AppMainScreen({super.key});
+  static final GlobalKey<AppMainScreenState> globalKey =
+      GlobalKey<AppMainScreenState>();
 
   @override
   State<AppMainScreen> createState() => AppMainScreenState();
@@ -76,7 +79,6 @@ class AppMainScreenState extends State<AppMainScreen> {
               child: GestureDetector(
                 onTap: () => Navigator.push(
                   context,
-
                   MaterialPageRoute(
                     builder: (context) => SugerenciasChatScreen(),
                   ),
@@ -198,11 +200,16 @@ class AppMainScreenState extends State<AppMainScreen> {
   }
 }
 
-class _AjustesScreen extends StatelessWidget {
+class _AjustesScreen extends StatefulWidget {
+  const _AjustesScreen();
+
+  @override
+  State<_AjustesScreen> createState() => _AjustesScreenState();
+}
+
+class _AjustesScreenState extends State<_AjustesScreen> {
   static const Color _verde = Color(0xFF2D9E73);
   static const Color _verdeClaro = Color(0xFFE8F7F1);
-
-  const _AjustesScreen();
 
   @override
   Widget build(BuildContext context) {
@@ -230,6 +237,11 @@ class _AjustesScreen extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
                 child: Column(
                   children: [
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [NotificacionCampana(esAdmin: false)],
+                    ),
+                    // Avatar
                     CircleAvatar(
                       radius: 38,
                       backgroundColor: Colors.white24,
@@ -310,7 +322,7 @@ class _AjustesScreen extends StatelessWidget {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => MisRecetasScreen(),
+                          builder: (context) => const MisRecetasScreen(),
                         ),
                       ),
                     ),

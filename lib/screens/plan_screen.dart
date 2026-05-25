@@ -104,17 +104,11 @@ class _PlanScreenState extends State<PlanScreen>
       _planCache ??= {};
       _planCache![tipoComida] = recetaId;
     });
-    await FirebaseFirestore.instance
-        .collection('app-planes')
-        .doc(_docId)
-        .set(
-          {
-            'userId': _userId,
-            'fecha': _fechaStr,
-            tipoComida: recetaId,
-          },
-          SetOptions(merge: true),
-        );
+    await FirebaseFirestore.instance.collection('app-planes').doc(_docId).set({
+      'userId': _userId,
+      'fecha': _fechaStr,
+      tipoComida: recetaId,
+    }, SetOptions(merge: true));
   }
 
   Future<void> _eliminarDelPlan(String tipoComida) async {
@@ -171,10 +165,9 @@ class _PlanScreenState extends State<PlanScreen>
             .doc(id)
             .get();
         if (doc.exists) {
-          final cal = int.tryParse(
-                (doc.data()?['calorias'] ??
-                        doc.data()?['calorías'] ??
-                        '0')
+          final cal =
+              int.tryParse(
+                (doc.data()?['calorias'] ?? doc.data()?['calorías'] ?? '0')
                     .toString(),
               ) ??
               0;
@@ -267,7 +260,8 @@ class _PlanScreenState extends State<PlanScreen>
 
   Widget _buildHeader() {
     final hoy = DateTime.now();
-    final esHoy = _fechaSeleccionada.year == hoy.year &&
+    final esHoy =
+        _fechaSeleccionada.year == hoy.year &&
         _fechaSeleccionada.month == hoy.month &&
         _fechaSeleccionada.day == hoy.day;
 
@@ -369,10 +363,12 @@ class _PlanScreenState extends State<PlanScreen>
         itemExtent: 56,
         itemBuilder: (context, index) {
           final dia = _indexAFecha(index);
-          final esSeleccionado = dia.year == _fechaSeleccionada.year &&
+          final esSeleccionado =
+              dia.year == _fechaSeleccionada.year &&
               dia.month == _fechaSeleccionada.month &&
               dia.day == _fechaSeleccionada.day;
-          final esHoy = dia.year == hoyNorm.year &&
+          final esHoy =
+              dia.year == hoyNorm.year &&
               dia.month == hoyNorm.month &&
               dia.day == hoyNorm.day;
 
@@ -410,9 +406,7 @@ class _PlanScreenState extends State<PlanScreen>
                     dias[(dia.weekday - 1) % 7],
                     style: TextStyle(
                       fontSize: 10,
-                      color: esSeleccionado
-                          ? Colors.white70
-                          : Colors.grey[500],
+                      color: esSeleccionado ? Colors.white70 : Colors.grey[500],
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -425,8 +419,8 @@ class _PlanScreenState extends State<PlanScreen>
                       color: esSeleccionado
                           ? Colors.white
                           : esHoy
-                              ? _verde
-                              : const Color(0xFF1A1A1A),
+                          ? _verde
+                          : const Color(0xFF1A1A1A),
                     ),
                   ),
                 ],
@@ -456,8 +450,11 @@ class _PlanScreenState extends State<PlanScreen>
           ),
           child: Row(
             children: [
-              Icon(Icons.local_fire_department_rounded,
-                  color: _naranja, size: 18),
+              Icon(
+                Icons.local_fire_department_rounded,
+                color: _naranja,
+                size: 18,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Total del día: $total cal',
@@ -539,10 +536,8 @@ class _PlanScreenState extends State<PlanScreen>
                   ],
                 ),
                 GestureDetector(
-                  onTap: () => _seleccionarReceta(
-                    tipo,
-                    _categoriasParaTipo(tipo),
-                  ),
+                  onTap: () =>
+                      _seleccionarReceta(tipo, _categoriasParaTipo(tipo)),
                   child: Container(
                     width: 34,
                     height: 34,
@@ -564,10 +559,8 @@ class _PlanScreenState extends State<PlanScreen>
                   )
                 : _PlaceholderVacio(
                     label: 'Planifica tu $titulo',
-                    onTap: () => _seleccionarReceta(
-                      tipo,
-                      _categoriasParaTipo(tipo),
-                    ),
+                    onTap: () =>
+                        _seleccionarReceta(tipo, _categoriasParaTipo(tipo)),
                     color: color,
                   ),
           ],
@@ -605,8 +598,11 @@ class _PlanScreenState extends State<PlanScreen>
                         color: _snackClaro,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(Icons.local_cafe_rounded,
-                          color: _snackColor, size: 20),
+                      child: Icon(
+                        Icons.local_cafe_rounded,
+                        color: _snackColor,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Column(
@@ -660,8 +656,11 @@ class _PlanScreenState extends State<PlanScreen>
                         const SizedBox(height: 14),
                         Row(
                           children: [
-                            Icon(Icons.cookie_outlined,
-                                color: _snackColor, size: 16),
+                            Icon(
+                              Icons.cookie_outlined,
+                              color: _snackColor,
+                              size: 16,
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               'Snacks',
@@ -683,8 +682,11 @@ class _PlanScreenState extends State<PlanScreen>
                         const SizedBox(height: 14),
                         Row(
                           children: [
-                            Icon(Icons.water_drop_outlined,
-                                color: _azul, size: 16),
+                            Icon(
+                              Icons.water_drop_outlined,
+                              color: _azul,
+                              size: 16,
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               'Bebidas',
@@ -746,10 +748,8 @@ class _PlanScreenState extends State<PlanScreen>
               : _PlaceholderVacio(
                   label:
                       'Añadir ${label == 'snack' ? 'snack' : 'bebida'} (${etiquetas[clave] ?? numero})',
-                  onTap: () => _seleccionarReceta(
-                    clave,
-                    _categoriasParaTipo(clave),
-                  ),
+                  onTap: () =>
+                      _seleccionarReceta(clave, _categoriasParaTipo(clave)),
                   color: color,
                 ),
         );
@@ -830,9 +830,7 @@ class _TarjetaRecetaPlan extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.grey[50],
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: accentColor.withValues(alpha: 0.2),
-              ),
+              border: Border.all(color: accentColor.withValues(alpha: 0.2)),
             ),
             child: Row(
               children: [
@@ -854,7 +852,9 @@ class _TarjetaRecetaPlan extends StatelessWidget {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -881,22 +881,32 @@ class _TarjetaRecetaPlan extends StatelessWidget {
                         const SizedBox(height: 6),
                         Row(
                           children: [
-                            Icon(Icons.local_fire_department,
-                                size: 13, color: Colors.orange[400]),
+                            Icon(
+                              Icons.local_fire_department,
+                              size: 13,
+                              color: Colors.orange[400],
+                            ),
                             const SizedBox(width: 3),
                             Text(
                               '$calorias Cal',
                               style: TextStyle(
-                                  fontSize: 11, color: Colors.grey[500]),
+                                fontSize: 11,
+                                color: Colors.grey[500],
+                              ),
                             ),
                             const SizedBox(width: 10),
-                            Icon(Icons.access_time,
-                                size: 13, color: Colors.grey[400]),
+                            Icon(
+                              Icons.access_time,
+                              size: 13,
+                              color: Colors.grey[400],
+                            ),
                             const SizedBox(width: 3),
                             Text(
                               '$tiempo Min',
                               style: TextStyle(
-                                  fontSize: 11, color: Colors.grey[500]),
+                                fontSize: 11,
+                                color: Colors.grey[500],
+                              ),
                             ),
                           ],
                         ),
@@ -932,11 +942,11 @@ class _TarjetaRecetaPlan extends StatelessWidget {
   }
 
   Widget _imgPlaceholder(Color color) => Container(
-        width: 80,
-        height: 80,
-        color: color.withValues(alpha: 0.1),
-        child: Icon(Icons.restaurant, size: 28, color: color),
-      );
+    width: 80,
+    height: 80,
+    color: color.withValues(alpha: 0.1),
+    child: Icon(Icons.restaurant, size: 28, color: color),
+  );
 }
 
 class _PlaceholderVacio extends StatelessWidget {
@@ -1005,11 +1015,11 @@ class _SelectorRecetaScreenState extends State<_SelectorRecetaScreen> {
   final TextEditingController _ctrl = TextEditingController();
 
   bool _documentoPermitido(Map<String, dynamic> data) {
-    final categoria =
-        (data['categoría'] ?? data['categoria'] ?? '').toString();
+    final categoria = (data['categoría'] ?? data['categoria'] ?? '').toString();
     if (widget.categoriasPermitidas.isEmpty) return true;
-    return widget.categoriasPermitidas
-        .any((c) => c.toLowerCase() == categoria.toLowerCase());
+    return widget.categoriasPermitidas.any(
+      (c) => c.toLowerCase() == categoria.toLowerCase(),
+    );
   }
 
   @override
@@ -1055,14 +1065,19 @@ class _SelectorRecetaScreenState extends State<_SelectorRecetaScreen> {
               onChanged: (v) => setState(() => _busqueda = v),
               decoration: InputDecoration(
                 hintText: 'Buscar receta...',
-                hintStyle:
-                    TextStyle(color: Colors.grey[400], fontSize: 14),
-                prefixIcon:
-                    Icon(Icons.search, color: Colors.grey[400], size: 20),
+                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: Colors.grey[400],
+                  size: 20,
+                ),
                 suffixIcon: _busqueda.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear,
-                            color: Colors.grey, size: 20),
+                        icon: const Icon(
+                          Icons.clear,
+                          color: Colors.grey,
+                          size: 20,
+                        ),
                         onPressed: () {
                           _ctrl.clear();
                           setState(() => _busqueda = '');
@@ -1107,8 +1122,9 @@ class _SelectorRecetaScreenState extends State<_SelectorRecetaScreen> {
 
                 final docs = snapshot.data!.docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
-                  final nombre =
-                      (data['nombre'] ?? '').toString().toLowerCase();
+                  final nombre = (data['nombre'] ?? '')
+                      .toString()
+                      .toLowerCase();
                   return _documentoPermitido(data) &&
                       nombre.contains(_busqueda.toLowerCase());
                 }).toList();
@@ -1126,17 +1142,17 @@ class _SelectorRecetaScreenState extends State<_SelectorRecetaScreen> {
 
                 return ListView.separated(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8),
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   itemCount: docs.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, i) {
                     final data = docs[i].data() as Map<String, dynamic>;
-                    final nombre =
-                        data['nombre']?.toString() ?? 'Sin nombre';
+                    final nombre = data['nombre']?.toString() ?? 'Sin nombre';
                     final imagen = data['imagen']?.toString() ?? '';
                     final calorias =
-                        (data['calorias'] ?? data['calorías'])
-                            ?.toString() ??
+                        (data['calorias'] ?? data['calorías'])?.toString() ??
                         '0';
                     final tiempo = data['tiempo']?.toString() ?? '0';
 
@@ -1194,26 +1210,32 @@ class _SelectorRecetaScreenState extends State<_SelectorRecetaScreen> {
                                   const SizedBox(height: 6),
                                   Row(
                                     children: [
-                                      Icon(Icons.local_fire_department,
-                                          size: 13,
-                                          color: Colors.orange[400]),
+                                      Icon(
+                                        Icons.local_fire_department,
+                                        size: 13,
+                                        color: Colors.orange[400],
+                                      ),
                                       const SizedBox(width: 3),
                                       Text(
                                         '$calorias Cal',
                                         style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.grey[500]),
+                                          fontSize: 11,
+                                          color: Colors.grey[500],
+                                        ),
                                       ),
                                       const SizedBox(width: 10),
-                                      Icon(Icons.access_time,
-                                          size: 13,
-                                          color: Colors.grey[400]),
+                                      Icon(
+                                        Icons.access_time,
+                                        size: 13,
+                                        color: Colors.grey[400],
+                                      ),
                                       const SizedBox(width: 3),
                                       Text(
                                         '$tiempo min',
                                         style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.grey[500]),
+                                          fontSize: 11,
+                                          color: Colors.grey[500],
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -1243,9 +1265,9 @@ class _SelectorRecetaScreenState extends State<_SelectorRecetaScreen> {
   }
 
   Widget _placeholder() => Container(
-        width: 80,
-        height: 80,
-        color: const Color(0xFFE8F7F1),
-        child: const Icon(Icons.restaurant, size: 28, color: _verde),
-      );
+    width: 80,
+    height: 80,
+    color: const Color(0xFFE8F7F1),
+    child: const Icon(Icons.restaurant, size: 28, color: _verde),
+  );
 }

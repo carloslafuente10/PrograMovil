@@ -13,7 +13,8 @@ plugins {
 
 android {
     namespace = "com.example.programovil"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
+
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

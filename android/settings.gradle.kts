@@ -19,9 +19,9 @@ pluginManagement {
 
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
-    id("com.android.application") version "8.3.0" apply false // DEBE SER 8.2.1 O SUPERIOR
+    id("com.android.application") version "8.6.0" apply false // <-- Subimos a 8.6.0 para soportar SDK 36
     id("com.google.gms.google-services") version "4.4.4" apply false
-    id("org.jetbrains.kotlin.android") version "1.9.22" apply false 
+    id("org.jetbrains.kotlin.android") version "2.1.0" apply false // <-- Subimos a 2.1.0 por compatibilidad
 }
 
 include(":app")
