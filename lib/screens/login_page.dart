@@ -1,11 +1,10 @@
+import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
 import 'package:programovil/screens/app_main_screen.dart';
-import 'dart:math'; // Para generar el número aleatorio
-import 'dart:convert'; // Para el json.encode
-import 'package:http/http.dart' as http; // Para la petición web
-import 'package:programovil/screens/reset_password_page.dart'; 
 import 'admin_screen.dart';
 
 class LoginPage extends StatefulWidget {
@@ -24,7 +23,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   static const Color _borde = Color(0xFFDDDDDD);
 
   // Variable para el código OTP
-  String _codigoGenerado = ''; 
+  String _codigoGenerado = '';
 
   // Controllers
   final correoCtrl = TextEditingController();
@@ -33,7 +32,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   final regCorreoCtrl = TextEditingController();
   final regPassCtrl = TextEditingController();
   final regConfirmCtrl = TextEditingController();
-  final codigoOTPController = TextEditingController(); 
+  final codigoOTPController = TextEditingController();
 
   bool registrando = false;
   bool loginCargando = false;
@@ -63,11 +62,9 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     regCorreoCtrl.dispose();
     regPassCtrl.dispose();
     regConfirmCtrl.dispose();
-    codigoOTPController.dispose(); 
+    codigoOTPController.dispose();
     super.dispose();
   }
-
-  // ── LÓGICA DE AUTENTICACIÓN ────────────────────────────────────────────────
 
   void _toggleRegistro() {
     setState(() => registrando = !registrando);
@@ -85,55 +82,67 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       });
     }
   }
+
   Future<void> acceder() async {
-  final email = correoCtrl.text.trim();
-  final password = passCtrl.text.trim();
+    final email = correoCtrl.text.trim();
+    final password = passCtrl.text.trim();
 
-  if (email.isEmpty || password.isEmpty) {
-    _snack('Completa todos los campos', esError: true);
-    return;
-  }
-
-  setState(() => loginCargando = true);
-
-  try {
-    final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-
-    final uid = cred.user!.uid;
-    final doc = await FirebaseFirestore.instance
-        .collection('app-usuarios')
-        .doc(uid)
-        .get();
-    final data = doc.data();
-    String rol = "user"; // default
-    if (data != null && data.containsKey('rol')) {
-      rol = data['rol'];
-    }
-    if (!mounted) return;
-    _snack('¡Bienvenido!');
-    if (rol == "admin") {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const AdminScreen()),
-      );
-    } else {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const AppMainScreen()),
-      );
+    if (email.isEmpty || password.isEmpty) {
+      _snack('Completa todos los campos', esError: true);
+      return;
     }
 
-  } on FirebaseAuthException catch (e) {
-    _snack('Error: Credenciales incorrectas', esError: true);
-  } catch (e) {
-    _snack('Error al conectar con el servidor', esError: true);
-  } finally {
-    if (mounted) setState(() => loginCargando = false);
+    setState(() => loginCargando = true);
+
+    try {
+      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      final uid = cred.user!.uid;
+      final doc = await FirebaseFirestore.instance
+          .collection('app-usuarios')
+          .doc(uid)
+          .get();
+      final data = doc.data();
+
+      // Actualizar último acceso
+      await FirebaseFirestore.instance
+          .collection('app-usuarios')
+          .doc(uid)
+          .update({
+        'ultimoAcceso': FieldValue.serverTimestamp(),
+      });
+
+      String rol = 'user';
+      if (data != null && data.containsKey('rol')) {
+        rol = data['rol'];
+      }
+      if (!mounted) return;
+      _snack('¡Bienvenido!');
+      if (rol == 'admin') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminScreen()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AppMainScreen(key: AppMainScreen.globalKey),
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      _snack('Error: Credenciales incorrectas', esError: true);
+    } catch (e) {
+      _snack('Error al conectar con el servidor', esError: true);
+    } finally {
+      if (mounted) setState(() => loginCargando = false);
+    }
   }
-}
+
   Future<void> _crearCuenta() async {
     if (!_regFormKey.currentState!.validate()) return;
     setState(() => regCargando = true);
@@ -145,7 +154,12 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       await resultado.user?.updateDisplayName(regNombreCtrl.text.trim());
       await _guardarUsuario(resultado.user!, nombre: regNombreCtrl.text.trim());
       if (!mounted) return;
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AppMainScreen()));
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AppMainScreen(key: AppMainScreen.globalKey),
+        ),
+      );
     } on FirebaseAuthException catch (e) {
       _snack(e.code == 'email-already-in-use' ? 'El correo ya existe' : 'Error en registro', esError: true);
     } finally {
@@ -153,44 +167,38 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     }
   }
 
-  // ── LÓGICA DE ENVÍO DE CORREO (EMAILJS) ────────────────────────────────────
-
-   Future<void> _enviarCorreoReal(String emailUsuario) async {
+  Future<void> _enviarCorreoReal(String emailUsuario) async {
     final random = Random();
-    // Generamos el código de 6 dígitos
     _codigoGenerado = (100000 + random.nextInt(900000)).toString();
 
-    // DATOS CONFIRMADOS SEGÚN TUS CAPTURAS
-    const serviceId = 'servicio_recetas'; 
-    const templateId = 'reset_password_template'; // El que acabas de poner
-    const publicKey = '2557bg-ii7G5aladA';         // Tu Public Key de la captura
+    const serviceId  = 'servicio_recetas';
+    const templateId = 'reset_password_template';
+    const publicKey  = '2557bg-ii7G5aladA';
 
     final url = Uri.parse('https://api.emailjs.com/api/v1.0/email/send');
-    
+
     final response = await http.post(
       url,
       headers: {
         'Content-Type': 'application/json',
-        'origin': 'http://localhost' // Esto ayuda a evitar bloqueos en algunos emuladores
+        'origin': 'http://localhost',
       },
       body: json.encode({
-        'service_id': serviceId,
+        'service_id':  serviceId,
         'template_id': templateId,
-        'user_id': publicKey,
+        'user_id':     publicKey,
         'template_params': {
-          'User_email': emailUsuario, // Asegúrate de que en EmailJS esté igual (mayúscula/minúscula)
-          'my_code': _codigoGenerado,
+          'User_email': emailUsuario,
+          'my_code':    _codigoGenerado,
         },
       }),
     );
 
-    // Si la respuesta no es 200, imprimimos el error exacto en la consola
     if (response.statusCode != 200) {
       print('DETALLE DEL ERROR EMAILJS: ${response.body}');
       throw Exception('Error: ${response.body}');
     }
   }
-  // ── UI Y MODALES ──────────────────────────────────────────────────────────
 
   void _modalRecuperarContra() {
     final correoParaRecuperar = correoCtrl.text.trim();
@@ -199,7 +207,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       return;
     }
 
-    int pasoRecuperacion = 1; 
+    int pasoRecuperacion = 1;
 
     showDialog(
       context: context,
@@ -207,7 +215,10 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       builder: (ctx) => StatefulBuilder(
         builder: (context, setModalState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(pasoRecuperacion == 1 ? 'Verificación de cuenta' : 'Ingresa el código', textAlign: TextAlign.center),
+          title: Text(
+            pasoRecuperacion == 1 ? 'Verificación de cuenta' : 'Ingresa el código',
+            textAlign: TextAlign.center,
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -215,9 +226,16 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                 const Icon(Icons.mark_email_read_outlined, size: 50, color: _verde),
                 const SizedBox(height: 15),
                 const Text('Enviaremos un código de seguridad a:', textAlign: TextAlign.center),
-                Text(correoParaRecuperar, style: const TextStyle(fontWeight: FontWeight.bold, color: _verde)),
+                Text(
+                  correoParaRecuperar,
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: _verde),
+                ),
               ] else ...[
-                const Text('Escribe el código que recibiste:', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: _textoGris)),
+                const Text(
+                  'Escribe el código que recibiste por EmailJS:',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: _textoGris),
+                ),
                 const SizedBox(height: 20),
                 TextField(
                   controller: codigoOTPController,
@@ -239,7 +257,10 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
               child: const Text('Cancelar', style: TextStyle(color: _textoGris)),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _verde, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _verde,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
               onPressed: () async {
                 if (pasoRecuperacion == 1) {
                   try {
@@ -250,26 +271,26 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                     _snack('Error al enviar el correo.', esError: true);
                   }
                 } else {
-                  // DENTRO DEL MODAL (ElevatedButton de VERIFICAR)
-if (codigoOTPController.text == _codigoGenerado) {
-  _snack('¡Código correcto!');
-  
-  // Primero cerramos el modal
-  Navigator.pop(ctx); 
-
-  // Ahora abrimos la nueva pantalla pasándole el correo
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => ResetPasswordPage(email: correoParaRecuperar),
-    ),
-  );
-} else {
-  _snack('Código incorrecto', esError: true);
-}
+                  if (codigoOTPController.text == _codigoGenerado) {
+                    Navigator.pop(ctx);
+                    try {
+                      await FirebaseAuth.instance.sendPasswordResetEmail(
+                        email: correoParaRecuperar,
+                      );
+                      _modalAvisoFinal(correoParaRecuperar);
+                      codigoOTPController.clear();
+                    } catch (e) {
+                      _snack('Error de Firebase: $e', esError: true);
+                    }
+                  } else {
+                    _snack('Código incorrecto', esError: true);
+                  }
                 }
               },
-              child: Text(pasoRecuperacion == 1 ? 'ENVIAR CÓDIGO' : 'VERIFICAR', style: const TextStyle(color: Colors.white)),
+              child: Text(
+                pasoRecuperacion == 1 ? 'ENVIAR' : 'VERIFICAR',
+                style: const TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -289,7 +310,8 @@ if (codigoOTPController.text == _codigoGenerado) {
               const SizedBox(height: 64),
               const Icon(Icons.restaurant, size: 72, color: _verde),
               const SizedBox(height: 18),
-              const Text('Recetas App', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: _textoOscuro)),
+              const Text('Recetas App',
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: _textoOscuro)),
               const SizedBox(height: 36),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
@@ -307,10 +329,13 @@ if (codigoOTPController.text == _codigoGenerado) {
       key: const ValueKey('login'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextField(controller: correoCtrl, decoration: _buildInput('Correo electrónico', Icons.email_outlined)),
+        TextField(
+          controller: correoCtrl,
+          decoration: _buildInput('Correo electrónico', Icons.email_outlined),
+        ),
         const SizedBox(height: 15),
         TextField(
-          controller: passCtrl, 
+          controller: passCtrl,
           obscureText: ocultarPass,
           decoration: _buildInput('Contraseña', Icons.lock_outline).copyWith(
             suffixIcon: IconButton(
@@ -321,7 +346,10 @@ if (codigoOTPController.text == _codigoGenerado) {
         ),
         Align(
           alignment: Alignment.centerRight,
-          child: TextButton(onPressed: _modalRecuperarContra, child: const Text('¿Olvidaste tu contraseña?', style: TextStyle(color: _verde))),
+          child: TextButton(
+            onPressed: _modalRecuperarContra,
+            child: const Text('¿Olvidaste tu contraseña?', style: TextStyle(color: _verde)),
+          ),
         ),
         const SizedBox(height: 15),
         _botonPrincipal(onPressed: acceder, texto: 'ENTRAR', cargando: loginCargando),
@@ -340,61 +368,129 @@ if (codigoOTPController.text == _codigoGenerado) {
         key: const ValueKey('registro'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextFormField(controller: regNombreCtrl, decoration: _buildInput('Nombre completo', Icons.person_outline), validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null),
-          const SizedBox(height: 14),
-          TextFormField(controller: regCorreoCtrl, decoration: _buildInput('Correo electrónico', Icons.email_outlined), validator: (v) => (v == null || !v.contains('@')) ? 'Email inválido' : null),
+          TextFormField(
+            controller: regNombreCtrl,
+            decoration: _buildInput('Nombre completo', Icons.person_outline),
+            validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null,
+          ),
           const SizedBox(height: 14),
           TextFormField(
-            controller: regPassCtrl, 
+            controller: regCorreoCtrl,
+            decoration: _buildInput('Correo electrónico', Icons.email_outlined),
+            validator: (v) => (v == null || !v.contains('@')) ? 'Email inválido' : null,
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: regPassCtrl,
             obscureText: ocultarRegPass,
             decoration: _buildInput('Contraseña', Icons.lock_outline).copyWith(
-              suffixIcon: IconButton(icon: Icon(ocultarRegPass ? Icons.visibility_off : Icons.visibility), onPressed: () => setState(() => ocultarRegPass = !ocultarRegPass)),
+              suffixIcon: IconButton(
+                icon: Icon(ocultarRegPass ? Icons.visibility_off : Icons.visibility),
+                onPressed: () => setState(() => ocultarRegPass = !ocultarRegPass),
+              ),
             ),
             validator: (v) => (v != null && v.length < 6) ? 'Mínimo 6 caracteres' : null,
           ),
           const SizedBox(height: 14),
-          TextFormField(controller: regConfirmCtrl, obscureText: ocultarRegConfirm, decoration: _buildInput('Confirmar contraseña', Icons.lock_reset), validator: (v) => v != regPassCtrl.text ? 'No coinciden' : null),
+          TextFormField(
+            controller: regConfirmCtrl,
+            obscureText: ocultarRegConfirm,
+            decoration: _buildInput('Confirmar contraseña', Icons.lock_reset),
+            validator: (v) => v != regPassCtrl.text ? 'No coinciden' : null,
+          ),
           const SizedBox(height: 28),
           _botonPrincipal(onPressed: _crearCuenta, texto: 'REGISTRARME', cargando: regCargando),
-          TextButton(onPressed: _toggleRegistro, child: const Text('¿Ya tienes cuenta? Inicia sesión', style: TextStyle(color: _textoGris))),
+          TextButton(
+            onPressed: _toggleRegistro,
+            child: const Text('¿Ya tienes cuenta? Inicia sesión',
+                style: TextStyle(color: _textoGris)),
+          ),
         ],
       ),
     );
   }
 
-  // --- Helpers UI ---
   InputDecoration _buildInput(String hint, IconData icono) {
     return InputDecoration(
       hintText: hint,
       prefixIcon: Icon(icono, color: _textoGris),
       filled: true,
       fillColor: Colors.white,
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _borde)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _verde)),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _borde)),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _verde)),
     );
   }
 
   void _snack(String msg, {bool esError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: esError ? Colors.redAccent : _verde));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: esError ? Colors.redAccent : _verde,
+    ));
   }
 
   Widget _botonPrincipal({required VoidCallback onPressed, required String texto, bool cargando = false}) {
     return ElevatedButton(
       onPressed: cargando ? null : onPressed,
       style: ElevatedButton.styleFrom(backgroundColor: _verde, shape: const StadiumBorder()),
-      child: cargando ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : Text(texto, style: const TextStyle(color: Colors.white)),
+      child: cargando
+          ? const SizedBox(
+              height: 20, width: 20,
+              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+          : Text(texto, style: const TextStyle(color: Colors.white)),
     );
   }
 
   Widget _botonSecundario({required VoidCallback onPressed, required String texto}) {
     return OutlinedButton(
       onPressed: onPressed,
-      style: OutlinedButton.styleFrom(side: const BorderSide(color: _verde), shape: const StadiumBorder()),
+      style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: _verde), shape: const StadiumBorder()),
       child: Text(texto, style: const TextStyle(color: _verde)),
     );
   }
 
   Widget _divisorSeparador() {
-    return const Row(children: [Expanded(child: Divider()), Padding(padding: EdgeInsets.symmetric(horizontal: 10), child: Text('O')), Expanded(child: Divider())]);
+    return const Row(children: [
+      Expanded(child: Divider()),
+      Padding(
+        padding: EdgeInsets.symmetric(horizontal: 10),
+        child: Text('O'),
+      ),
+      Expanded(child: Divider()),
+    ]);
+  }
+
+  void _modalAvisoFinal(String email) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('¡Casi listo!', textAlign: TextAlign.center),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.mark_email_unread_rounded, size: 60, color: Color(0xFF38A377)),
+            const SizedBox(height: 20),
+            Text(
+              'Por seguridad, hemos enviado un enlace de confirmación a $email. '
+              'Haz clic en el enlace para elegir tu nueva contraseña.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF888888)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('ENTENDIDO',
+                style: TextStyle(color: Color(0xFF38A377), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -30,6 +30,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  lottie: ^3.1.0
 
   cupertino_icons: ^1.0.8
 
@@ -37,13 +38,27 @@ dependencies:
   firebase_auth: ^6.3.0
   cloud_firestore: ^6.2.0
 
-  http: ^1.2.0
+  http: ^1.6.0
+  flutter_dotenv: ^5.1.0
   iconsax: ^0.0.8
   provider: ^6.1.5+1
+  google_generative_ai: ^0.4.7
+
+  pdf: ^3.10.8
+  printing: ^5.12.0
+
+  universal_html: ^2.2.4
+  path_provider: ^2.1.2
+  open_file: ^3.3.2
+  permission_handler: ^11.3.1
+
+  excel: ^2.1.0
+  csv: ^5.0.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  video_player: ^2.8.1
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -57,14 +72,15 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
-
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
   uses-material-design: true
-  assets:
-  - assets/images/platos/
-  - assets/images/ingredientes/
+
+  assets:      # ← 2 espacios de indentación, dentro de flutter:
+    - assets/images/
+    - assets/images/platos/
+    - assets/images/ingredientes/
+    - assets/animations/
+    - assets/videos/
+    - .env
 
   # To add assets to your application, add an assets section, like this:
   # assets:

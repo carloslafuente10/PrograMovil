@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'favoritos_provider.dart';
 import 'detalle_receta_screen.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FavoritosScreen extends StatelessWidget {
   const FavoritosScreen({super.key});
@@ -13,6 +13,7 @@ class FavoritosScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F5),
+
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -81,9 +82,9 @@ class FavoritosScreen extends StatelessWidget {
 class _FavoritoTile extends StatelessWidget {
   final Map<String, dynamic> receta;
   final FavoritosState favState;
+
   const _FavoritoTile({required this.receta, required this.favState});
 
-  
   Widget _buildImage(String img) {
     const double w = 90;
     const double h = 80;
@@ -99,8 +100,6 @@ class _FavoritoTile extends StatelessWidget {
         errorBuilder: (_, __, ___) => _placeholder(),
       );
     }
-
-    
     return Image.asset(
       img,
       width: w,
@@ -115,50 +114,67 @@ class _FavoritoTile extends StatelessWidget {
     final String img = receta['img']?.toString() ?? '';
 
     return GestureDetector(
-onTap: () async {
-  final nombre = receta['nombre']?.toString() ?? '';
-  if (nombre.isEmpty) return;
+      onTap: () async {
+        final String nombre = receta['nombre']?.toString() ?? '';
+        final String recetaId = receta['id']?.toString() ?? '';
 
-  try {
-    final snap = await FirebaseFirestore.instance
-        .collection('app-recetas-completas')
-        .where('nombre', isEqualTo: nombre)
-        .limit(1)
-        .get();
+        // 1. RUTA RÁPIDA (Optimizada por Hans)
+        // Si ya tenemos el ID, navegamos directamente sin consultar Firebase.
+        if (recetaId.isNotEmpty && recetaId != 'sin-id') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => DetalleRecetaScreen(
+                nombreReceta: nombre.isEmpty ? 'Receta Favorita' : nombre,
+                recetaId: recetaId,
+              ),
+            ),
+          );
+          return;
+        }
 
-    if (!context.mounted) return;
+        // 2. RUTA DE CONTINGENCIA (Código de los compañeros)
+        // Si es un favorito antiguo y le falta el ID, hacemos la consulta.
+        if (nombre.isEmpty) return;
 
-    if (snap.docs.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No se encontró la receta'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
+        try {
+          final snap = await FirebaseFirestore.instance
+              .collection('app-recetas-completas')
+              .where('nombre', isEqualTo: nombre)
+              .limit(1)
+              .get();
 
-    final docId = snap.docs.first.id;
+          if (!context.mounted) return;
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DetalleRecetaScreen(
-          nombreReceta: nombre,
-          recetaId: docId,
-        ),
-      ),
-    );
-  } catch (e) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Error al abrir la receta: $e'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-},
+          if (snap.docs.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No se encontró la receta'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+            return;
+          }
+
+          final docId = snap.docs.first.id;
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  DetalleRecetaScreen(nombreReceta: nombre, recetaId: docId),
+            ),
+          );
+        } catch (e) {
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al abrir la receta: $e'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -173,15 +189,12 @@ onTap: () async {
         ),
         child: Row(
           children: [
-            
             ClipRRect(
               borderRadius: const BorderRadius.horizontal(
                 left: Radius.circular(14),
               ),
               child: _buildImage(img),
             ),
-
-            
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -258,8 +271,6 @@ onTap: () async {
                 ),
               ),
             ),
-
-           
             Padding(
               padding: const EdgeInsets.only(right: 14),
               child: GestureDetector(
@@ -301,8 +312,7 @@ onTap: () async {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child:
-                Text('Cancelar', style: TextStyle(color: Colors.grey[600])),
+            child: Text('Cancelar', style: TextStyle(color: Colors.grey[600])),
           ),
           TextButton(
             onPressed: () {
@@ -323,9 +333,9 @@ onTap: () async {
   }
 
   Widget _placeholder() => Container(
-        width: 90,
-        height: 80,
-        color: const Color(0xFFE8E8E8),
-        child: const Icon(Icons.fastfood, size: 32, color: Colors.white70),
-      );
+    width: 90,
+    height: 80,
+    color: const Color(0xFFE8E8E8),
+    child: const Icon(Icons.fastfood, size: 32, color: Colors.white70),
+  );
 }

@@ -189,9 +189,9 @@ class _PlanScreenState extends State<PlanScreen>
       case 'desayuno':
         return ['Desayuno'];
       case 'almuerzo':
-        return ['Almuerzo', 'Cena'];
+        return ['Almuerzo'];
       case 'cena':
-        return ['Cena', 'Almuerzo'];
+        return ['Cena'];
       case 'snack1':
       case 'snack2':
       case 'snack3':
@@ -656,8 +656,6 @@ class _PlanScreenState extends State<PlanScreen>
                 ),
               ],
             ),
-
-            // Contenido expandible
             AnimatedSize(
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOut,
@@ -666,7 +664,6 @@ class _PlanScreenState extends State<PlanScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 14),
-                        // SNACKS
                         Row(
                           children: [
                             Icon(Icons.cookie_outlined,
@@ -690,7 +687,6 @@ class _PlanScreenState extends State<PlanScreen>
                           label: 'snack',
                         ),
                         const SizedBox(height: 14),
-                        // BEBIDAS
                         Row(
                           children: [
                             Icon(Icons.water_drop_outlined,
@@ -754,7 +750,8 @@ class _PlanScreenState extends State<PlanScreen>
                   etiqueta: etiquetas[clave],
                 )
               : _PlaceholderVacio(
-                  label: 'Añadir ${label == 'snack' ? 'snack' : 'bebida'} (${etiquetas[clave] ?? numero})',
+                  label:
+                      'Añadir ${label == 'snack' ? 'snack' : 'bebida'} (${etiquetas[clave] ?? numero})',
                   onTap: () => _seleccionarReceta(
                     clave,
                     _categoriasParaTipo(clave),
@@ -1011,25 +1008,12 @@ class _SelectorRecetaScreen extends StatefulWidget {
 class _SelectorRecetaScreenState extends State<_SelectorRecetaScreen> {
   static const Color _verde = Color(0xFF2D9E73);
   String _busqueda = '';
-  bool _verTodo = false;
   final TextEditingController _ctrl = TextEditingController();
-
-  bool get _tieneVerTodo =>
-      widget.tipoComida == 'almuerzo' || widget.tipoComida == 'cena';
-
-  static const _categoriasExcluidas = ['Desayuno', 'Snacks', 'Refrescos'];
 
   bool _documentoPermitido(Map<String, dynamic> data) {
     final categoria =
         (data['categoría'] ?? data['categoria'] ?? '').toString();
-
-    if (_verTodo && _tieneVerTodo) {
-      return !_categoriasExcluidas
-          .any((e) => e.toLowerCase() == categoria.toLowerCase());
-    }
-
     if (widget.categoriasPermitidas.isEmpty) return true;
-
     return widget.categoriasPermitidas
         .any((c) => c.toLowerCase() == categoria.toLowerCase());
   }
@@ -1067,21 +1051,6 @@ class _SelectorRecetaScreenState extends State<_SelectorRecetaScreen> {
           _titulo,
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
-        actions: _tieneVerTodo
-            ? [
-                TextButton(
-                  onPressed: () => setState(() => _verTodo = !_verTodo),
-                  child: Text(
-                    _verTodo ? 'Filtrar' : 'Ver todo',
-                    style: const TextStyle(
-                      color: _verde,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ]
-            : null,
       ),
       body: Column(
         children: [
@@ -1119,8 +1088,7 @@ class _SelectorRecetaScreenState extends State<_SelectorRecetaScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      const BorderSide(color: _verde, width: 1.5),
+                  borderSide: const BorderSide(color: _verde, width: 1.5),
                 ),
               ),
             ),
@@ -1163,8 +1131,8 @@ class _SelectorRecetaScreenState extends State<_SelectorRecetaScreen> {
                 }
 
                 return ListView.separated(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8),
                   itemCount: docs.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, i) {
@@ -1244,7 +1212,8 @@ class _SelectorRecetaScreenState extends State<_SelectorRecetaScreen> {
                                       ),
                                       const SizedBox(width: 10),
                                       Icon(Icons.access_time,
-                                          size: 13, color: Colors.grey[400]),
+                                          size: 13,
+                                          color: Colors.grey[400]),
                                       const SizedBox(width: 3),
                                       Text(
                                         '$tiempo min',

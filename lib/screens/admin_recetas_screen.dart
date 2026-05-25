@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'detalle_receta_screen.dart';
+import 'ver_receta_admin_screen.dart';
+import 'crear_receta_admin_screen.dart';
+
 class AdminRecetasScreen extends StatelessWidget {
   const AdminRecetasScreen({super.key});
 
@@ -46,10 +48,7 @@ class AdminRecetasScreen extends StatelessWidget {
             child: Container(
               decoration: const BoxDecoration(
                 color: _fondo,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
               child: StreamBuilder<QuerySnapshot>(
@@ -74,6 +73,35 @@ class AdminRecetasScreen extends StatelessWidget {
                           fontSize: 13,
                         ),
                       ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _verdeClaro,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.lock_outline_rounded,
+                              color: _verde,
+                              size: 12,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Solo lectura',
+                              style: TextStyle(
+                                color: _verde,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   );
                 },
@@ -81,7 +109,7 @@ class AdminRecetasScreen extends StatelessWidget {
             ),
           ),
 
-          // Grid de recetas — 3 columnas
+          // Grid recetas — 2 columnas
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -93,9 +121,7 @@ class AdminRecetasScreen extends StatelessWidget {
                     child: CircularProgressIndicator(color: _verde),
                   );
                 }
-
                 final docs = snapshot.data?.docs ?? [];
-
                 if (docs.isEmpty) {
                   return Center(
                     child: Column(
@@ -127,31 +153,19 @@ class AdminRecetasScreen extends StatelessWidget {
                     ),
                   );
                 }
-
                 return GridView.builder(
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 80),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3, // 3 columnas
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                    mainAxisExtent: 180, // altura fija por tarjeta
+                    // altura fija por tarjeta
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    mainAxisExtent: 220,
                   ),
                   itemCount: docs.length,
                   itemBuilder: (context, i) {
                     final data = docs[i].data() as Map<String, dynamic>;
-                    final recetaMap = {
-                      'nombre': data['nombre']?.toString() ?? '',
-                      'img': data['imagen']?.toString() ?? '',
-                      'calorias':
-                          (data['calorias'] ?? data['calorías'])?.toString() ??
-                          '0',
-                      'tiempo': data['tiempo']?.toString() ?? '',
-                      'categoria': data['categoria']?.toString() ?? '',
-                    };
-                    return AdminRecetaCard(
-                      receta: recetaMap,
-                      docId: docs[i].id,
-                    );
+                    return _RecetaCard(docId: docs[i].id, data: data);
                   },
                 );
               },
@@ -162,15 +176,10 @@ class AdminRecetasScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: _verde,
         elevation: 4,
-        onPressed: () {
-          FirebaseFirestore.instance.collection('app-recetas-completas').add({
-            'nombre': 'Nueva receta',
-            'calorias': '0',
-            'imagen': '',
-            'tiempo': '0',
-            'categoria': 'General',
-          });
-        },
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CrearRecetaAdminScreen()),
+        ),
         icon: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
         label: const Text(
           'Nueva receta',
@@ -185,81 +194,97 @@ class AdminRecetasScreen extends StatelessWidget {
   }
 }
 
-// ── Tarjeta de receta ─────────────────────────────────────────
-class AdminRecetaCard extends StatelessWidget {
-  final Map<String, String> receta;
+class _RecetaCard extends StatelessWidget {
   final String docId;
+  final Map<String, dynamic> data;
 
   static const Color _verde = Color(0xFF2D9E73);
   static const Color _verdeClaro = Color(0xFFE8F7F1);
 
-  const AdminRecetaCard({super.key, required this.receta, required this.docId});
+  const _RecetaCard({required this.docId, required this.data});
 
   @override
   Widget build(BuildContext context) {
-    final img = receta['img'] ?? '';
-    final nombre = receta['nombre'] ?? '';
-    final calorias = receta['calorias'] ?? '0';
-    final categoria = receta['categoria'] ?? '';
+    final img = data['imagen']?.toString() ?? '';
+    final nombre = data['nombre']?.toString() ?? '';
+    final calorias = (data['calorias'] ?? data['calorías'])?.toString() ?? '0';
+    final categoria = data['categoria']?.toString() ?? '';
 
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       elevation: 2,
       shadowColor: Colors.black12,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        //onTap: () => _editarReceta(context),
+        borderRadius: BorderRadius.circular(16),
         onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => DetalleRecetaScreen(
-        recetaId: docId,
-        nombreReceta: receta['nombre'] ?? '',
-        isAdmin: true,
-      ),
-    ),
-  );
-},
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => VerRecetaAdminScreen(
+                recetaId: docId,
+                nombreReceta: nombre,
+              ),
+            ),
+          );
+        },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Imagen
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(14),
-              ),
-              child: SizedBox(
-                height: 90,
-                width: double.infinity,
-                child: img.isNotEmpty
-                    ? Image.network(
-                        img,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _Placeholder(),
-                      )
-                    : _Placeholder(),
-              ),
+            // Imagen con badge "Solo lectura"
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
+                  child: SizedBox(
+                    height: 110,
+                    width: double.infinity,
+                    child: img.isNotEmpty
+                        ? Image.network(
+                            img,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, ___) => _Placeholder(),
+                          )
+                        : _Placeholder(),
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(
+                      Icons.lock_rounded,
+                      color: Colors.white,
+                      size: 12,
+                    ),
+                  ),
+                ),
+              ],
             ),
 
-            // Info
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (categoria.isNotEmpty)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 1,
+                          horizontal: 6,
+                          vertical: 2,
                         ),
-                        margin: const EdgeInsets.only(bottom: 3),
+                        margin: const EdgeInsets.only(bottom: 4),
                         decoration: BoxDecoration(
                           color: _verdeClaro,
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(5),
                         ),
                         child: Text(
                           categoria,
@@ -272,13 +297,13 @@ class AdminRecetaCard extends StatelessWidget {
                       ),
                     Text(
                       nombre,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11.5,
-                        color: Color(0xFF1A1A2E),
-                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                        color: Color(0xFF1A1A2E),
+                      ),
                     ),
                     const Spacer(),
                     Row(
@@ -286,27 +311,19 @@ class AdminRecetaCard extends StatelessWidget {
                         const Icon(
                           Icons.local_fire_department_rounded,
                           color: Color(0xFFFF6B35),
-                          size: 11,
+                          size: 12,
                         ),
                         const SizedBox(width: 2),
                         Text(
                           '$calorias Cal',
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 10.5,
                             color: Colors.grey[600],
                             fontWeight: FontWeight.w500,
                           ),
                         ),
                         const Spacer(),
-                        // Editar
-                        _MiniBtn(
-                          icono: Icons.edit_rounded,
-                          color: _verde,
-                          bg: _verdeClaro,
-                          onTap: () => _editarReceta(context),
-                        ),
-                        const SizedBox(width: 4),
-                        // Eliminar
+                        // Solo botón de eliminar
                         _MiniBtn(
                           icono: Icons.delete_rounded,
                           color: const Color(0xFFE53935),
@@ -334,7 +351,9 @@ class AdminRecetaCard extends StatelessWidget {
           'Eliminar receta',
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
-        content: Text('¿Eliminar "${receta['nombre']}"?'),
+        content: Text(
+          '¿Eliminar "${data['nombre']}"? Esta acción no se puede deshacer.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -363,125 +382,14 @@ class AdminRecetaCard extends StatelessWidget {
       ),
     );
   }
-
-  void _editarReceta(BuildContext context) {
-    final nombreCtrl = TextEditingController(text: receta['nombre']);
-    final caloriasCtrl = TextEditingController(text: receta['calorias']);
-    final imagenCtrl = TextEditingController(text: receta['img']);
-    final tiempoCtrl = TextEditingController(text: receta['tiempo']);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Editar receta',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A2E),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _Campo(
-                ctrl: nombreCtrl,
-                label: 'Nombre',
-                icono: Icons.restaurant_menu_rounded,
-              ),
-              const SizedBox(height: 10),
-              _Campo(
-                ctrl: caloriasCtrl,
-                label: 'Calorías',
-                icono: Icons.local_fire_department_rounded,
-                tipo: TextInputType.number,
-              ),
-              const SizedBox(height: 10),
-              _Campo(
-                ctrl: tiempoCtrl,
-                label: 'Tiempo (min)',
-                icono: Icons.timer_rounded,
-                tipo: TextInputType.number,
-              ),
-              const SizedBox(height: 10),
-              _Campo(
-                ctrl: imagenCtrl,
-                label: 'URL de imagen',
-                icono: Icons.image_rounded,
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () {
-                    FirebaseFirestore.instance
-                        .collection('app-recetas-completas')
-                        .doc(docId)
-                        .update({
-                          'nombre': nombreCtrl.text,
-                          'calorias': caloriasCtrl.text,
-                          'tiempo': tiempoCtrl.text,
-                          'imagen': imagenCtrl.text,
-                        });
-                    Navigator.pop(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2D9E73),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    'Guardar cambios',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
-// ── Widgets auxiliares ────────────────────────────────────────
 class _Placeholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     color: const Color(0xFFE8F7F1),
     child: const Center(
-      child: Icon(Icons.restaurant_rounded, color: Color(0xFF2D9E73), size: 28),
+      child: Icon(Icons.restaurant_rounded, color: Color(0xFF2D9E73), size: 32),
     ),
   );
 }
@@ -490,6 +398,7 @@ class _MiniBtn extends StatelessWidget {
   final IconData icono;
   final Color color, bg;
   final VoidCallback onTap;
+
   const _MiniBtn({
     required this.icono,
     required this.color,
@@ -501,47 +410,12 @@ class _MiniBtn extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,
     child: Container(
-      padding: const EdgeInsets.all(5),
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(7),
+        borderRadius: BorderRadius.circular(8),
       ),
-      child: Icon(icono, color: color, size: 13),
-    ),
-  );
-}
-
-class _Campo extends StatelessWidget {
-  final TextEditingController ctrl;
-  final String label;
-  final IconData icono;
-  final TextInputType tipo;
-  const _Campo({
-    required this.ctrl,
-    required this.label,
-    required this.icono,
-    this.tipo = TextInputType.text,
-  });
-
-  @override
-  Widget build(BuildContext context) => TextField(
-    controller: ctrl,
-    keyboardType: tipo,
-    decoration: InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icono, color: const Color(0xFF2D9E73), size: 18),
-      filled: true,
-      fillColor: const Color(0xFFF5F6FA),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF2D9E73), width: 1.5),
-      ),
-      labelStyle: TextStyle(color: Colors.grey[500], fontSize: 13),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      child: Icon(icono, color: color, size: 14),
     ),
   );
 }
