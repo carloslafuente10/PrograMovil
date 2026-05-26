@@ -862,7 +862,11 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _DetalleRecetaPersonalSheet(data: widget.data),
+      builder: (_) => _DetalleRecetaPersonalSheet(
+        data: widget.data,
+        docId: widget.docId,
+        copiadaDe: widget.data['copiadaDe']?.toString(),
+      ),
     );
   }
 
@@ -1243,7 +1247,13 @@ class _OpcionBtn extends StatelessWidget {
 
 class _DetalleRecetaPersonalSheet extends StatefulWidget {
   final Map<String, dynamic> data;
-  const _DetalleRecetaPersonalSheet({required this.data});
+  final String docId;
+  final String? copiadaDe;
+  const _DetalleRecetaPersonalSheet({
+    required this.data,
+    required this.docId,
+    this.copiadaDe,
+  });
   @override
   State<_DetalleRecetaPersonalSheet> createState() =>
       _DetalleRecetaPersonalSheetState();
@@ -1253,6 +1263,7 @@ class _DetalleRecetaPersonalSheetState
     extends State<_DetalleRecetaPersonalSheet> {
   static const Color _verde = Color(0xFF2D9E73);
   List<Map<String, dynamic>> _ings = [];
+  List<Map<String, dynamic>> _pasos = [];
   bool _cargando = true;
 
   // ── Unidades invariables (no se pluralizan) ──────────────────────────────
@@ -1431,24 +1442,36 @@ class _DetalleRecetaPersonalSheetState
     _cargar();
   }
 
+  // Convierte un slug "mani-crudo" → "Maní crudo" como fallback de nombre
+  String _slugANombre(String slug) {
+    if (slug.isEmpty) return slug;
+    return slug
+        .split('-')
+        .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+        .join(' ');
+  }
+
   Future<void> _cargar() async {
+    // ── 1. Cargar ingredientes ────────────────────────────────────────────────
     final rawIngs = widget.data['ingredientes'] as List? ?? [];
     final result = <Map<String, dynamic>>[];
     for (final item in rawIngs) {
       final m = item as Map<String, dynamic>;
       final ingId = m['ingrediente_id']?.toString() ?? '';
-      String nombre = m['nombre']?.toString() ?? ingId;
+      // Fallback: formatear el slug si no hay nombre legible
+      String nombre = m['nombre']?.toString() ?? '';
+      if (nombre.isEmpty || nombre == ingId) nombre = _slugANombre(ingId);
       String foto = m['imagen']?.toString() ?? '';
-      if (ingId.isNotEmpty && (foto.isEmpty || nombre == ingId)) {
+      if (ingId.isNotEmpty && (foto.isEmpty || nombre == ingId || nombre == _slugANombre(ingId))) {
         try {
           final doc = await FirebaseFirestore.instance
               .collection('ingredientes_maestros')
               .doc(ingId)
               .get();
           if (doc.exists) {
-            nombre = doc.data()!['nombre']?.toString() ?? nombre;
-            foto =
-                doc.data()!['foto']?.toString() ??
+            final n = doc.data()!['nombre']?.toString() ?? '';
+            if (n.isNotEmpty) nombre = n;
+            foto = doc.data()!['foto']?.toString() ??
                 doc.data()!['imagen']?.toString() ??
                 foto;
           }
@@ -1456,9 +1479,81 @@ class _DetalleRecetaPersonalSheetState
       }
       result.add({...m, 'nombre': nombre, 'foto': foto});
     }
+
+    // ── 2. Cargar pasos desde steps-recetas ──────────────────────────────────
+    List<Map<String, dynamic>> pasosEncontrados = [];
+
+    // 2a. Pasos en el propio documento personal
+    final pasosLocal = widget.data['pasos'] as List? ?? [];
+    if (pasosLocal.isNotEmpty) {
+      pasosEncontrados = pasosLocal
+          .map((p) => Map<String, dynamic>.from(p as Map))
+          .toList();
+    }
+
+    // 2b. Si es una copia, buscar en steps-recetas usando copiadaDe
+    if (pasosEncontrados.isEmpty && widget.copiadaDe != null) {
+      try {
+        // Intento por doc ID directo
+        final snap = await FirebaseFirestore.instance
+            .collection('steps-recetas')
+            .doc(widget.copiadaDe)
+            .get();
+        if (snap.exists) {
+          pasosEncontrados = List<Map<String, dynamic>>.from(
+              (snap.data()!['pasos_ordenados'] as List? ?? [])
+                  .map((p) => Map<String, dynamic>.from(p as Map)));
+        }
+        // Intento por campo receta_id
+        if (pasosEncontrados.isEmpty) {
+          final q = await FirebaseFirestore.instance
+              .collection('steps-recetas')
+              .where('receta_id', isEqualTo: widget.copiadaDe)
+              .limit(1)
+              .get();
+          if (q.docs.isNotEmpty) {
+            pasosEncontrados = List<Map<String, dynamic>>.from(
+                (q.docs.first.data()['pasos_ordenados'] as List? ?? [])
+                    .map((p) => Map<String, dynamic>.from(p as Map)));
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2c. Buscar con el docId propio (recetas creadas por usuario)
+    if (pasosEncontrados.isEmpty) {
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('steps-recetas')
+            .doc(widget.docId)
+            .get();
+        if (snap.exists) {
+          pasosEncontrados = List<Map<String, dynamic>>.from(
+              (snap.data()!['pasos_ordenados'] as List? ?? [])
+                  .map((p) => Map<String, dynamic>.from(p as Map)));
+        }
+        if (pasosEncontrados.isEmpty) {
+          final q = await FirebaseFirestore.instance
+              .collection('steps-recetas')
+              .where('receta_id', isEqualTo: widget.docId)
+              .limit(1)
+              .get();
+          if (q.docs.isNotEmpty) {
+            pasosEncontrados = List<Map<String, dynamic>>.from(
+                (q.docs.first.data()['pasos_ordenados'] as List? ?? [])
+                    .map((p) => Map<String, dynamic>.from(p as Map)));
+          }
+        }
+      } catch (_) {}
+    }
+
+    pasosEncontrados.sort(
+        (a, b) => ((a['orden'] ?? 0) as num).compareTo((b['orden'] ?? 0) as num));
+
     if (mounted)
       setState(() {
         _ings = result;
+        _pasos = pasosEncontrados;
         _cargando = false;
       });
   }
@@ -1470,7 +1565,6 @@ class _DetalleRecetaPersonalSheetState
     final tiempo = widget.data['tiempo']?.toString() ?? '0';
     final categoria = widget.data['categoria'] ?? '';
     final imgUrl = widget.data['imagen'] ?? '';
-    final pasos = widget.data['pasos'] as List? ?? [];
 
     return DraggableScrollableSheet(
       initialChildSize: 0.92,
@@ -1622,61 +1716,109 @@ class _DetalleRecetaPersonalSheetState
                             ),
                           );
                         }),
-                      if (pasos.isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Preparación',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
+                      // ── Pasos de preparación ─────────────────────────────
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Preparación',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
-                        const SizedBox(height: 8),
-                        ...pasos.asMap().entries.map(
-                          (e) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  width: 26,
-                                  height: 26,
-                                  decoration: const BoxDecoration(
-                                    color: _verde,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      '${e.key + 1}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
+                      ),
+                      const SizedBox(height: 8),
+                      if (_cargando)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: CircularProgressIndicator(
+                              color: _verde, strokeWidth: 2),
+                          ),
+                        )
+                      else if (_pasos.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline_rounded,
+                                  size: 16, color: Colors.grey[400]),
+                              const SizedBox(width: 8),
+                              Text(
+                                'No hay pasos de preparación disponibles.',
+                                style: TextStyle(
+                                    fontSize: 13, color: Colors.grey[500]),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        ..._pasos.asMap().entries.map(
+                          (e) {
+                            final paso = e.value;
+                            final instruccion =
+                                paso['instruccion']?.toString() ?? '';
+                            final imgPaso = paso['img']?.toString() ?? '';
+                            return Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 8),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Número de paso
+                                  Container(
+                                    width: 26,
+                                    height: 26,
+                                    decoration: const BoxDecoration(
+                                      color: _verde,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '${e.key + 1}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    (e.value
-                                                as Map<
-                                                  String,
-                                                  dynamic
-                                                >)['instruccion']
-                                            ?.toString() ??
-                                        '',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      height: 1.5,
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (imgPaso.startsWith('http'))
+                                          ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                            child: Image.network(
+                                              imgPaso,
+                                              height: 120,
+                                              width: double.infinity,
+                                              fit: BoxFit.cover,
+                                              errorBuilder:
+                                                  (_, __, ___) =>
+                                                      const SizedBox.shrink(),
+                                            ),
+                                          ),
+                                        if (imgPaso.startsWith('http'))
+                                          const SizedBox(height: 6),
+                                        Text(
+                                          instruccion,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            height: 1.5,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
+                                ],
+                              ),
+                            );
+                          },
                         ),
-                      ],
                     ],
                   ),
                 ),
