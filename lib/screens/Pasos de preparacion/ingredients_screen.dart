@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'ingredient_progress_provider.dart';
 import 'recipe_service.dart';
-import 'cooking_steps_screen.dart';
+import '../cocina_pasos_screen.dart';
 
 class IngredientsScreen extends StatelessWidget {
   final String recipeId;
@@ -234,7 +234,7 @@ class _CookingButton extends StatelessWidget {
         );
       } else {
         Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => CookingStepsScreen(steps: steps)),
+          MaterialPageRoute(builder: (_) => CocinaPasosScreen(recetaId: recipeId)),
         );
       }
     } catch (e) {
