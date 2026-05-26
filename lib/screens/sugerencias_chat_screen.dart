@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Necesario para HapticFeedback
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
+import 'dart:async';
 import 'dart:convert';
 import 'detalle_receta_screen.dart';
 import 'voice_call_screen.dart';
@@ -62,6 +63,13 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen>
   bool _bloquearCategorias = false;
 
   // ─────────────────────────────────────────────
+  // VARIABLES DEL TEMPORIZADOR NATIVO
+  // ─────────────────────────────────────────────
+  Timer?    _countdownTimer;
+  Duration  _timerDuration = Duration.zero;
+  bool      _timerActivo   = false;
+
+  // ─────────────────────────────────────────────
   // BANCO DE PALABRAS DINÁMICO (PASO 3)
   // Se rellena en _seleccionarSubcategoriaReporte
   // según la subcategoría elegida por el usuario.
@@ -74,13 +82,32 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen>
   final String _apiKeyGrok = dotenv.env['GROQ_API_KEY'] ?? '';
   final String _systemPrompt = """
 Eres A.L.I.C.I.A., la chef virtual oficial de PrograMovil.
-Tu misión es asistir con recetas, reportes de errores y sugerencias.
+Tu misión es asistir con recetas, reportes de errores y sugerencias basándote ÚNICAMENTE en el contexto que se te entregue.
 
 REGLAS CRÍTICAS DE RESPUESTA:
 1. Sé SÚPER CORTA y DIRECTA. Responde en un máximo de 2 o 3 líneas de texto.
 2. NUNCA uses listas numeradas, viñetas ni textos largos. Todo debe ser un párrafo breve y fluido.
 3. Mantén el tono entusiasta y usa metáforas culinarias rápidas (problemas = platos quemados, soluciones = recetas).
 4. Usa pocos emojis de cocina y nunca reveles que eres una IA.
+
+REGLA DE CALORÍAS Y TIEMPOS:
+Nunca declares valores absolutos. SIEMPRE usa lenguaje de estimación.
+  - Correcto: "Aproximadamente 350 calorías", "Alrededor de 20 minutos".
+  - Prohibido: "Tiene 350 kcal", "Toma exactamente 20 minutos".
+  - REGLA DEL TEMPORIZADOR: Cada vez que menciones una cantidad de tiempo en una receta o paso (ej. "alrededor de 10 minutos"), finaliza esa oración preguntando de forma natural si el usuario desea iniciar un temporizador. Si el usuario responde afirmativamente ("sí", "dale", "inicia", "perfecto", "claro"), añade al FINAL de tu respuesta el comando oculto [TIMER:X] donde X es el número entero de minutos. Este comando no debe ser leído en voz alta ni mostrado visualmente al usuario; es solo una instrucción interna para la aplicación.
+
+REGLA DE RECETAS PASO A PASO:
+Jamás entregues la receta completa ni múltiples pasos en un solo mensaje.
+Al confirmar una receta, pregunta: "¿Te parece si empezamos por el primer paso?" y detente.
+Solo avanza al siguiente paso cuando el usuario lo confirme explícitamente.
+
+REGLA DE PORCIONES DINÁMICAS:
+Si el usuario pide adaptar para N personas, calcula tú mismo cada cantidad y devuélvela en texto fluido.
+Prohibido pedirle al usuario que haga el cálculo por su cuenta.
+
+REGLA DE PERSISTENCIA:
+Si en un mensaje anterior confirmaste que una receta existe, mantén esa confirmación durante toda la conversación.
+Jamás te contradigas diciendo que no cuentas con una receta que ya confirmaste.
 """;
 
   // ─────────────────────────────────────────────
@@ -101,6 +128,7 @@ REGLAS CRÍTICAS DE RESPUESTA:
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     _progressController.dispose();
     _controller.dispose();
     super.dispose();
@@ -121,6 +149,49 @@ REGLAS CRÍTICAS DE RESPUESTA:
   }
 
   // ─────────────────────────────────────────────
+  // _iniciarTemporizador / _cancelarTemporizador
+  // Motor nativo del temporizador. Usa dart:async.
+  // Se dispara cuando la IA responde con [TIMER:X].
+  // ─────────────────────────────────────────────
+  void _iniciarTemporizador(int minutos) {
+    _cancelarTemporizador(); // Cancela uno previo si existe
+    setState(() {
+      _timerDuration = Duration(minutes: minutos);
+      _timerActivo   = true;
+    });
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_timerDuration.inSeconds > 0) {
+          _timerDuration -= const Duration(seconds: 1);
+        } else {
+          _cancelarTemporizador();
+          // Notificación de finalización
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 10),
+                  Text("¡Listo! El tiempo del paso ha terminado 🍳"),
+                ],
+              ),
+              backgroundColor: _verde,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      });
+    });
+  }
+
+  void _cancelarTemporizador() {
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
+    if (mounted) setState(() => _timerActivo = false);
+  }
+
+  // ─────────────────────────────────────────────
   // _construirPromptValidacion
   // Genera el prompt de validación para la IA
   // dado categoría, subcategoría y texto del usuario.
@@ -128,7 +199,7 @@ REGLAS CRÍTICAS DE RESPUESTA:
   String _construirPromptValidacion(
       String categoriaReporte, String subCategoria, String textoUsuario) {
     return """
-Eres el sistema de control de calidad de la app PrograMovil. Tu única tarea es validar si la descripción de un reporte de error enviada por el usuario es legítima.
+Eres el sistema de control de calidad de la app CheFlame. Tu única tarea es validar si la descripción de un reporte de error enviada por el usuario es legítima.
 
 CRITERIOS DE VALIDACIÓN:
 1. RELACIÓN: El texto debe tener relación directa con el problema reportado. Categoría: $categoriaReporte. Subcategoría: $subCategoria.
@@ -139,6 +210,71 @@ Texto del usuario a evaluar: "$textoUsuario"
 
 Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVALIDO' si falla en alguno. No agregues saludos, explicaciones ni puntuación.
 """;
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // _sanitizarRecetaParaContexto — HELPER DE SANITIZACIÓN
+  //
+  // Misma lógica que en voice_call_screen.dart.
+  // Convierte el mapa crudo de Firestore en un String
+  // legible y semánticamente unificado antes de enviarlo
+  // como contexto a Groq, eliminando ráfagas de números.
+  //
+  // Uso: llamar con doc.data() antes de generateContent.
+  // Devuelve un String listo para insertar en el prompt.
+  // ═══════════════════════════════════════════════════════
+  String _sanitizarRecetaParaContexto(Map<String, dynamic> data) {
+    final String nombre    = (data['nombre']    ?? '').toString().trim();
+    final String categoria = (data['categoria'] ?? '').toString().trim();
+    final String calorias  = (data['calorias']  ?? '').toString().trim();
+    final String tiempo    = (data['tiempo']    ?? '').toString().trim();
+
+    // ── Ingredientes: unificación semántica de nombre + cantidad + unidad ──
+    final List rawIng = data['ingredientes'] ?? [];
+    final List<String> ingsLimpios = rawIng.map<String>((ing) {
+      if (ing is Map) {
+        final String nom = (ing['nombre']     ??
+                            ing['name']       ??
+                            ing['ingrediente']?? '').toString().trim();
+        final String can = (ing['cantidad']   ??
+                            ing['amount']     ??
+                            ing['gramos']     ??
+                            ing['unidades']   ?? '').toString().trim();
+        final String uni = (ing['unidad']     ??
+                            ing['unit']       ?? '').toString().trim();
+        if (nom.isEmpty) return '';
+        if (can.isNotEmpty && uni.isNotEmpty) return "$can $uni de $nom";
+        if (can.isNotEmpty) return "$can de $nom";
+        return nom;
+      }
+      return ing.toString().trim();
+    }).where((s) => s.isNotEmpty).toList();
+
+    // ── Pasos ──
+    final List rawPasos = data['pasos'] ?? [];
+    final List<String> pasosLimpios = rawPasos.map<String>((paso) {
+      if (paso is Map) {
+        return (paso['descripcion'] ??
+                paso['texto']       ??
+                paso['detalle']     ??
+                paso['step']        ??
+                paso.toString()).toString().trim();
+      }
+      return paso.toString().trim();
+    }).where((s) => s.isNotEmpty).toList();
+
+    final StringBuffer ctx = StringBuffer();
+    if (nombre.isNotEmpty)    ctx.writeln("RECETA: $nombre");
+    if (categoria.isNotEmpty) ctx.writeln("  Categoría: $categoria");
+    if (calorias.isNotEmpty)  ctx.writeln("  Calorías aproximadas: $calorias");
+    if (tiempo.isNotEmpty)    ctx.writeln("  Tiempo aproximado: $tiempo");
+    if (ingsLimpios.isNotEmpty) {
+      ctx.writeln("  Ingredientes: ${ingsLimpios.join(', ')}");
+    }
+    for (int i = 0; i < pasosLimpios.length; i++) {
+      ctx.writeln("  Paso ${i + 1}: ${pasosLimpios[i]}");
+    }
+    return ctx.toString();
   }
 
   // ─────────────────────────────────────────────
@@ -248,11 +384,15 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
       for (var doc in snapshot.docs) {
         final data = doc.data();
+        // ── Sanitizar datos crudos antes de cualquier uso (Fix 2) ──
+        final String contextoSanitizado = _sanitizarRecetaParaContexto(data);
         List ingredientesDoc = data['ingredientes'] ?? [];
 
         // Normalizar nombres de ingredientes: quitar guiones y espacios extra
         List<String> nombresReceta = ingredientesDoc
-            .map((i) => (i['nombre'] ?? i['ingrediente_id'] ?? '')
+            .map((i) => (i is Map
+                    ? (i['nombre'] ?? i['name'] ?? i['ingrediente_id'] ?? '')
+                    : i.toString())
                 .toString()
                 .trim()
                 .toLowerCase()
@@ -267,7 +407,8 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
         if (tieneIngrediente) {
           recetasEncontradas.add({
             'id': doc.id,
-            'nombre': data['nombre'] ?? "Receta",
+            'nombre': (data['nombre'] ?? "Receta").toString(),
+            'contexto': contextoSanitizado, // disponible para inyectar si se necesita
           });
         }
       }
@@ -647,8 +788,17 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
     try {
       final respuesta = await _obtenerRespuestaDeGrok(textoOriginal);
+
+      // ── Detección de comando [TIMER:X] antes de mostrar al usuario ──
+      final timerMatch = RegExp(r'\[TIMER:(\d+)\]').firstMatch(respuesta);
+      final String respuestaLimpia =
+          respuesta.replaceAll(RegExp(r'\[TIMER:\d+\]'), '').trim();
+      if (timerMatch != null) {
+        _iniciarTemporizador(int.parse(timerMatch.group(1)!));
+      }
+
       setState(() {
-        _mensajes.add({"rol": "llama", "tipo": "texto", "texto": respuesta});
+        _mensajes.add({"rol": "llama", "tipo": "texto", "texto": respuestaLimpia});
       });
     } catch (e) {
       setState(() =>
@@ -706,6 +856,8 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                 ? _buildResponsiveLayout()
                 : _buildWelcomeLayout(),
           ),
+          // ── Temporizador flotante (visible solo cuando está activo) ──
+          _buildTimerWidget(),
         ],
       ),
     );
@@ -1035,13 +1187,34 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                     if (!esUsuario)
                       Padding(
                         padding: const EdgeInsets.only(right: 8.0, top: 5),
-                        child: CircleAvatar(
-                          radius: 18,
-                          backgroundColor: _verde.withOpacity(0.2),
-                          backgroundImage: const AssetImage(
-                              'assets/images/iconllama.png'),
-                          child: const Icon(Icons.restaurant,
-                              size: 16, color: Color(0xFF2D9E73)),
+                        // ── Avatar WebP de A.L.I.C.I.A. ──
+                        // ClipOval reemplaza al CircleAvatar original.
+                        // IndexedStack pre-carga ambas imágenes para cero flicker.
+                        // index 0 = generando/procesando → alicia_speaking.webp
+                        // index 1 = idle/esperando       → alicia_idle.webp
+                        // Driver: _estaCargando (true mientras Groq responde)
+                        child: ClipOval(
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            color: _verde.withOpacity(0.15),
+                            child: IndexedStack(
+                              index: _estaCargando ? 0 : 1,
+                              sizing: StackFit.expand,
+                              children: [
+                                Image.asset(
+                                  'assets/images/alicia_speaking.webp',
+                                  fit: BoxFit.cover,
+                                  gaplessPlayback: true,
+                                ),
+                                Image.asset(
+                                  'assets/images/alicia_idle.webp',
+                                  fit: BoxFit.cover,
+                                  gaplessPlayback: true,
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     Expanded(
@@ -1582,6 +1755,91 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // _buildTimerWidget
+  // Tarjeta flotante del temporizador activo.
+  // Se superpone sobre el chat usando Positioned.
+  // Se oculta automáticamente cuando _timerActivo=false.
+  // ─────────────────────────────────────────────
+  Widget _buildTimerWidget() {
+    if (!_timerActivo) return const SizedBox.shrink();
+
+    final int min = _timerDuration.inMinutes;
+    final int seg = _timerDuration.inSeconds % 60;
+    final String display =
+        "${min.toString().padLeft(2, '0')}:${seg.toString().padLeft(2, '0')}";
+
+    return Positioned(
+      bottom: 100,
+      left: 16,
+      right: 16,
+      child: Material(
+        elevation: 8,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: _verde, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: _verde.withOpacity(0.25),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _verde.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.timer_rounded, color: _verde, size: 26),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      "TEMPORIZADOR ACTIVO",
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: _verde.withOpacity(0.75),
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    Text(
+                      display,
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        color: _verde,
+                        letterSpacing: 3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: _cancelarTemporizador,
+                tooltip: "Cancelar temporizador",
+                icon: const Icon(Icons.close_rounded,
+                    color: Colors.redAccent, size: 22),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
