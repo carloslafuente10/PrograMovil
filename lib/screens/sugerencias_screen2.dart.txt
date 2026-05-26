@@ -199,7 +199,7 @@ Jamás te contradigas diciendo que no cuentas con una receta que ya confirmaste.
   String _construirPromptValidacion(
       String categoriaReporte, String subCategoria, String textoUsuario) {
     return """
-Eres el sistema de control de calidad de la app CheFlame. Tu única tarea es validar si la descripción de un reporte de error enviada por el usuario es legítima.
+Eres el sistema de control de calidad de la app PrograMovil. Tu única tarea es validar si la descripción de un reporte de error enviada por el usuario es legítima.
 
 CRITERIOS DE VALIDACIÓN:
 1. RELACIÓN: El texto debe tener relación directa con el problema reportado. Categoría: $categoriaReporte. Subcategoría: $subCategoria.

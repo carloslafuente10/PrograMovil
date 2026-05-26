@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -110,6 +111,13 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   late AnimationController _pulsoController;
   late Animation<double>    _pulsoAnimation;
 
+  // ─────────────────────────────────────────────
+  // VARIABLES DEL TEMPORIZADOR NATIVO
+  // ─────────────────────────────────────────────
+  Timer?   _countdownTimer;
+  Duration _timerDuration = Duration.zero;
+  bool     _timerActivo   = false;
+
   // ═══════════════════════════════════════════════════════════════════════
   // SYSTEM PROMPT — POLÍTICA ZERO-KNOWLEDGE + FORMATO TTS LIMPIO
   //
@@ -128,7 +136,7 @@ Tu esencia es la de un guía gastronómico andino preciso y solemne.
 Tu ÚNICO propósito es asistir al usuario usando el CATÁLOGO OFICIAL que se te entrega.
 
 [B — CATÁLOGO OFICIAL — FUENTE ÚNICA DE VERDAD]
-El siguiente catálogo es la ÚNICA fuente de información que puedes usar.
+El siguiente bloque es la ÚNICA fuente de información que puedes usar.
 Tu conocimiento previo sobre cocina NO EXISTE en este contexto.
 ════════════════════════════════════════
 CATÁLOGO OFICIAL DE RECETAS PROGRA-MOVIL:
@@ -137,16 +145,17 @@ CATÁLOGO OFICIAL DE RECETAS PROGRA-MOVIL:
 
 [C — PROTOCOLO DE VERIFICACIÓN (ejecutar antes de CADA respuesta)]
 Antes de responder, verifica mentalmente:
-  1. El nombre de la receta aparece textualmente en el catálogo.
-  2. Los ingredientes que mencionaré están listados en esa entrada.
+  1. El nombre exacto de la receta aparece textualmente en el catálogo.
+  2. Los ingredientes que mencionaré están listados tal cual en esa entrada.
   3. Los pasos que describiré provienen literalmente de ese catálogo.
 Si cualquier verificación falla → activa el Protocolo D sin excepción.
 
 [D — PROTOCOLO DE RECHAZO ABSOLUTO]
-Si el plato, receta o ingrediente NO está en el catálogo, responde EXACTAMENTE:
+Si el plato, receta o ingrediente NO está en el catálogo, responde EXACTAMENTE esta frase sin añadir nada más:
 "Lo siento, esa receta no se encuentra en nuestro sistema de PrograMovil actualmente."
-PROHIBIDO: completar, deducir, inventar ingredientes, pasos, cantidades o sustitutos que no estén en el catálogo.
+PROHIBIDO: completar, deducir, inventar ingredientes, pasos, cantidades o sustitutos que no estén explícitamente en el catálogo.
 PROHIBIDO: usar conocimiento externo aunque la receta sea mundialmente conocida.
+PROHIBIDO: contradecirte. Si en un turno anterior confirmaste que una receta existe, debes mantener esa confirmación durante toda la sesión. Jamás digas luego que no la tienes.
 
 [E — FORMATO TTS OBLIGATORIO — NUNCA VIOLAR]
 Tus respuestas serán leídas en voz alta por un motor Text-to-Speech.
@@ -156,10 +165,24 @@ OBLIGATORIO:
   - Sin encabezados ni negritas. Solo prosa conversacional.
   - Sin símbolos especiales de ningún tipo.
 
-[F — BREVEDAD Y DOSIFICACIÓN — REGLA DE ORO]
+[F — CALORÍAS Y TIEMPOS — SIEMPRE EN MODO ESTIMACIÓN]
+NUNCA declares valores absolutos de calorías ni tiempos de preparación.
+OBLIGATORIO usar lenguaje de aproximación:
+  - Correcto: "Aproximadamente 350 calorías", "Alrededor de 20 minutos".
+  - Prohibido: "Tiene 350 kcal", "Toma 20 minutos exactos".
+  - Sugerencia de Temporizador: Siempre que un paso dictado contenga un tiempo estimado (ej. "alrededor de 10 minutos", "unos 20 minutos"), incluye al final del enunciado una breve pregunta conversacional (texto fluido, sin listas) sugiriendo si desea que iniciemos un temporizador.
+  - Comando de Temporizador: Si el usuario acepta iniciar el temporizador (responde "sí", "claro", "dale", "perfecto", "inicia" o similar), añade al FINAL de tu respuesta el comando oculto [TIMER:X] donde X es el número entero de minutos. Este comando NUNCA debe ser pronunciado por el TTS ni mostrado al usuario; es exclusivamente una instrucción interna para la aplicación. El resto de tu respuesta debe permanecer limpio y natural.
+  - Sugerencia de Temporizador: Siempre que un paso dictado o mención contenga un tiempo estimado (ej. 10 minutos, 20 minutos), incluye al final del enunciado una breve pregunta conversacional (sin listas, texto fluido) sugiriendo si desea que iniciemos un temporizador.
+
+[G — BREVEDAD Y DOSIFICACIÓN — REGLA DE ORO]
 NUNCA listes ingredientes ni pasos de forma automática al confirmar una receta.
-Cuando el usuario mencione un plato: confirma el nombre, menciona calorías y tiempo estimado si están en el catálogo, y pregunta si desea revisar ingredientes o ir directo a los pasos.
+Cuando el usuario mencione un plato: confirma el nombre, menciona calorías y tiempo usando lenguaje de estimación, y pregunta: "¿Te parece si empezamos por el primer paso?" Detente ahí.
+Solo avanza al siguiente paso cuando el usuario confirme explícitamente que está listo o terminó el anterior.
 Máximo 3 oraciones por respuesta.
+
+[H — PORCIONES DINÁMICAS]
+Si el usuario solicita adaptar la receta para N personas, realiza tú mismo la operación matemática de multiplicar o dividir cada cantidad de ingrediente y devuelve la lista ya calculada en texto fluido.
+PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "triplique" por su cuenta.
 """;
 
   // ─────────────────────────────────────────────
@@ -194,6 +217,7 @@ Máximo 3 oraciones por respuesta.
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     _pulsoController.dispose();
     _speech.stop();
     _tts.stop();
@@ -213,15 +237,143 @@ Máximo 3 oraciones por respuesta.
     });
   }
 
+  // ─────────────────────────────────────────────
+  // _iniciarTemporizador / _cancelarTemporizador
+  // Motor nativo del temporizador. Se activa cuando
+  // la IA responde con el comando oculto [TIMER:X].
+  // La detección ocurre ANTES de limpiar para TTS,
+  // por lo que el tag nunca es pronunciado.
+  // ─────────────────────────────────────────────
+  void _iniciarTemporizador(int minutos) {
+    _cancelarTemporizador(); // Limpia uno previo si existe
+    setState(() {
+      _timerDuration = Duration(minutes: minutos);
+      _timerActivo   = true;
+    });
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_timerDuration.inSeconds > 0) {
+          _timerDuration -= const Duration(seconds: 1);
+        } else {
+          _cancelarTemporizador();
+          // Notificación sonora de finalización vía TTS
+          _hablar(
+            "El temporizador ha terminado. ¡Tu preparación está lista!",
+            guardarEnHistorial: false,
+          );
+        }
+      });
+    });
+  }
+
+  void _cancelarTemporizador() {
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
+    if (mounted) setState(() => _timerActivo = false);
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // _sanitizarRecetaFirestore  — HELPER DE SANITIZACIÓN
+  //
+  // Intercepta el mapa crudo de un documento Firestore y
+  // unifica semánticamente ingredientes + cantidades + pasos
+  // en Strings legibles antes de enviarlos a Groq.
+  //
+  // Problema que resuelve: Firestore puede almacenar las
+  // cantidades y nombres en campos separados, produciendo
+  // ráfagas de números sin contexto como "1 1 1 4 1 6" si
+  // se concatenan sin lógica. Este helper los une en frases
+  // naturales: "1 unidad de pechuga de pollo".
+  //
+  // Devuelve Map con:
+  //   'ingredientes': List<String> unificados y legibles
+  //   'pasos':        List<String> limpios
+  //   'contextoTexto': String listo para inyectar en el prompt
+  // ═══════════════════════════════════════════════════════
+  Map<String, dynamic> _sanitizarRecetaFirestore(
+      Map<String, dynamic> data, String docId) {
+
+    final String nombre    = (data['nombre']    ?? 'Sin nombre').toString().trim();
+    final String categoria = (data['categoria'] ?? '').toString().trim();
+    final String calorias  = (data['calorias']  ?? '').toString().trim();
+    final String tiempo    = (data['tiempo']    ?? '').toString().trim();
+
+    // ── INGREDIENTES — unificación semántica ──────────────
+    // Soporta 4 estructuras de Firestore:
+    //   A) String simple:             "pechuga de pollo"
+    //   B) Map {nombre, cantidad}:    {nombre: "pollo", cantidad: "1"}
+    //   C) Map {nombre, cantidad, unidad}: {nombre:"harina", cantidad:"2", unidad:"tazas"}
+    //   D) Map con campos separados   {ingrediente:"papa", gramos:"200"}
+    final List rawIngredientes = data['ingredientes'] ?? [];
+    final List<String> ingredientesLimpios = rawIngredientes.map<String>((ing) {
+      if (ing is Map) {
+        final String nom = (ing['nombre']     ??
+                            ing['name']       ??
+                            ing['ingrediente']?? '').toString().trim();
+        final String can = (ing['cantidad']   ??
+                            ing['amount']     ??
+                            ing['gramos']     ??
+                            ing['unidades']   ?? '').toString().trim();
+        final String uni = (ing['unidad']     ??
+                            ing['unit']       ?? '').toString().trim();
+
+        if (nom.isEmpty) return '';
+
+        // Construir frase natural: "2 tazas de harina", "1 unidad de pechuga"
+        if (can.isNotEmpty && uni.isNotEmpty) return "$can $uni de $nom";
+        if (can.isNotEmpty) return "$can de $nom";
+        return nom;
+      }
+      return ing.toString().trim();
+    }).where((s) => s.isNotEmpty).toList();
+
+    // ── PASOS — tolerante a String y Map con claves variables ──
+    final List rawPasos = data['pasos'] ?? [];
+    final List<String> pasosLimpios = rawPasos.map<String>((paso) {
+      if (paso is Map) {
+        return (paso['descripcion'] ??
+                paso['texto']       ??
+                paso['detalle']     ??
+                paso['step']        ??
+                paso.toString()).toString().trim();
+      }
+      return paso.toString().trim();
+    }).where((s) => s.isNotEmpty).toList();
+
+    // ── Texto de contexto completo para Groq (~300 tokens) ──
+    final StringBuffer ctx = StringBuffer();
+    ctx.writeln("RECETA: $nombre");
+    if (categoria.isNotEmpty) ctx.writeln("  Categoría: $categoria");
+    if (calorias.isNotEmpty)  ctx.writeln("  Calorías aproximadas: $calorias");
+    if (tiempo.isNotEmpty)    ctx.writeln("  Tiempo aproximado: $tiempo");
+    if (ingredientesLimpios.isNotEmpty) {
+      ctx.writeln("  Ingredientes: ${ingredientesLimpios.join(', ')}");
+    }
+    for (int i = 0; i < pasosLimpios.length; i++) {
+      ctx.writeln("  Paso ${i + 1}: ${pasosLimpios[i]}");
+    }
+
+    return {
+      'id':            docId,
+      'nombre':        nombre,
+      'categoria':     categoria,
+      'calorias':      calorias,
+      'tiempo':        tiempo,
+      'ingredientes':  ingredientesLimpios,
+      'pasos':         pasosLimpios,
+      'contextoTexto': ctx.toString(),
+    };
+  }
+
   // ═══════════════════════════════════════════════════════
   // CARGA DE CATÁLOGO FIRESTORE (RAG)
   //
-  // Construye dos estructuras en paralelo:
-  //   1. _catalogoContexto (String) → se inyecta en el prompt
-  //   2. _recetasData (List)        → permite lógica local sin API
-  //
-  // Manejo robusto de tipos: ingredientes y pasos pueden llegar
-  // como String simples o como Map con claves variables.
+  // Fase 1 — Índice slim (solo nombre + meta, sin ingredientes/pasos).
+  //           Se inyecta en Groq cuando NO hay receta activa.
+  //           Mantiene el contexto inicial < 500 tokens.
+  // Fase 2 — Estructura completa sanitizada almacenada en _recetasData
+  //           lista para activarse cuando el usuario elija una receta.
   // ═══════════════════════════════════════════════════════
   Future<void> _cargarCatalogoYSaludar() async {
     setState(() => _procesando = true);
@@ -231,62 +383,31 @@ Máximo 3 oraciones por respuesta.
           .collection('app-recetas-completas')
           .get();
 
-      // ── Índice slim para el catálogo (solo metadatos básicos, sin ingredientes ni pasos) ──
-      // Objetivo: mantener el contexto inicial < 500 tokens aunque haya muchas recetas.
-      // Los ingredientes y pasos SOLO se envían a Groq cuando el usuario elige una receta.
       final StringBuffer buffer = StringBuffer();
 
       for (final doc in snapshot.docs) {
-        final data = doc.data();
+        // ── Sanitizar datos crudos con el helper ──
+        final Map<String, dynamic> sanitizado =
+            _sanitizarRecetaFirestore(doc.data(), doc.id);
 
-        // ── Metadatos básicos ──
-        final String nombre    = (data['nombre']    ?? 'Sin nombre').toString();
-        final String categoria = (data['categoria'] ?? '').toString();
-        final String calorias  = (data['calorias']  ?? '').toString();
-        final String tiempo    = (data['tiempo']    ?? '').toString();
-
-        // ── Línea slim: ID | Nombre | meta ──
-        final List<String> meta = ["ID:${doc.id}", "RECETA:$nombre"];
-        if (categoria.isNotEmpty) meta.add("Categoría:$categoria");
-        if (calorias.isNotEmpty)  meta.add("Calorías:$calorias");
-        if (tiempo.isNotEmpty)    meta.add("Tiempo:$tiempo");
+        // ── Línea slim para el índice (solo metadatos, sin ingredientes/pasos) ──
+        final List<String> meta = [
+          "ID:${doc.id}",
+          "RECETA:${sanitizado['nombre']}",
+        ];
+        if ((sanitizado['categoria'] as String).isNotEmpty) {
+          meta.add("Categoría:${sanitizado['categoria']}");
+        }
+        if ((sanitizado['calorias'] as String).isNotEmpty) {
+          meta.add("Calorías aprox.:${sanitizado['calorias']}");
+        }
+        if ((sanitizado['tiempo'] as String).isNotEmpty) {
+          meta.add("Tiempo aprox.:${sanitizado['tiempo']}");
+        }
         buffer.writeln(meta.join(" | "));
 
-        // ── Ingredientes: tolerante a String y Map ──
-        final List rawIngredientes = data['ingredientes'] ?? [];
-        final List<String> ingredientesLimpios = rawIngredientes.map<String>((ing) {
-          if (ing is Map) {
-            final n = (ing['nombre']   ?? ing['name']  ?? '').toString();
-            final c = (ing['cantidad'] ?? ing['amount'] ?? '').toString();
-            return c.isNotEmpty ? "$n ($c)" : n;
-          }
-          return ing.toString();
-        }).where((s) => s.isNotEmpty).toList();
-
-        // ── Pasos: tolerante a String y Map con claves variables ──
-        final List rawPasos = data['pasos'] ?? [];
-        final List<String> pasosLimpios = rawPasos.map<String>((paso) {
-          if (paso is Map) {
-            return (paso['descripcion'] ??
-                    paso['texto']       ??
-                    paso['detalle']     ??
-                    paso['step']        ??
-                    paso.toString()).toString();
-          }
-          return paso.toString();
-        }).where((s) => s.isNotEmpty).toList();
-
-        // ── Guardar estructura completa LOCAL para el IntentRouter y para
-        //    construir _recetaActivaContexto cuando el usuario elija una receta ──
-        _recetasData.add({
-          'id':           doc.id,
-          'nombre':       nombre,
-          'categoria':    categoria,
-          'calorias':     calorias,
-          'tiempo':       tiempo,
-          'ingredientes': ingredientesLimpios,
-          'pasos':        pasosLimpios,
-        });
+        // ── Guardar estructura completa sanitizada para el IntentRouter ──
+        _recetasData.add(sanitizado);
       }
 
       setState(() {
@@ -304,7 +425,6 @@ Máximo 3 oraciones por respuesta.
       });
     }
 
-    // ── Saludo inicial obligatorio: se pronuncia sin gastar tokens ──
     await _hablar(_saludoInicial, guardarEnHistorial: false);
   }
 
@@ -398,20 +518,43 @@ Máximo 3 oraciones por respuesta.
     }
 
     // ── 5. INICIAR PASOS / EMPEZAR A COCINAR ─────────────
-    // "empezar a cocinar", "dime los pasos", "quiero cocinar"
+    // Solo dicta el paso 1 cuando el usuario confirma explícitamente.
+    // Si aún no ha confirmado, NID pregunta primero.
     if (_recetaActivaNombre != null && _pasosActivos.isNotEmpty &&
         (t.contains("empezar a cocinar") ||
          t.contains("dime los pasos") ||
          t.contains("quiero cocinar") ||
          t.contains("empecemos") ||
          t.contains("ir a los pasos") ||
+         t.contains("sí, empieza") ||
+         t.contains("si, empieza") ||
+         t.contains("dale") ||
          t.contains("preparación") ||
          t.contains("preparacion"))) {
-      _pasoActualIndex = 0;
-      final String msg =
-          "Comenzamos con $_recetaActivaNombre. "
-          "Paso 1: ${_pasosActivos[0]}";
-      await _hablar(msg, guardarEnHistorial: true);
+      // Si aún no se ha iniciado el dictado → confirmar antes de lanzar el paso 1
+      if (_pasoActualIndex == -1) {
+        _pasoActualIndex = 0;
+        final String msg =
+            "Perfecto, comenzamos con $_recetaActivaNombre. "
+            "Paso 1: ${_pasosActivos[0]}. "
+            "Cuando estés listo, dime 'siguiente'.";
+        await _hablar(msg, guardarEnHistorial: true);
+      } else {
+        // Ya estaba en marcha → avanzar normalmente
+        _pasoActualIndex++;
+        if (_pasoActualIndex < _pasosActivos.length) {
+          await _hablar(
+            "Paso ${_pasoActualIndex + 1}: ${_pasosActivos[_pasoActualIndex]}",
+            guardarEnHistorial: true,
+          );
+        } else {
+          await _hablar(
+            "Has completado todos los pasos de $_recetaActivaNombre. ¡Buen provecho!",
+            guardarEnHistorial: true,
+          );
+          _pasoActualIndex = _pasosActivos.length - 1;
+        }
+      }
       return true;
     }
 
@@ -585,6 +728,14 @@ Máximo 3 oraciones por respuesta.
         final data = jsonDecode(utf8.decode(response.bodyBytes));
         String respuesta = data['choices'][0]['message']['content'] ?? "";
 
+        // ── Detección de [TIMER:X] ANTES de limpiar para TTS ──
+        // _limpiarParaTts ya elimina [.*?], por eso interceptamos aquí.
+        final timerMatch = RegExp(r'\[TIMER:(\d+)\]').firstMatch(respuesta);
+        if (timerMatch != null) {
+          _iniciarTemporizador(int.parse(timerMatch.group(1)!));
+          respuesta = respuesta.replaceAll(RegExp(r'\[TIMER:\d+\]'), '').trim();
+        }
+
         // ── C. Limpiar caracteres no aptos para TTS ──
         respuesta = _limpiarParaTts(respuesta);
 
@@ -652,40 +803,35 @@ Máximo 3 oraciones por respuesta.
   // y Groq lo confirmó (no rechazó), lo buscamos
   // en _recetasData y lo activamos para el control
   // paso a paso local.
+  //
+  // Fix 5 — Persistencia: una vez activada una receta,
+  // _recetaActivaContexto queda fijo durante toda la sesión.
+  // Groq siempre recibirá el contexto de ESA receta y nunca
+  // podrá contradecir que existe.
   // ─────────────────────────────────────────────
   void _intentarActivarReceta(String pregunta, String respuestaNid) {
+    // Si ya hay una receta activa → respetar la sesión en curso (Fix 5)
+    if (_recetaActivaNombre != null) return;
+
     // Si Groq rechazó → no activar
     if (respuestaNid.contains("no se encuentra en nuestro sistema")) return;
 
     final String p = pregunta.toLowerCase();
     for (final receta in _recetasData) {
       final String nombre = receta['nombre'].toString().toLowerCase();
-      if (p.contains(nombre) || nombre.split(' ').any((w) => w.length > 3 && p.contains(w))) {
-
-        // ── Construir el texto completo de esta receta para inyectar en Groq ──
-        // A partir de este punto, cada llamada a Groq usará SOLO este texto
-        // en lugar del catálogo completo. Pasa de ~5 000 tokens a ~300 tokens.
-        final StringBuffer rb = StringBuffer();
-        rb.writeln("RECETA: ${receta['nombre']}");
-        if ((receta['categoria'] as String).isNotEmpty) rb.writeln("  Categoría: ${receta['categoria']}");
-        if ((receta['calorias']  as String).isNotEmpty) rb.writeln("  Calorías: ${receta['calorias']}");
-        if ((receta['tiempo']    as String).isNotEmpty) rb.writeln("  Tiempo: ${receta['tiempo']}");
-        final List<String> ings = List<String>.from(receta['ingredientes']);
-        if (ings.isNotEmpty) rb.writeln("  Ingredientes: ${ings.join(', ')}");
-        final List<String> pasos = List<String>.from(receta['pasos']);
-        for (int i = 0; i < pasos.length; i++) {
-          rb.writeln("  Paso ${i + 1}: ${pasos[i]}");
-        }
+      if (p.contains(nombre) ||
+          nombre.split(' ').any((w) => w.length > 3 && p.contains(w))) {
 
         setState(() {
-          _recetaActivaContexto  = rb.toString();   // ← contexto acotado para Groq
-          _recetaActivaNombre    = receta['nombre'].toString();
-          _pasosActivos          = List<String>.from(receta['pasos']);
-          _ingredientesActivos   = List<String>.from(receta['ingredientes']);
-          _pasoActualIndex       = -1;
+          // Fix 2 — usar el contextoTexto ya sanitizado por el helper
+          _recetaActivaContexto = receta['contextoTexto'] as String;
+          _recetaActivaNombre   = receta['nombre'].toString();
+          _pasosActivos         = List<String>.from(receta['pasos'] as List);
+          _ingredientesActivos  = List<String>.from(receta['ingredientes'] as List);
+          _pasoActualIndex      = -1;
         });
         debugPrint("Receta activada: $_recetaActivaNombre");
-        debugPrint("Tokens aprox. contexto receta: ${_recetaActivaContexto.length ~/ 4}");
+        debugPrint("Tokens aprox. contexto: ${_recetaActivaContexto.length ~/ 4}");
         return;
       }
     }
@@ -710,12 +856,36 @@ Máximo 3 oraciones por respuesta.
   }
 
   // ═══════════════════════════════════════════════════════
-  //  BUILD PRINCIPAL
+  //  BUILD PRINCIPAL  — REDISEÑO FONDO COMPLETO
+  //
+  //  Arquitectura del Stack (de abajo hacia arriba):
+  //
+  //  Capa 0 — Fondo animado a pantalla completa:
+  //    IndexedStack con ambos .webp pre-cargados para evitar
+  //    parpadeo (flicker) al alternar. Ocupa toda la pantalla
+  //    mediante Positioned.fill + BoxFit.cover.
+  //
+  //  Capa 1 — Gradiente oscuro inferior:
+  //    Un overlay de gradiente de abajo hacia arriba garantiza
+  //    legibilidad del panel de texto y del botón del micrófono
+  //    sin importar el contenido de la ilustración.
+  //
+  //  Capa 2 — Elementos flotantes:
+  //    • AppBar transparente con título NID + indicador RAG.
+  //    • Temporizador flotante (Positioned, solo si activo).
+  //    • Panel de texto translúcido (BackdropFilter + opacidad).
+  //    • Botón de micrófono con glow neon.
+  //
+  //  Toda la lógica de backend (TTS/STT handlers, temporizador,
+  //  Firestore, Groq, IntentRouter) permanece sin cambios.
   // ═══════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _negro,
+      // AppBar completamente transparente para que el fondo
+      // animado se extienda debajo de él.
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -748,11 +918,12 @@ Máximo 3 oraciones por respuesta.
                   _respuestaNID         = "";
                   _textoEscuchado       = "";
                   _recetaActivaNombre   = null;
-                  _recetaActivaContexto = "";  // ← liberar contexto acotado
+                  _recetaActivaContexto = "";
                   _pasosActivos         = [];
                   _ingredientesActivos  = [];
                   _pasoActualIndex      = -1;
                 });
+                _cancelarTemporizador();
               },
             ),
           // Indicador RAG
@@ -777,13 +948,198 @@ Máximo 3 oraciones por respuesta.
           ),
         ],
       ),
-      body: SafeArea(
-        child: Column(
+
+      // ── body: Stack raíz ──────────────────────────────────
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+
+          // ════════════════════════════════════════════════
+          // CAPA 0 — FONDO ANIMADO (pantalla completa)
+          //
+          // IndexedStack mantiene AMBOS assets siempre montados
+          // en el árbol de widgets. Solo se hace visible el que
+          // corresponde al estado actual, eliminando el flash
+          // negro/blanco que ocurriría si se usara un if/else.
+          //
+          //   index 0 → nid_speaking.webp  (_hablando == true)
+          //   index 1 → nid_idle.webp      (_hablando == false)
+          // ════════════════════════════════════════════════
+          Positioned.fill(
+            child: IndexedStack(
+              index: _hablando ? 0 : 1,
+              sizing: StackFit.expand,
+              children: [
+                Image.asset(
+                  'assets/images/nid_speaking.webp',
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                ),
+                Image.asset(
+                  'assets/images/nid_idle.webp',
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                ),
+              ],
+            ),
+          ),
+
+          // ════════════════════════════════════════════════
+          // CAPA 1 — GRADIENTE OSCURO INFERIOR
+          //
+          // Crea una zona oscura en el tercio inferior de la
+          // pantalla para que el panel de texto y el micrófono
+          // sean siempre legibles sobre la ilustración.
+          // ════════════════════════════════════════════════
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: const [0.0, 0.45, 1.0],
+                  colors: [
+                    Colors.transparent,
+                    Colors.transparent,
+                    _negro.withOpacity(0.85),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // ════════════════════════════════════════════════
+          // CAPA 2 — ELEMENTOS FLOTANTES
+          //
+          // SafeArea garantiza que los elementos no queden
+          // debajo del notch ni de la barra de navegación.
+          // ════════════════════════════════════════════════
+          SafeArea(
+            child: Column(
+              children: [
+                // Espacio superior libre para el fondo animado
+                // (el avatar ocupa el área visual principal).
+                const Spacer(flex: 5),
+
+                // ── Panel de texto con fondo translúcido ──
+                // BackdropFilter aplica un desenfoque suave
+                // al contenido de las capas inferiores visible
+                // a través del panel, mejorando la legibilidad.
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: BackdropFilter(
+                      filter: ColorFilter.mode(
+                        Colors.black.withOpacity(0.0),
+                        BlendMode.multiply,
+                      ),
+                      child: _buildPanelTexto(),
+                    ),
+                  ),
+                ),
+
+                // ── Controles (micrófono) ──
+                _buildControles(),
+
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+
+          // ── Temporizador flotante (visible solo cuando está activo) ──
+          _buildTimerWidget(),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // _buildTimerWidget
+  // Tarjeta flotante ciberpunk del temporizador.
+  // Se superpone sobre el avatar usando Positioned.
+  // Respeta el diseño dark/neon de NID.
+  // Se oculta automáticamente cuando _timerActivo=false.
+  // ─────────────────────────────────────────────
+  Widget _buildTimerWidget() {
+    if (!_timerActivo) return const SizedBox.shrink();
+
+    final int min = _timerDuration.inMinutes;
+    final int seg = _timerDuration.inSeconds % 60;
+    final String display =
+        "${min.toString().padLeft(2, '0')}:${seg.toString().padLeft(2, '0')}";
+
+    return Positioned(
+      // kToolbarHeight (56) + padding de status bar (~24) = ~80px de espacio seguro
+      top: kToolbarHeight + 24 + 8,
+      left: 20,
+      right: 20,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0D0D1E),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: _cianNeon, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: _cianNeon.withOpacity(0.3),
+              blurRadius: 16,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Row(
           children: [
-            Expanded(flex: 5, child: _buildAvatar()),
-            Expanded(flex: 4, child: _buildPanelTexto()),
-            _buildControles(),
-            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: _cianNeon.withOpacity(0.08),
+                shape: BoxShape.circle,
+                border: Border.all(color: _cianNeon.withOpacity(0.4)),
+              ),
+              child: const Icon(Icons.timer_rounded,
+                  color: _cianNeon, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "TEMPORIZADOR",
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: _cianNeon.withOpacity(0.65),
+                      letterSpacing: 2.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    display,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      color: _cianNeon,
+                      letterSpacing: 4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: _cancelarTemporizador,
+              child: Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.redAccent, width: 1),
+                  color: Colors.redAccent.withOpacity(0.08),
+                ),
+                child: const Icon(Icons.close,
+                    color: Colors.redAccent, size: 17),
+              ),
+            ),
           ],
         ),
       ),
@@ -838,15 +1194,38 @@ Máximo 3 oraciones por respuesta.
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
+                    // ── Capa 1: Patrón andino de fondo (se mantiene intacto) ──
                     CustomPaint(
                       size: const Size(160, 160),
                       painter: _AndeanPatternPainter(),
                     ),
-                    // Reemplazar con Image.asset cuando tengas el asset de NID
-                    Icon(
-                      Icons.auto_awesome,
-                      size: 64,
-                      color: _doradoInca.withOpacity(0.9),
+                    // ── Capa 2: Avatar WebP animado ──
+                    // IndexedStack mantiene ambos assets pre-cargados en el árbol
+                    // de widgets para evitar parpadeo (flicker) al alternar estados.
+                    // index 0 = hablando  → nid_hablando.webp (animación en loop)
+                    // index 1 = idle/escuchando → nid_idle.webp (reposo)
+                    // La bandera _hablando ya es el semáforo correcto:
+                    //   true  → TTS reproduciendo audio (setter en _hablar)
+                    //   false → CompletionHandler de FlutterTts lo apaga
+                    SizedBox(
+                      width: 160,
+                      height: 160,
+                      child: IndexedStack(
+                        index: _hablando ? 0 : 1,
+                        sizing: StackFit.expand,
+                        children: [
+                          Image.asset(
+                            'assets/images/nid_hablando.webp',
+                            fit: BoxFit.cover,
+                            gaplessPlayback: true, // evita flash blanco entre frames
+                          ),
+                          Image.asset(
+                            'assets/images/nid_idle.webp',
+                            fit: BoxFit.cover,
+                            gaplessPlayback: true,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -915,10 +1294,11 @@ Máximo 3 oraciones por respuesta.
   // ─────────────────────────────────────────────
   Widget _buildPanelTexto() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
+      // Sin margin horizontal: el padding ya viene del Padding externo en build()
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F0F1A),
+        // Fondo oscuro translúcido: legible sobre la ilustración de fondo
+        color: Colors.black.withOpacity(0.62),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _moradoNeon.withOpacity(0.4), width: 1),
         boxShadow: [
