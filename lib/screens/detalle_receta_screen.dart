@@ -84,26 +84,39 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     return resultado.toStringAsFixed(1);
   }
 
-  // Abreviaciones de unidades
+  // Abreviaciones de unidades — invariables no se pluralizan
+  static const _unidadesInvariables = {'ml', 'g', 'kg', 'oz', 'lb', 'gr', 'l'};
+
   String _abreviarUnidad(String unidad, double cantidad) {
-    final Map<String, String> abrev = {
+    final String lower = unidad.toLowerCase();
+    const Map<String, String> abrevFijas = {
       'gramo': 'g', 'gramos': 'g',
       'kilogramo': 'kg', 'kilogramos': 'kg',
       'mililitro': 'ml', 'mililitros': 'ml',
-      'litro': 'L', 'litros': 'L',
-      'cucharada': cantidad <= 1 ? 'cda.' : 'cdas.',
-      'cucharadas': 'cdas.',
-      'cucharadita': cantidad <= 1 ? 'cdta.' : 'cdtas.',
-      'cucharaditas': 'cdtas.',
-      'cucharita': cantidad <= 1 ? 'cdta.' : 'cdtas.',
-      'cucharitas': 'cdtas.',
-      'taza': cantidad <= 1 ? 'taza' : 'tazas',
-      'tazas': 'tazas',
+      'litro': 'litro', 'litros': 'litro',
+      'libra': 'libra', 'libras': 'libra',
+      'onza': 'oz', 'onzas': 'oz',
     };
-    return abrev[unidad.toLowerCase()] ?? _pluralizarSeguro(cantidad, unidad);
+    if (abrevFijas.containsKey(lower)) {
+      final String base = abrevFijas[lower]!;
+      return _pluralizarSeguro(cantidad, base);
+    }
+    if (lower == 'cucharada' || lower == 'cucharadas') {
+      return cantidad <= 1 ? 'cda.' : 'cdas.';
+    }
+    if (lower == 'cucharadita' || lower == 'cucharaditas' ||
+        lower == 'cucharita' || lower == 'cucharitas') {
+      return cantidad <= 1 ? 'cdta.' : 'cdtas.';
+    }
+    if (lower == 'taza' || lower == 'tazas') {
+      return cantidad <= 1 ? 'taza' : 'tazas';
+    }
+    return _pluralizarSeguro(cantidad, unidad);
   }
+
   static const _unidadesMedida = {
     'cucharada', 'cucharadas', 'cucharadita', 'cucharaditas',
+    'cucharita', 'cucharitas',
     'taza', 'tazas', 'vaso', 'vasos', 'copa', 'copas',
     'litro', 'litros', 'l',
     'mililitro', 'mililitros', 'ml',
@@ -117,11 +130,13 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     'rodaja', 'rodajas',
     'rebanada', 'rebanadas',
     'porción', 'porciones',
+    'unidad', 'unidades',
   };
 
   String _pluralizarPalabra(String palabra, double cantidad) {
     if (cantidad <= 1 || palabra.isEmpty) return palabra;
     final String lower = palabra.toLowerCase();
+    if (_unidadesInvariables.contains(lower)) return palabra;
     if (lower.endsWith('s') || lower.endsWith('x')) return palabra;
     if (lower.endsWith('z')) return '${palabra.substring(0, palabra.length - 1)}ces';
     if (RegExp(r'[aeiouáéíóú]$').hasMatch(lower)) return '${palabra}s';
@@ -131,6 +146,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   String _pluralizarSeguro(double cantidad, String texto) {
     if (cantidad <= 1 || texto.trim().isEmpty) return texto.trim();
     final String limpio = texto.trim();
+    if (_unidadesInvariables.contains(limpio.toLowerCase())) return limpio;
     final List<String> partes = limpio.split(' ');
     // Si hay "de" en la frase (ej: "astilla de canela"), pluralizar solo antes del "de"
     final int deIdx = partes.indexWhere((p) => p.toLowerCase() == 'de');
@@ -1096,10 +1112,28 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                 final double cantidadActual = ing.cantidad * _porciones / _porcionesBase;
                                 final String numeroDisplay = _calcularNumero(ing.cantidad);
                                 final String unidadDisplay = ing.unidad.trim();
-                                final bool esMedida = _unidadesMedida.contains(unidadDisplay.toLowerCase());
-                                final String cantidadUnidad = unidadDisplay.isNotEmpty
+                                final String unidadLower = unidadDisplay.toLowerCase();
+                                final bool esUnidad = unidadLower == 'unidad' || unidadLower == 'unidades';
+                                final bool esMedida = _unidadesMedida.contains(unidadLower) && !esUnidad;
+
+                                // [cantidad+unidad] texto
+                                final String cantidadUnidad = (unidadDisplay.isNotEmpty && !esUnidad)
                                     ? '$numeroDisplay ${_abreviarUnidad(unidadDisplay, cantidadActual)}'
                                     : numeroDisplay;
+
+                                // [nombre] texto
+                                final String nombreTexto = () {
+                                  if (esUnidad || unidadDisplay.isEmpty) {
+                                    // Sin unidad visible → pluralizar nombre
+                                    return _pluralizarNombre(cantidadActual, ing.nombre);
+                                  }
+                                  if (unidadLower.contains(' de ')) {
+                                    // Unidad compuesta tipo "astilla de canela" → nombre limpio
+                                    return ing.nombre;
+                                  }
+                                  if (esMedida) return 'de ${ing.nombre}';
+                                  return _pluralizarNombre(cantidadActual, ing.nombre);
+                                }();
 
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -1174,19 +1208,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                                 children: [
                                                   Flexible(
                                                     child: Text(
-                                                      () {
-                                                        // Si la unidad ya contiene "de X" (ej: "astilla de canela"),
-                                                        // el nombre en Firestore puede ser solo "canela" o el nombre completo.
-                                                        // En ese caso mostramos el nombre tal cual sin "de" extra.
-                                                        final String unidLower = unidadDisplay.toLowerCase();
-                                                        final bool unidadEsCompuesta = unidLower.contains(' de ');
-                                                        if (unidadEsCompuesta) {
-                                                          // El nombre ya está implícito en la unidad, mostrar limpio
-                                                          return ing.nombre;
-                                                        }
-                                                        if (esMedida) return 'de ${ing.nombre}';
-                                                        return _pluralizarNombre(cantidadActual, ing.nombre);
-                                                      }(),
+                                                      nombreTexto,
                                                       maxLines: 1,
                                                       overflow: TextOverflow.ellipsis,
                                                       style: TextStyle(

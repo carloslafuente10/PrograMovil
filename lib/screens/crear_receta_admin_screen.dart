@@ -3,7 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 String _pluralizarUnidad(String cantidad, String unidad) {
   if (unidad.isEmpty) return unidad;
-  const invariables = {'g', 'kg', 'ml', 'l', 'al gusto'};
+  // Invariables: nunca se pluralizan
+  const invariables = {'g', 'kg', 'ml', 'l', 'oz', 'lb', 'al gusto', 'c/n'};
   if (invariables.contains(unidad.toLowerCase())) return unidad;
   final double? valor = double.tryParse(cantidad.replaceAll(',', '.'));
   final bool plural = valor == null || valor > 1;
@@ -11,6 +12,7 @@ String _pluralizarUnidad(String cantidad, String unidad) {
     'taza': 'tazas',
     'cucharada': 'cucharadas',
     'cucharadita': 'cucharaditas',
+    'cucharita': 'cucharitas',
     'unidad': 'unidades',
     'pizca': 'pizcas',
     'rebanada': 'rebanadas',
@@ -21,11 +23,14 @@ String _pluralizarUnidad(String cantidad, String unidad) {
     'sobre': 'sobres',
     'paquete': 'paquetes',
     'rodaja': 'rodajas',
+    'litro': 'litros',
+    'libra': 'libras',
   };
   const singulares = {
     'tazas': 'taza',
     'cucharadas': 'cucharada',
     'cucharaditas': 'cucharadita',
+    'cucharitas': 'cucharita',
     'unidades': 'unidad',
     'pizcas': 'pizca',
     'rebanadas': 'rebanada',
@@ -36,6 +41,8 @@ String _pluralizarUnidad(String cantidad, String unidad) {
     'sobres': 'sobre',
     'paquetes': 'paquete',
     'rodajas': 'rodaja',
+    'litros': 'litro',
+    'libras': 'libra',
   };
   final base = singulares[unidad.toLowerCase()] ?? unidad;
   return plural ? (plurales[base.toLowerCase()] ?? base) : base;
@@ -126,6 +133,8 @@ class _CrearRecetaAdminScreenState extends State<CrearRecetaAdminScreen>
     'kg',
     'ml',
     'L',
+    'litro',
+    'libra',
     'taza',
     'cucharada',
     'cucharadita',
