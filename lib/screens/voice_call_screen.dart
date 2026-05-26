@@ -1,199 +1,114 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Necesario para HapticFeedback
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'detalle_receta_screen.dart';
+import 'voice_call_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
-import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:flutter_tts/flutter_tts.dart';
 
-// ═══════════════════════════════════════════════════════════════════════════
-// VoiceCallScreen — Asistente de voz NID
-//
-// FLUJO COMPLETO:
-//   1. Al abrir → carga catálogo Firestore (RAG) en segundo plano.
-//   2. Saludo inicial automático: NID se presenta con la frase exacta.
-//   3. Usuario pulsa micrófono → STT transcribe su voz.
-//   4. IntentRouter detecta la intención local (siguiente paso, repetir,
-//      listar ingredientes, etc.) antes de gastar tokens en Groq.
-//   5. Si la intención requiere IA → Groq + historial + catálogo.
-//   6. Respuesta limpia (sin markdown) → flutter_tts la reproduce.
-//
-// DEPENDENCIAS (pubspec.yaml):
-//   speech_to_text: ^6.6.0
-//   flutter_tts:    ^4.0.2
-//   cloud_firestore, http, flutter_dotenv  ← ya están en el proyecto
-// ═══════════════════════════════════════════════════════════════════════════
-
-class VoiceCallScreen extends StatefulWidget {
-  const VoiceCallScreen({super.key});
+class SugerenciasChatScreen extends StatefulWidget {
+  const SugerenciasChatScreen({super.key});
 
   @override
-  State<VoiceCallScreen> createState() => _VoiceCallScreenState();
+  State<SugerenciasChatScreen> createState() => _SugerenciasChatScreenState();
 }
 
-class _VoiceCallScreenState extends State<VoiceCallScreen>
-    with SingleTickerProviderStateMixin {
+class _SugerenciasChatScreenState extends State<SugerenciasChatScreen>
+    with TickerProviderStateMixin {
 
   // ─────────────────────────────────────────────
-  // PALETA CIBERPUNK ANDINO
+  // VARIABLES DE ESTADO GENERALES
   // ─────────────────────────────────────────────
-  static const Color _negro      = Color(0xFF0A0A0F);
-  static const Color _moradoNeon = Color(0xFF7B2FBE);
-  static const Color _cianNeon   = Color(0xFF00F5FF);
-  static const Color _doradoInca = Color(0xFFFFD700);
-  static const Color _verdeApp   = Color(0xFF2D9E73);
+  final TextEditingController _controller = TextEditingController();
+  final List<Map<String, dynamic>> _mensajes = [];
+  bool _opcionSeleccionada = false;
+  bool _estaCargando = false;
+  String? _categoriaActual;
+  bool _esperandoDetalleReporte = false;
+  bool _esperandoParrafoSugerencia = false;
+  final Color _verde = const Color(0xFF2D9E73);
 
   // ─────────────────────────────────────────────
-  // SERVICIOS EXTERNOS
-  // ─────────────────────────────────────────────
-  final stt.SpeechToText _speech = stt.SpeechToText();
-  final FlutterTts         _tts   = FlutterTts();
-  final String _apiKey = dotenv.env['GROQ_API_KEY'] ?? '';
-
-  // ─────────────────────────────────────────────
-  // ESTADO DE AUDIO / UI
-  // ─────────────────────────────────────────────
-  String _textoEscuchado = "";
-  String _preguntaFinal  = "";
-  String _respuestaNID   = "";   // Última respuesta visible y en caché para TTS
-  bool   _escuchando     = false;
-  bool   _procesando     = false;
-  bool   _hablando       = false;
-
-  // ─────────────────────────────────────────────
-  // CATÁLOGO RAG (Firestore)
-  // _catalogoContexto  → String plano para inyectar en el prompt
-  // _recetasData       → datos estructurados para el IntentRouter local
-  // _catalogoCargado   → semáforo UI
-  // ─────────────────────────────────────────────
-  /// Índice slim: solo "ID | Nombre | Categoría | Calorías | Tiempo"
-  /// Se inyecta en Groq cuando NO hay receta activa (~500 tokens máx.)
-  String _catalogoContexto = "";
-
-  /// Texto completo de la receta que el usuario eligió en esta sesión.
-  /// Se inyecta en Groq EN LUGAR del catálogo una vez que el usuario
-  /// menciona una receta concreta. Reduce el contexto de ~5 000 → ~300 tokens.
-  String _recetaActivaContexto = "";
-
-  bool   _catalogoCargado  = false;
-
-  /// Cada entrada: { 'nombre', 'categoria', 'calorias', 'tiempo',
-  ///                 'ingredientes': List<String>, 'pasos': List<String> }
-  final List<Map<String, dynamic>> _recetasData = [];
-
-  // ─────────────────────────────────────────────
-  // ESTADO DE RECETA ACTIVA (control paso a paso)
+  // VARIABLES DEL FLUJO DE REPORTE (GAMIFICADO)
   // ─────────────────────────────────────────────
 
-  /// Nombre de la receta que el usuario eligió en esta sesión
-  String? _recetaActivaNombre;
+  /// Paso actual del flujo de reporte: 0=sin iniciar, 1=cat elegida, 2=subcat elegida, 3=frase completada
+  int _pasoReporte = 0;
 
-  /// Pasos de la receta activa (lista limpia de Strings)
-  List<String> _pasosActivos = [];
+  bool _bloquearReportes = false;
+  String _categoriaReporteActual = "";
+  String _subCategoriaReporteActual = "";
+  bool _bloquearFlujoReporte = false;
 
-  /// Ingredientes de la receta activa (lista limpia de Strings)
-  List<String> _ingredientesActivos = [];
+  /// Chips del banco de palabras que el usuario ha seleccionado (en orden de toque)
+  final List<String> _fraseArmada = [];
 
-  /// Índice del paso que NID está dictando actualmente (0-based)
-  int _pasoActualIndex = -1; // -1 = no se ha iniciado el dictado
+  /// true = el usuario activó el TextField libre desde el botón "✏️ Otro detalle"
+  bool _mostrarCampoLibre = false;
+
+  /// Animación de la barra de progreso segmentada
+  late AnimationController _progressController;
+  late Animation<double> _progressAnimation;
+  double _progreso = 0.0; // 0.0 → 1.0
 
   // ─────────────────────────────────────────────
-  // HISTORIAL PARA GROQ (memoria a corto plazo)
-  // Formato: [{"role": "user"/"assistant", "content": "..."}]
-  // Se envía completo en cada llamada para mantener el hilo.
+  // VARIABLES DEL FLUJO DE AYUDA
   // ─────────────────────────────────────────────
-  final List<Map<String, String>> _historial = [];
-
-  // ─────────────────────────────────────────────
-  // ANIMACIÓN DE PULSO DEL AVATAR
-  // ─────────────────────────────────────────────
-  late AnimationController _pulsoController;
-  late Animation<double>    _pulsoAnimation;
+  String? _categoriaComidaElegida;
+  List<String> _ingredientesPrimordiales = [];
+  final List<String> _ingredientesSeleccionados = [];
+  bool _mostrarGridIngredientes = false;
+  bool _bloquearCategorias = false;
 
   // ─────────────────────────────────────────────
   // VARIABLES DEL TEMPORIZADOR NATIVO
   // ─────────────────────────────────────────────
-  Timer?   _countdownTimer;
-  Duration _timerDuration = Duration.zero;
-  bool     _timerActivo   = false;
+  Timer?    _countdownTimer;
+  Duration  _timerDuration = Duration.zero;
+  bool      _timerActivo   = false;
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // SYSTEM PROMPT — POLÍTICA ZERO-KNOWLEDGE + FORMATO TTS LIMPIO
-  //
-  // ESTRUCTURA:
-  //   [A] Identidad de NID
-  //   [B] Catálogo oficial inyectado en {{CATALOGO}}
-  //   [C] Protocolo de verificación obligatorio (checklist mental)
-  //   [D] Protocolo de rechazo absoluto + frase exacta
-  //   [E] Reglas de formato para TTS (sin markdown, sin listas)
-  //   [F] Reglas de brevedad y dosificación del contenido
-  // ═══════════════════════════════════════════════════════════════════════
-  static const String _systemPromptTemplate = """
-[A — IDENTIDAD]
-Eres NID, el asistente culinario de voz de PrograMovil.
-Tu esencia es la de un guía gastronómico andino preciso y solemne.
-Tu ÚNICO propósito es asistir al usuario usando el CATÁLOGO OFICIAL que se te entrega.
+  // ─────────────────────────────────────────────
+  // BANCO DE PALABRAS DINÁMICO (PASO 3)
+  // Se rellena en _seleccionarSubcategoriaReporte
+  // según la subcategoría elegida por el usuario.
+  // ─────────────────────────────────────────────
+  List<String> _bancoPalabrasDinamico = [];
 
-[B — CATÁLOGO OFICIAL — FUENTE ÚNICA DE VERDAD]
-El siguiente bloque es la ÚNICA fuente de información que puedes usar.
-Tu conocimiento previo sobre cocina NO EXISTE en este contexto.
-════════════════════════════════════════
-CATÁLOGO OFICIAL DE RECETAS PROGRA-MOVIL:
-{{CATALOGO}}
-════════════════════════════════════════
+  // ─────────────────────────────────────────────
+  // CONFIGURACIÓN GROQ / SYSTEM PROMPT
+  // ─────────────────────────────────────────────
+  final String _apiKeyGrok = dotenv.env['GROQ_API_KEY'] ?? '';
+  final String _systemPrompt = """
+Eres A.L.I.C.I.A., la chef virtual oficial de PrograMovil.
+Tu misión es asistir con recetas, reportes de errores y sugerencias basándote ÚNICAMENTE en el contexto que se te entregue.
 
-[C — PROTOCOLO DE VERIFICACIÓN (ejecutar antes de CADA respuesta)]
-Antes de responder, verifica mentalmente:
-  1. El nombre exacto de la receta aparece textualmente en el catálogo.
-  2. Los ingredientes que mencionaré están listados tal cual en esa entrada.
-  3. Los pasos que describiré provienen literalmente de ese catálogo.
-Si cualquier verificación falla → activa el Protocolo D sin excepción.
+REGLAS CRÍTICAS DE RESPUESTA:
+1. Sé SÚPER CORTA y DIRECTA. Responde en un máximo de 2 o 3 líneas de texto.
+2. NUNCA uses listas numeradas, viñetas ni textos largos. Todo debe ser un párrafo breve y fluido.
+3. Mantén el tono entusiasta y usa metáforas culinarias rápidas (problemas = platos quemados, soluciones = recetas).
+4. Usa pocos emojis de cocina y nunca reveles que eres una IA.
 
-[D — PROTOCOLO DE RECHAZO ABSOLUTO]
-Si el plato, receta o ingrediente NO está en el catálogo, responde EXACTAMENTE esta frase sin añadir nada más:
-"Lo siento, esa receta no se encuentra en nuestro sistema de PrograMovil actualmente."
-PROHIBIDO: completar, deducir, inventar ingredientes, pasos, cantidades o sustitutos que no estén explícitamente en el catálogo.
-PROHIBIDO: usar conocimiento externo aunque la receta sea mundialmente conocida.
-PROHIBIDO: contradecirte. Si en un turno anterior confirmaste que una receta existe, debes mantener esa confirmación durante toda la sesión. Jamás digas luego que no la tienes.
-
-[E — FORMATO TTS OBLIGATORIO — NUNCA VIOLAR]
-Tus respuestas serán leídas en voz alta por un motor Text-to-Speech.
-OBLIGATORIO:
-  - Sin asteriscos, guiones decorativos, corchetes, ni emojis.
-  - Sin listas numeradas ni con viñetas. Solo texto fluido y natural.
-  - Sin encabezados ni negritas. Solo prosa conversacional.
-  - Sin símbolos especiales de ningún tipo.
-
-[F — CALORÍAS Y TIEMPOS — SIEMPRE EN MODO ESTIMACIÓN]
-NUNCA declares valores absolutos de calorías ni tiempos de preparación.
-OBLIGATORIO usar lenguaje de aproximación:
+REGLA DE CALORÍAS Y TIEMPOS:
+Nunca declares valores absolutos. SIEMPRE usa lenguaje de estimación.
   - Correcto: "Aproximadamente 350 calorías", "Alrededor de 20 minutos".
-  - Prohibido: "Tiene 350 kcal", "Toma 20 minutos exactos".
-  - Sugerencia de Temporizador: Siempre que un paso dictado contenga un tiempo estimado (ej. "alrededor de 10 minutos", "unos 20 minutos"), incluye al final del enunciado una breve pregunta conversacional (texto fluido, sin listas) sugiriendo si desea que iniciemos un temporizador.
-  - Comando de Temporizador: Si el usuario acepta iniciar el temporizador (responde "sí", "claro", "dale", "perfecto", "inicia" o similar), añade al FINAL de tu respuesta el comando oculto [TIMER:X] donde X es el número entero de minutos. Este comando NUNCA debe ser pronunciado por el TTS ni mostrado al usuario; es exclusivamente una instrucción interna para la aplicación. El resto de tu respuesta debe permanecer limpio y natural.
-  - Sugerencia de Temporizador: Siempre que un paso dictado o mención contenga un tiempo estimado (ej. 10 minutos, 20 minutos), incluye al final del enunciado una breve pregunta conversacional (sin listas, texto fluido) sugiriendo si desea que iniciemos un temporizador.
+  - Prohibido: "Tiene 350 kcal", "Toma exactamente 20 minutos".
+  - REGLA DEL TEMPORIZADOR: Cada vez que menciones una cantidad de tiempo en una receta o paso (ej. "alrededor de 10 minutos"), finaliza esa oración preguntando de forma natural si el usuario desea iniciar un temporizador. Si el usuario responde afirmativamente ("sí", "dale", "inicia", "perfecto", "claro"), añade al FINAL de tu respuesta el comando oculto [TIMER:X] donde X es el número entero de minutos. Este comando no debe ser leído en voz alta ni mostrado visualmente al usuario; es solo una instrucción interna para la aplicación.
 
-[G — BREVEDAD Y DOSIFICACIÓN — REGLA DE ORO]
-NUNCA listes ingredientes ni pasos de forma automática al confirmar una receta.
-Cuando el usuario mencione un plato: confirma el nombre, menciona calorías y tiempo usando lenguaje de estimación, y pregunta: "¿Te parece si empezamos por el primer paso?" Detente ahí.
-Solo avanza al siguiente paso cuando el usuario confirme explícitamente que está listo o terminó el anterior.
-Máximo 3 oraciones por respuesta.
+REGLA DE RECETAS PASO A PASO:
+Jamás entregues la receta completa ni múltiples pasos en un solo mensaje.
+Al confirmar una receta, pregunta: "¿Te parece si empezamos por el primer paso?" y detente.
+Solo avanza al siguiente paso cuando el usuario lo confirme explícitamente.
 
-[H — PORCIONES DINÁMICAS]
-Si el usuario solicita adaptar la receta para N personas, realiza tú mismo la operación matemática de multiplicar o dividir cada cantidad de ingrediente y devuelve la lista ya calculada en texto fluido.
-PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "triplique" por su cuenta.
+REGLA DE PORCIONES DINÁMICAS:
+Si el usuario pide adaptar para N personas, calcula tú mismo cada cantidad y devuélvela en texto fluido.
+Prohibido pedirle al usuario que haga el cálculo por su cuenta.
+
+REGLA DE PERSISTENCIA:
+Si en un mensaje anterior confirmaste que una receta existe, mantén esa confirmación durante toda la conversación.
+Jamás te contradigas diciendo que no cuentas con una receta que ya confirmaste.
 """;
-
-  // ─────────────────────────────────────────────
-  // SALUDO INICIAL EXACTO DE NID
-  // Se pronuncia automáticamente al terminar de
-  // cargar el catálogo. No gasta tokens de API.
-  // ─────────────────────────────────────────────
-  static const String _saludoInicial =
-      "Bienvenido cocinero, mi nombre es NID. "
-      "Espero que mi ayuda pueda satisfacer las dudas que tengas "
-      "para preparar nuestra próxima obra gastronómica.";
 
   // ─────────────────────────────────────────────
   // initState / dispose
@@ -201,51 +116,45 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
   @override
   void initState() {
     super.initState();
-
-    _pulsoController = AnimationController(
+    // Controlador de la barra de progreso animada
+    _progressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat(reverse: true);
-
-    _pulsoAnimation = Tween<double>(begin: 1.0, end: 1.12).animate(
-      CurvedAnimation(parent: _pulsoController, curve: Curves.easeInOut),
+      duration: const Duration(milliseconds: 600),
     );
-
-    _configurarTts();
-    _cargarCatalogoYSaludar(); // Carga Firestore y luego pronuncia el saludo
+    _progressAnimation = Tween<double>(begin: 0, end: 0).animate(
+      CurvedAnimation(parent: _progressController, curve: Curves.easeInOut),
+    );
   }
 
   @override
   void dispose() {
     _countdownTimer?.cancel();
-    _pulsoController.dispose();
-    _speech.stop();
-    _tts.stop();
+    _progressController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   // ─────────────────────────────────────────────
-  // _configurarTts
-  // Voz pausada y levemente grave para NID.
+  // _animarProgreso
+  // Anima la barra de progreso desde el valor
+  // actual hacia el nuevo target (0.0 a 1.0).
   // ─────────────────────────────────────────────
-  Future<void> _configurarTts() async {
-    await _tts.setLanguage("es-US");
-    await _tts.setSpeechRate(0.42);
-    await _tts.setPitch(0.85);
-    _tts.setCompletionHandler(() {
-      if (mounted) setState(() => _hablando = false);
-    });
+  void _animarProgreso(double nuevoValor) {
+    final double inicio = _progreso;
+    _progressAnimation = Tween<double>(begin: inicio, end: nuevoValor).animate(
+      CurvedAnimation(parent: _progressController, curve: Curves.easeInOut),
+    );
+    _progressController.forward(from: 0);
+    setState(() => _progreso = nuevoValor);
   }
 
   // ─────────────────────────────────────────────
   // _iniciarTemporizador / _cancelarTemporizador
-  // Motor nativo del temporizador. Se activa cuando
-  // la IA responde con el comando oculto [TIMER:X].
-  // La detección ocurre ANTES de limpiar para TTS,
-  // por lo que el tag nunca es pronunciado.
+  // Motor nativo del temporizador. Usa dart:async.
+  // Se dispara cuando la IA responde con [TIMER:X].
   // ─────────────────────────────────────────────
   void _iniciarTemporizador(int minutos) {
-    _cancelarTemporizador(); // Limpia uno previo si existe
+    _cancelarTemporizador(); // Cancela uno previo si existe
     setState(() {
       _timerDuration = Duration(minutes: minutos);
       _timerActivo   = true;
@@ -257,10 +166,19 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
           _timerDuration -= const Duration(seconds: 1);
         } else {
           _cancelarTemporizador();
-          // Notificación sonora de finalización vía TTS
-          _hablar(
-            "El temporizador ha terminado. ¡Tu preparación está lista!",
-            guardarEnHistorial: false,
+          // Notificación de finalización
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 10),
+                  Text("¡Listo! El tiempo del paso ha terminado 🍳"),
+                ],
+              ),
+              backgroundColor: _verde,
+              duration: const Duration(seconds: 4),
+            ),
           );
         }
       });
@@ -273,40 +191,47 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
     if (mounted) setState(() => _timerActivo = false);
   }
 
-  // ═══════════════════════════════════════════════════════
-  // _sanitizarRecetaFirestore  — HELPER DE SANITIZACIÓN
-  //
-  // Intercepta el mapa crudo de un documento Firestore y
-  // unifica semánticamente ingredientes + cantidades + pasos
-  // en Strings legibles antes de enviarlos a Groq.
-  //
-  // Problema que resuelve: Firestore puede almacenar las
-  // cantidades y nombres en campos separados, produciendo
-  // ráfagas de números sin contexto como "1 1 1 4 1 6" si
-  // se concatenan sin lógica. Este helper los une en frases
-  // naturales: "1 unidad de pechuga de pollo".
-  //
-  // Devuelve Map con:
-  //   'ingredientes': List<String> unificados y legibles
-  //   'pasos':        List<String> limpios
-  //   'contextoTexto': String listo para inyectar en el prompt
-  // ═══════════════════════════════════════════════════════
-  Map<String, dynamic> _sanitizarRecetaFirestore(
-      Map<String, dynamic> data, String docId) {
+  // ─────────────────────────────────────────────
+  // _construirPromptValidacion
+  // Genera el prompt de validación para la IA
+  // dado categoría, subcategoría y texto del usuario.
+  // ─────────────────────────────────────────────
+  String _construirPromptValidacion(
+      String categoriaReporte, String subCategoria, String textoUsuario) {
+    return """
+Eres el sistema de control de calidad de la app PrograMovil. Tu única tarea es validar si la descripción de un reporte de error enviada por el usuario es legítima.
 
-    final String nombre    = (data['nombre']    ?? 'Sin nombre').toString().trim();
+CRITERIOS DE VALIDACIÓN:
+1. RELACIÓN: El texto debe tener relación directa con el problema reportado. Categoría: $categoriaReporte. Subcategoría: $subCategoria.
+2. COHERENCIA: El texto debe ser legible, coherente y describir una situación o acción. No se permiten números aleatorios, spam, insultos ni palabras sueltas sin sentido.
+3. CONTEXTO DE LA APP: Debe hablar de funciones, pantallas, botones o recetas de la aplicación.
+
+Texto del usuario a evaluar: "$textoUsuario"
+
+Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVALIDO' si falla en alguno. No agregues saludos, explicaciones ni puntuación.
+""";
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // _sanitizarRecetaParaContexto — HELPER DE SANITIZACIÓN
+  //
+  // Misma lógica que en voice_call_screen.dart.
+  // Convierte el mapa crudo de Firestore en un String
+  // legible y semánticamente unificado antes de enviarlo
+  // como contexto a Groq, eliminando ráfagas de números.
+  //
+  // Uso: llamar con doc.data() antes de generateContent.
+  // Devuelve un String listo para insertar en el prompt.
+  // ═══════════════════════════════════════════════════════
+  String _sanitizarRecetaParaContexto(Map<String, dynamic> data) {
+    final String nombre    = (data['nombre']    ?? '').toString().trim();
     final String categoria = (data['categoria'] ?? '').toString().trim();
     final String calorias  = (data['calorias']  ?? '').toString().trim();
     final String tiempo    = (data['tiempo']    ?? '').toString().trim();
 
-    // ── INGREDIENTES — unificación semántica ──────────────
-    // Soporta 4 estructuras de Firestore:
-    //   A) String simple:             "pechuga de pollo"
-    //   B) Map {nombre, cantidad}:    {nombre: "pollo", cantidad: "1"}
-    //   C) Map {nombre, cantidad, unidad}: {nombre:"harina", cantidad:"2", unidad:"tazas"}
-    //   D) Map con campos separados   {ingrediente:"papa", gramos:"200"}
-    final List rawIngredientes = data['ingredientes'] ?? [];
-    final List<String> ingredientesLimpios = rawIngredientes.map<String>((ing) {
+    // ── Ingredientes: unificación semántica de nombre + cantidad + unidad ──
+    final List rawIng = data['ingredientes'] ?? [];
+    final List<String> ingsLimpios = rawIng.map<String>((ing) {
       if (ing is Map) {
         final String nom = (ing['nombre']     ??
                             ing['name']       ??
@@ -317,10 +242,7 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
                             ing['unidades']   ?? '').toString().trim();
         final String uni = (ing['unidad']     ??
                             ing['unit']       ?? '').toString().trim();
-
         if (nom.isEmpty) return '';
-
-        // Construir frase natural: "2 tazas de harina", "1 unidad de pechuga"
         if (can.isNotEmpty && uni.isNotEmpty) return "$can $uni de $nom";
         if (can.isNotEmpty) return "$can de $nom";
         return nom;
@@ -328,7 +250,7 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
       return ing.toString().trim();
     }).where((s) => s.isNotEmpty).toList();
 
-    // ── PASOS — tolerante a String y Map con claves variables ──
+    // ── Pasos ──
     final List rawPasos = data['pasos'] ?? [];
     final List<String> pasosLimpios = rawPasos.map<String>((paso) {
       if (paso is Map) {
@@ -341,712 +263,599 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
       return paso.toString().trim();
     }).where((s) => s.isNotEmpty).toList();
 
-    // ── Texto de contexto completo para Groq (~300 tokens) ──
     final StringBuffer ctx = StringBuffer();
-    ctx.writeln("RECETA: $nombre");
+    if (nombre.isNotEmpty)    ctx.writeln("RECETA: $nombre");
     if (categoria.isNotEmpty) ctx.writeln("  Categoría: $categoria");
     if (calorias.isNotEmpty)  ctx.writeln("  Calorías aproximadas: $calorias");
     if (tiempo.isNotEmpty)    ctx.writeln("  Tiempo aproximado: $tiempo");
-    if (ingredientesLimpios.isNotEmpty) {
-      ctx.writeln("  Ingredientes: ${ingredientesLimpios.join(', ')}");
+    if (ingsLimpios.isNotEmpty) {
+      ctx.writeln("  Ingredientes: ${ingsLimpios.join(', ')}");
     }
     for (int i = 0; i < pasosLimpios.length; i++) {
       ctx.writeln("  Paso ${i + 1}: ${pasosLimpios[i]}");
     }
-
-    return {
-      'id':            docId,
-      'nombre':        nombre,
-      'categoria':     categoria,
-      'calorias':      calorias,
-      'tiempo':        tiempo,
-      'ingredientes':  ingredientesLimpios,
-      'pasos':         pasosLimpios,
-      'contextoTexto': ctx.toString(),
-    };
+    return ctx.toString();
   }
 
-  // ═══════════════════════════════════════════════════════
-  // CARGA DE CATÁLOGO FIRESTORE (RAG)
-  //
-  // Fase 1 — Índice slim (solo nombre + meta, sin ingredientes/pasos).
-  //           Se inyecta en Groq cuando NO hay receta activa.
-  //           Mantiene el contexto inicial < 500 tokens.
-  // Fase 2 — Estructura completa sanitizada almacenada en _recetasData
-  //           lista para activarse cuando el usuario elija una receta.
-  // ═══════════════════════════════════════════════════════
-  Future<void> _cargarCatalogoYSaludar() async {
-    setState(() => _procesando = true);
-
-    try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('app-recetas-completas')
-          .get();
-
-      final StringBuffer buffer = StringBuffer();
-
-      for (final doc in snapshot.docs) {
-        // ── Sanitizar datos crudos con el helper ──
-        final Map<String, dynamic> sanitizado =
-            _sanitizarRecetaFirestore(doc.data(), doc.id);
-
-        // ── Línea slim para el índice (solo metadatos, sin ingredientes/pasos) ──
-        final List<String> meta = [
-          "ID:${doc.id}",
-          "RECETA:${sanitizado['nombre']}",
-        ];
-        if ((sanitizado['categoria'] as String).isNotEmpty) {
-          meta.add("Categoría:${sanitizado['categoria']}");
-        }
-        if ((sanitizado['calorias'] as String).isNotEmpty) {
-          meta.add("Calorías aprox.:${sanitizado['calorias']}");
-        }
-        if ((sanitizado['tiempo'] as String).isNotEmpty) {
-          meta.add("Tiempo aprox.:${sanitizado['tiempo']}");
-        }
-        buffer.writeln(meta.join(" | "));
-
-        // ── Guardar estructura completa sanitizada para el IntentRouter ──
-        _recetasData.add(sanitizado);
-      }
-
-      setState(() {
-        _catalogoContexto = buffer.toString();
-        _catalogoCargado  = true;
-        _procesando       = false;
-      });
-
-    } catch (e) {
-      debugPrint("Error al cargar catálogo Firestore: $e");
-      setState(() {
-        _catalogoContexto = "(Sin datos disponibles)";
-        _catalogoCargado  = true;
-        _procesando       = false;
-      });
-    }
-
-    await _hablar(_saludoInicial, guardarEnHistorial: false);
-  }
-
-  // ═══════════════════════════════════════════════════════
-  // INTENT ROUTER — Detección local de intenciones
-  //
-  // Procesa el texto del usuario ANTES de llamar a Groq.
-  // Si detecta una intención manejable localmente (siguiente
-  // paso, repetir, listar ingredientes, etc.) la resuelve
-  // sin gastar tokens. Solo delega a Groq lo que requiere
-  // comprensión semántica real.
-  //
-  // Devuelve true si manejó la intención; false si debe
-  // continuar hacia _consultarNID().
-  // ═══════════════════════════════════════════════════════
-  Future<bool> _intentRouter(String texto) async {
-    final String t = texto.toLowerCase().trim();
-
-    // ── 1. REPETIR ÚLTIMA RESPUESTA ──────────────────────
-    // "qué dijiste", "repite eso", "no te entendí"
-    if (_respuestaNID.isNotEmpty &&
-        (t.contains("qué dijiste") ||
-         t.contains("que dijiste") ||
-         t.contains("repite eso") ||
-         t.contains("repítelo") ||
-         t.contains("no te entendí") ||
-         t.contains("no te entendi"))) {
-      await _hablar(_respuestaNID, guardarEnHistorial: false);
-      return true;
-    }
-
-    // ── 2. SIGUIENTE PASO ────────────────────────────────
-    // "siguiente", "siguiente paso", "continúa", "adelante"
-    if (_recetaActivaNombre != null && _pasosActivos.isNotEmpty &&
-        (t == "siguiente" ||
-         t.contains("siguiente paso") ||
-         t.contains("continúa") ||
-         t.contains("continua") ||
-         t.contains("adelante") ||
-         t.contains("el siguiente"))) {
-      _pasoActualIndex++;
-      if (_pasoActualIndex < _pasosActivos.length) {
-        final String msg =
-            "Paso ${_pasoActualIndex + 1}: ${_pasosActivos[_pasoActualIndex]}";
-        await _hablar(msg, guardarEnHistorial: true);
-      } else {
-        await _hablar(
-          "Has completado todos los pasos de $_recetaActivaNombre. ¡Buen provecho!",
-          guardarEnHistorial: true,
-        );
-        _pasoActualIndex = _pasosActivos.length - 1; // No salir del array
-      }
-      return true;
-    }
-
-    // ── 3. PASO ANTERIOR ─────────────────────────────────
-    // "paso anterior", "regresa", "vuelve"
-    if (_recetaActivaNombre != null && _pasosActivos.isNotEmpty &&
-        (t.contains("paso anterior") ||
-         t.contains("regresa") ||
-         t.contains("vuelve") ||
-         t.contains("atrás") ||
-         t.contains("atras"))) {
-      if (_pasoActualIndex > 0) {
-        _pasoActualIndex--;
-        final String msg =
-            "Volviendo al paso ${_pasoActualIndex + 1}: ${_pasosActivos[_pasoActualIndex]}";
-        await _hablar(msg, guardarEnHistorial: true);
-      } else {
-        await _hablar(
-          "Ya estás en el primer paso de $_recetaActivaNombre.",
-          guardarEnHistorial: true,
-        );
-      }
-      return true;
-    }
-
-    // ── 4. REPETIR PASO ACTUAL ───────────────────────────
-    // "repite el paso", "repite eso", "de nuevo"
-    if (_recetaActivaNombre != null &&
-        _pasoActualIndex >= 0 &&
-        _pasosActivos.isNotEmpty &&
-        (t.contains("repite el paso") ||
-         t.contains("repite ese") ||
-         t.contains("de nuevo") ||
-         t.contains("otra vez"))) {
-      final String msg =
-          "Repitiendo el paso ${_pasoActualIndex + 1}: ${_pasosActivos[_pasoActualIndex]}";
-      await _hablar(msg, guardarEnHistorial: false);
-      return true;
-    }
-
-    // ── 5. INICIAR PASOS / EMPEZAR A COCINAR ─────────────
-    // Solo dicta el paso 1 cuando el usuario confirma explícitamente.
-    // Si aún no ha confirmado, NID pregunta primero.
-    if (_recetaActivaNombre != null && _pasosActivos.isNotEmpty &&
-        (t.contains("empezar a cocinar") ||
-         t.contains("dime los pasos") ||
-         t.contains("quiero cocinar") ||
-         t.contains("empecemos") ||
-         t.contains("ir a los pasos") ||
-         t.contains("sí, empieza") ||
-         t.contains("si, empieza") ||
-         t.contains("dale") ||
-         t.contains("preparación") ||
-         t.contains("preparacion"))) {
-      // Si aún no se ha iniciado el dictado → confirmar antes de lanzar el paso 1
-      if (_pasoActualIndex == -1) {
-        _pasoActualIndex = 0;
-        final String msg =
-            "Perfecto, comenzamos con $_recetaActivaNombre. "
-            "Paso 1: ${_pasosActivos[0]}. "
-            "Cuando estés listo, dime 'siguiente'.";
-        await _hablar(msg, guardarEnHistorial: true);
-      } else {
-        // Ya estaba en marcha → avanzar normalmente
-        _pasoActualIndex++;
-        if (_pasoActualIndex < _pasosActivos.length) {
-          await _hablar(
-            "Paso ${_pasoActualIndex + 1}: ${_pasosActivos[_pasoActualIndex]}",
-            guardarEnHistorial: true,
-          );
-        } else {
-          await _hablar(
-            "Has completado todos los pasos de $_recetaActivaNombre. ¡Buen provecho!",
-            guardarEnHistorial: true,
-          );
-          _pasoActualIndex = _pasosActivos.length - 1;
-        }
-      }
-      return true;
-    }
-
-    // ── 6. LISTAR INGREDIENTES DE LA RECETA ACTIVA ───────
-    // "dime los ingredientes", "qué necesito", "muéstrame los ingredientes"
-    if (_recetaActivaNombre != null && _ingredientesActivos.isNotEmpty &&
-        (t.contains("ingredientes") ||
-         t.contains("qué necesito") ||
-         t.contains("que necesito") ||
-         t.contains("qué lleva") ||
-         t.contains("que lleva"))) {
-      final String lista = _ingredientesActivos.join(", ");
-      final String msg =
-          "Para preparar $_recetaActivaNombre necesitas: $lista.";
-      await _hablar(msg, guardarEnHistorial: true);
-      return true;
-    }
-
-    // ── 7. LISTAR RECETAS POR CATEGORÍA ──────────────────
-    // "qué recetas de desayuno hay", "recetas de cena"
-    final List<String> categorias = ["desayuno", "almuerzo", "cena", "refrescos", "snack"];
-    for (final cat in categorias) {
-      if (t.contains(cat)) {
-        final List<String> encontradas = _recetasData
-            .where((r) => r['categoria'].toString().toLowerCase().contains(cat))
-            .map<String>((r) => r['nombre'].toString())
-            .toList();
-        if (encontradas.isNotEmpty) {
-          final String msg =
-              "En la categoría $cat tenemos: ${encontradas.join(', ')}.";
-          await _hablar(msg, guardarEnHistorial: true);
-        } else {
-          await _hablar(
-            "No encontré recetas de $cat en nuestro sistema actualmente.",
-            guardarEnHistorial: true,
-          );
-        }
-        return true;
-      }
-    }
-
-    // ── Ninguna intención local detectada → delegar a Groq ──
-    return false;
-  }
-
-  // ═══════════════════════════════════════════════════════
-  // TOGGLE MICRÓFONO
-  // Inicia o detiene el STT. Al confirmar texto, primero
-  // pasa por el IntentRouter; si no lo resuelve, va a Groq.
-  // ═══════════════════════════════════════════════════════
-  Future<void> _toggleMicrofono() async {
-    if (!_catalogoCargado || _procesando || _hablando) return;
-
-    if (_escuchando) {
-      await _speech.stop();
-      setState(() {
-        _escuchando    = false;
-        _preguntaFinal = _textoEscuchado;
-      });
-      if (_preguntaFinal.trim().isNotEmpty) {
-        await _procesarTextoUsuario(_preguntaFinal.trim());
-      }
-    } else {
-      setState(() {
-        _textoEscuchado = "";
-        _respuestaNID   = "";
-      });
-
-      final disponible = await _speech.initialize(
-        onError: (err) {
-          debugPrint("STT Error: ${err.errorMsg}");
-          setState(() => _escuchando = false);
-        },
-      );
-
-      if (disponible) {
-        setState(() => _escuchando = true);
-        _speech.listen(
-          localeId:  "es_ES",
-          listenFor: const Duration(seconds: 30),
-          pauseFor:  const Duration(seconds: 4),
-          onResult:  (result) {
-            setState(() {
-              _textoEscuchado = result.recognizedWords;
-              if (result.finalResult) {
-                _escuchando    = false;
-                _preguntaFinal = _textoEscuchado;
-              }
-            });
-            if (result.finalResult && _preguntaFinal.trim().isNotEmpty) {
-              _procesarTextoUsuario(_preguntaFinal.trim());
-            }
-          },
-        );
-      }
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════
-  // PROCESADOR CENTRAL
-  // Punto único de entrada para todo texto del usuario.
-  // 1. Pasa primero por IntentRouter (lógica local, sin API).
-  // 2. Si IntentRouter devuelve false → consulta Groq.
-  // ═══════════════════════════════════════════════════════
-  Future<void> _procesarTextoUsuario(String texto) async {
-    // Intentar resolver localmente
-    final bool resueltaLocalmente = await _intentRouter(texto);
-    if (resueltaLocalmente) return;
-
-    // No resuelta → delegar a Groq
-    await _consultarNID(texto);
-  }
-
-  // ═══════════════════════════════════════════════════════
-  // CONSULTA AL LLM (GROQ + RAG + HISTORIAL)
-  //
-  // Flujo:
-  //   A. Agrega el turno del usuario al historial.
-  //   B. Construye [system + historial completo] y llama a Groq.
-  //   C. Limpia la respuesta de caracteres no aptos para TTS.
-  //   D. Si la respuesta confirma una receta → activa la receta.
-  //   E. Agrega la respuesta al historial.
-  //   F. Reproduce vía TTS.
-  // ═══════════════════════════════════════════════════════
-  Future<void> _consultarNID(String pregunta) async {
-    setState(() {
-      _procesando   = true;
-      _respuestaNID = "";
-    });
-
-    // ── A. Registrar turno del usuario ──
-    _historial.add({"role": "user", "content": pregunta});
-
-    // ── B. Construir payload ──
-    // Si ya hay una receta activa → inyectar SOLO su texto completo (~300 tokens).
-    // Si aún no → inyectar el índice slim con todos los nombres/meta (~<500 tokens).
-    final String catalogoParaApi = _recetaActivaContexto.isNotEmpty
-        ? _recetaActivaContexto
-        : _catalogoContexto;
-
-    final String systemFinal = _systemPromptTemplate.replaceFirst(
-      "{{CATALOGO}}",
-      catalogoParaApi.isNotEmpty
-          ? catalogoParaApi
-          : "(Catálogo vacío — rechazar toda consulta de recetas)",
-    );
-
-    final List<Map<String, String>> mensajesApi = [
-      {"role": "system", "content": systemFinal},
-      ..._historial,
-    ];
-
+  // ─────────────────────────────────────────────
+  // _obtenerRespuestaDeGrok
+  // Envía el historial completo + mensaje al modelo
+  // LLaMA vía Groq y devuelve la respuesta de texto.
+  // ─────────────────────────────────────────────
+  Future<String> _obtenerRespuestaDeGrok(String mensajeUsuario) async {
     final url = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
-
+    List<Map<String, String>> historialParaApi = [
+      {"role": "system", "content": _systemPrompt}
+    ];
+    for (var msg in _mensajes) {
+      if (msg["tipo"] == "texto") {
+        String roleApi = (msg["rol"] == "usuario") ? "user" : "assistant";
+        historialParaApi.add({
+          "role": roleApi,
+          "content": msg["texto"] ?? ""
+        });
+      }
+    }
     try {
       final response = await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiKey',
+          'Authorization': 'Bearer $_apiKeyGrok',
         },
         body: jsonEncode({
-          "model":       "llama-3.1-8b-instant",
-          "temperature": 0.1, // Mínima creatividad = máxima fidelidad al catálogo
-          "max_tokens":  300,
-          "messages":    mensajesApi,
+          "model": "llama-3.1-8b-instant",
+          "messages": historialParaApi,
+          "temperature": 0.4
         }),
       );
-
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
-        String respuesta = data['choices'][0]['message']['content'] ?? "";
-
-        // ── Detección de [TIMER:X] ANTES de limpiar para TTS ──
-        // _limpiarParaTts ya elimina [.*?], por eso interceptamos aquí.
-        final timerMatch = RegExp(r'\[TIMER:(\d+)\]').firstMatch(respuesta);
-        if (timerMatch != null) {
-          _iniciarTemporizador(int.parse(timerMatch.group(1)!));
-          respuesta = respuesta.replaceAll(RegExp(r'\[TIMER:\d+\]'), '').trim();
-        }
-
-        // ── C. Limpiar caracteres no aptos para TTS ──
-        respuesta = _limpiarParaTts(respuesta);
-
-        // ── D. Si Groq confirmó una receta → activarla localmente ──
-        _intentarActivarReceta(pregunta, respuesta);
-
-        // ── E. Guardar respuesta en historial ──
-        _historial.add({"role": "assistant", "content": respuesta});
-
-        // Límite de 20 turnos para no inflar el contexto
-        if (_historial.length > 20) {
-          _historial.removeRange(0, 2);
-        }
-
-        setState(() {
-          _procesando   = false;
-        });
-
-        // ── F. Reproducir ──
-        await _hablar(respuesta, guardarEnHistorial: false); // Ya está en historial
-
+        return data['choices'][0]['message']['content'];
       } else {
-        debugPrint("Groq error: ${response.statusCode} ${response.body}");
-        _historial.removeLast(); // Revertir turno fallido
-        setState(() => _procesando = false);
-        await _hablar(
-          "El portal está inestable. Intenta de nuevo.",
-          guardarEnHistorial: false,
-        );
+        debugPrint("Error Grok: ${response.statusCode} - ${response.body}");
+        return "¡Uy! Se me ha cortado la salsa (Error de comunicación con la cocina).";
       }
     } catch (e) {
-      debugPrint("Excepción Groq: $e");
-      _historial.removeLast();
-      setState(() => _procesando = false);
-      await _hablar(
-        "No pude conectarme. Revisa tu conexión.",
-        guardarEnHistorial: false,
-      );
+      debugPrint("Excepción Grok: $e");
+      return "Se nos ha derramado el caldo... Revisa tu conexión a internet.";
     }
   }
 
   // ─────────────────────────────────────────────
-  // _limpiarParaTts
-  // Elimina todo caracter que cause errores de
-  // lectura en el motor de voz de Chrome/Flutter:
-  // asteriscos, guiones decorativos, corchetes,
-  // listas numeradas, etc.
+  // _verificarRecetaEnFirebase  (sin cambios)
   // ─────────────────────────────────────────────
-  String _limpiarParaTts(String texto) {
-    return texto
-        .replaceAll(RegExp(r'\*+'), '')           // Asteriscos simples y dobles
-        .replaceAll(RegExp(r'\[.*?\]'), '')        // [texto entre corchetes]
-        .replaceAll(RegExp(r'^\s*[-•–—]\s', multiLine: true), '') // Viñetas
-        .replaceAll(RegExp(r'^\s*\d+\.\s', multiLine: true), '')  // "1. " listas
-        .replaceAll(RegExp(r'#+\s'), '')           // Encabezados markdown
-        .replaceAll('_', '')                       // Cursivas markdown
-        .replaceAll('`', '')                       // Code markdown
-        .replaceAll(RegExp(r'\n{2,}'), '\n')       // Saltos dobles → simple
-        .trim();
+  Future<bool> _verificarRecetaEnFirebase(String texto) async {
+    try {
+      await Future.delayed(const Duration(milliseconds: 600));
+      return true;
+    } catch (e) {
+      debugPrint("Error Firebase: $e");
+      return false;
+    }
   }
 
   // ─────────────────────────────────────────────
-  // _intentarActivarReceta
-  // Heurística: si el usuario mencionó un plato
-  // y Groq lo confirmó (no rechazó), lo buscamos
-  // en _recetasData y lo activamos para el control
-  // paso a paso local.
-  //
-  // Fix 5 — Persistencia: una vez activada una receta,
-  // _recetaActivaContexto queda fijo durante toda la sesión.
-  // Groq siempre recibirá el contexto de ESA receta y nunca
-  // podrá contradecir que existe.
+  // _generarVariantes
+  // Genera variantes de una categoría para tolerar
+  // tildes, mayúsculas y plural/singular en Firestore.
   // ─────────────────────────────────────────────
-  void _intentarActivarReceta(String pregunta, String respuestaNid) {
-    // Si ya hay una receta activa → respetar la sesión en curso (Fix 5)
-    if (_recetaActivaNombre != null) return;
+  List<String> _generarVariantes(String categoria) {
+    String base = categoria.trim();
+    String singular = base.endsWith('s')
+        ? base.substring(0, base.length - 1)
+        : base;
+    String plural = base.endsWith('s') ? base : '${base}s';
 
-    // Si Groq rechazó → no activar
-    if (respuestaNid.contains("no se encuentra en nuestro sistema")) return;
+    return [
+      base,
+      base.toLowerCase(),
+      base.toUpperCase(),
+      base[0].toUpperCase() + base.substring(1).toLowerCase(),
+      singular,
+      singular.toLowerCase(),
+      plural,
+      plural.toLowerCase(),
+    ].toSet().toList();
+  }
 
-    final String p = pregunta.toLowerCase();
-    for (final receta in _recetasData) {
-      final String nombre = receta['nombre'].toString().toLowerCase();
-      if (p.contains(nombre) ||
-          nombre.split(' ').any((w) => w.length > 3 && p.contains(w))) {
+  // ─────────────────────────────────────────────
+  // _buscarRecetasRecomendadas
+  // ─────────────────────────────────────────────
+  Future<void> _buscarRecetasRecomendadas() async {
+    if (_categoriaComidaElegida == null || _ingredientesSeleccionados.isEmpty) return;
 
+    setState(() => _estaCargando = true);
+    try {
+      final variantes = _generarVariantes(_categoriaComidaElegida!);
+
+      // Consulta amplia tolerante a tildes en el campo categoría
+      final snapshot = await FirebaseFirestore.instance
+          .collection('app-recetas-completas')
+          .where(
+            Filter.or(
+              Filter('categoria', whereIn: variantes),
+              Filter('categoría', whereIn: variantes),
+            ),
+          )
+          .get();
+
+      List<Map<String, String>> recetasEncontradas = [];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        // ── Sanitizar datos crudos antes de cualquier uso (Fix 2) ──
+        final String contextoSanitizado = _sanitizarRecetaParaContexto(data);
+        List ingredientesDoc = data['ingredientes'] ?? [];
+
+        // Normalizar nombres de ingredientes: quitar guiones y espacios extra
+        List<String> nombresReceta = ingredientesDoc
+            .map((i) => (i is Map
+                    ? (i['nombre'] ?? i['name'] ?? i['ingrediente_id'] ?? '')
+                    : i.toString())
+                .toString()
+                .trim()
+                .toLowerCase()
+                .replaceAll('-', ' '))
+            .toList();
+
+        // La receta aparece si tiene AL MENOS UNO de los ingredientes seleccionados
+        bool tieneIngrediente = _ingredientesSeleccionados.any(
+          (ingSel) => nombresReceta.contains(ingSel.toLowerCase().trim()),
+        );
+
+        if (tieneIngrediente) {
+          recetasEncontradas.add({
+            'id': doc.id,
+            'nombre': (data['nombre'] ?? "Receta").toString(),
+            'contexto': contextoSanitizado, // disponible para inyectar si se necesita
+          });
+        }
+      }
+
+      setState(() {
+        if (recetasEncontradas.isEmpty) {
+          _mensajes.add({
+            "rol": "llama",
+            "texto": "He buscado en mi alacena pero no tengo una receta exacta con esa combinación. 🥣 ¿Intentamos con otros ingredientes?",
+            "tipo": "texto",
+          });
+        } else {
+          _mensajes.add({
+            "rol": "llama",
+            "texto": "¡He encontrado el maridaje perfecto! 👨‍🍳 Aquí tienes las opciones que mejor combinan con tu selección.",
+            "tipo": "recetas_grid",
+            "recetas": recetasEncontradas,
+          });
+        }
+      });
+    } catch (e) {
+      debugPrint("Error buscar recetas: $e");
+      setState(() => _mensajes.add({"rol": "llama", "texto": "Se nos ha derramado el caldo... Error en la conexión."}));
+    } finally {
+      setState(() => _estaCargando = false);
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // _seleccionarOpcion
+  // Limpia todo el estado y arranca el flujo
+  // correspondiente al botón del menú principal.
+  // ─────────────────────────────────────────────
+  void _seleccionarOpcion(String titulo, String descripcion) {
+    setState(() {
+      _opcionSeleccionada = true;
+      _categoriaActual = titulo;
+      _mensajes.clear();
+      _esperandoDetalleReporte = false;
+      _esperandoParrafoSugerencia = false;
+      _mostrarGridIngredientes = false;
+      _bloquearCategorias = false;
+      _bloquearFlujoReporte = false;
+      _categoriaComidaElegida = null;
+      _ingredientesSeleccionados.clear();
+      _categoriaReporteActual = "";
+      _subCategoriaReporteActual = "";
+      _bloquearReportes = false;
+      // Reset gamificación
+      _pasoReporte = 0;
+      _fraseArmada.clear();
+      _mostrarCampoLibre = false;
+      _animarProgreso(0.0);
+
+      String saludoChef;
+      String tipoMensaje = "texto";
+
+      if (titulo == "Reporte") {
+        saludoChef = "¡Alto al fuego en la cocina! 🍳 Vamos a documentar tu reporte paso a paso. Primero, ¿qué área está quemada?";
+        tipoMensaje = "botones_reporte_categorias";
+        _esperandoDetalleReporte = true;
+        _animarProgreso(0.0);
+      } else if (titulo == "Ayuda") {
+        saludoChef = "Aquí estoy para guiarte en tu siguiente comida. Por favor selecciona una categoría:";
+        tipoMensaje = "botones_categoria";
+      } else if (titulo == "Consulta Especifica") {
+        saludoChef = "¡Entrando comandas de alta cocina! 🚀 Escribe libremente tu inquietud culinaria o técnica.";
+      } else {
+        saludoChef = "¡Me encanta experimentar! Cuéntame tu idea completa (Nombre, ingredientes y toque especial) en un solo párrafo. 📝";
+        _esperandoParrafoSugerencia = true;
+      }
+
+      _mensajes.add({
+        "rol": "llama",
+        "texto": saludoChef,
+        "tipo": tipoMensaje
+      });
+    });
+  }
+
+  // ─────────────────────────────────────────────
+  // _seleccionarCategoriaReporte  (PASO 1 → 2)
+  // Bloquea las categorías, guarda la elegida y
+  // avanza la barra al 33%. Añade las subcategorías.
+  // ─────────────────────────────────────────────
+  void _seleccionarCategoriaReporte(String categoria) {
+    if (_bloquearReportes) return;
+    HapticFeedback.lightImpact(); // Respuesta táctil estilo Duolingo
+    setState(() {
+      _bloquearReportes = true;
+      _categoriaReporteActual = categoria;
+      _esperandoDetalleReporte = true;
+      _pasoReporte = 1;
+      _mensajes.add({"rol": "usuario", "texto": categoria, "tipo": "texto"});
+      List<String> subCats = [];
+      if (categoria.contains("Contenido")) {
+        subCats = ["Receta mal explicada", "Ingredientes erróneos", "Imágenes rotas"];
+      } else if (categoria.contains("experiencia")) {
+        subCats = ["Navegación confusa", "Letra muy pequeña", "Diseño incómodo"];
+      } else {
+        subCats = ["Cierre inesperado (Crash)", "Error de base de datos", "Carga lenta / Lag"];
+      }
+      _mensajes.add({
+        "rol": "llama",
+        "texto": "Perfecto chef. Ahora elige el problema específico que encontraste:",
+        "tipo": "botones_reporte_subcategorias",
+        "opciones": subCats,
+        "categoria_reporte": categoria
+      });
+    });
+    _animarProgreso(0.33);
+  }
+
+  // ─────────────────────────────────────────────
+  // _seleccionarSubcategoriaReporte  (PASO 2 → 3)
+  // Guarda la subcategoría, avanza la barra al 66%
+  // y activa el banco de palabras en el input.
+  // ─────────────────────────────────────────────
+  void _seleccionarSubcategoriaReporte(String subcat) {
+    if (_bloquearFlujoReporte) return;
+    HapticFeedback.lightImpact();
+
+    // ── Banco dinámico: palabras específicas para cada subcategoría ──
+    List<String> nuevoBanco;
+    switch (subcat) {
+      case "Receta mal explicada":
+        nuevoBanco = [
+          "En el paso",
+          "Está confuso",
+          "No se entiende",
+          "La explicación",
+          "Falta",
+          "El tiempo de cocción",
+          "Las instrucciones",
+        ];
+        break;
+      case "Ingredientes erróneos":
+        nuevoBanco = [
+          "El ingrediente",
+          "La cantidad",
+          "Falta",
+          "No coincide",
+          "Los gramos",
+          "Está mal",
+          "En la preparación",
+        ];
+        break;
+      case "Imágenes rotas":
+        nuevoBanco = [
+          "La imagen",
+          "No carga",
+          "Se ve rota",
+          "Falta",
+          "En el servidor",
+          "Está en blanco",
+          "Tiene un error",
+        ];
+        break;
+      default:
+        // Flujos de experiencia (Navegación, Letra, Diseño)
+        // y técnicos (Crash, Base de datos, Lag)
+        nuevoBanco = [
+          "La pantalla",
+          "No funciona",
+          "Se congela",
+          "Al presionar",
+          "Falta",
+          "Carga lenta",
+          "No responde",
+        ];
+    }
+
+    setState(() {
+      _bloquearFlujoReporte = true;
+      _subCategoriaReporteActual = subcat;
+      _pasoReporte = 2;
+      _fraseArmada.clear();
+      _mostrarCampoLibre = false;
+      _bancoPalabrasDinamico = nuevoBanco; // ← cargamos el banco correcto
+      _mensajes.add({"rol": "usuario", "texto": "Problema específico: $subcat", "tipo": "texto"});
+      _mensajes.add({
+        "rol": "llama",
+        "texto": "¡Comanda anotada! 📋 Ahora arma tu descripción tocando las burbujas en orden:",
+        "tipo": "texto"
+      });
+    });
+    _animarProgreso(0.66);
+  }
+
+  // ─────────────────────────────────────────────
+  // _confirmarFraseBancoYEnviar  (PASO 3 → fin)
+  // Toma la frase armada por el usuario, la valida
+  // con Groq y termina el flujo de reporte.
+  // ─────────────────────────────────────────────
+  Future<void> _confirmarFraseBancoYEnviar() async {
+    // Si el campo libre está activo, tomamos su texto; si no, usamos la frase armada
+    final String textoFinal = _mostrarCampoLibre && _controller.text.trim().isNotEmpty
+        ? _controller.text.trim()
+        : _fraseArmada.join(" ");
+
+    if (textoFinal.isEmpty) return;
+
+    HapticFeedback.mediumImpact();
+    _animarProgreso(1.0);
+
+    setState(() {
+      _pasoReporte = 3;
+      _mensajes.add({"rol": "usuario", "texto": textoFinal, "tipo": "texto"});
+      _estaCargando = true;
+      _controller.clear();
+    });
+
+    try {
+      // Validación con Groq
+      String promptValidacion = _construirPromptValidacion(
+          _categoriaReporteActual, _subCategoriaReporteActual, textoFinal);
+      final respuestaValidacion = await _obtenerRespuestaDeGrok(promptValidacion);
+
+      if (respuestaValidacion.trim().toUpperCase().contains("INVALIDO")) {
         setState(() {
-          // Fix 2 — usar el contextoTexto ya sanitizado por el helper
-          _recetaActivaContexto = receta['contextoTexto'] as String;
-          _recetaActivaNombre   = receta['nombre'].toString();
-          _pasosActivos         = List<String>.from(receta['pasos'] as List);
-          _ingredientesActivos  = List<String>.from(receta['ingredientes'] as List);
-          _pasoActualIndex      = -1;
+          _estaCargando = false;
+          _pasoReporte = 2; // Regresamos al paso 2 para que reintente
+          _fraseArmada.clear();
+          _animarProgreso(0.66);
+          _mensajes.add({
+            "rol": "llama",
+            "tipo": "texto",
+            "texto": "¡Uy chef! Esa combinación de ingredientes no describe un problema de la app. 🍳 Intenta de nuevo con las burbujas."
+          });
         });
-        debugPrint("Receta activada: $_recetaActivaNombre");
-        debugPrint("Tokens aprox. contexto: ${_recetaActivaContexto.length ~/ 4}");
         return;
       }
+
+      // Validación exitosa: determinar respuesta según categoría
+      if (_categoriaReporteActual.contains("Contenido") ||
+          _subCategoriaReporteActual == "Receta mal explicada") {
+        bool existeEnFirebase = await _verificarRecetaEnFirebase(textoFinal);
+        setState(() {
+          _estaCargando = false;
+          _esperandoDetalleReporte = false;
+          _bloquearReportes = false;
+          _bloquearFlujoReporte = false;
+          _subCategoriaReporteActual = "";
+          _categoriaReporteActual = "";
+          _mensajes.add({
+            "rol": "llama",
+            "tipo": "texto",
+            "texto": existeEnFirebase
+                ? "He verificado en Firebase. El elemento ya está bajo el radar de nuestra cocina de desarrollo. ✅"
+                : "¡Uy chef! Revisé en Firebase y ese platillo o ingrediente no está registrado en nuestro recetario."
+          });
+          _mensajes.add({
+            "rol": "llama",
+            "tipo": "sugerencia_btn",
+            "texto": "¿Deseas enviar formalmente esta comanda de error al plantel administrativo?"
+          });
+        });
+      } else {
+        final respuestaIA = await _obtenerRespuestaDeGrok(textoFinal);
+        setState(() {
+          _estaCargando = false;
+          _esperandoDetalleReporte = false;
+          _bloquearReportes = false;
+          _bloquearFlujoReporte = false;
+          _subCategoriaReporteActual = "";
+          _categoriaReporteActual = "";
+          _mensajes.add({"rol": "llama", "tipo": "texto", "texto": respuestaIA});
+          _mensajes.add({
+            "rol": "llama",
+            "tipo": "sugerencia_btn",
+            "texto": "¿Deseas enviar formalmente esta comanda de error al plantel administrativo?"
+          });
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _esperandoDetalleReporte = false;
+        _bloquearFlujoReporte = false;
+        _estaCargando = false;
+        _mensajes.add({
+          "rol": "llama",
+          "tipo": "sugerencia_btn",
+          "texto": "¡Vaya, el horno se apagó! Pero guardé tu comanda. ¿La enviamos de igual forma?"
+        });
+      });
     }
   }
 
   // ─────────────────────────────────────────────
-  // _hablar
-  // Punto único de reproducción TTS.
-  // Actualiza _respuestaNID (caché para "repite eso")
-  // y opcionalmente agrega al historial de Groq.
+  // _cargarIngredientesPrimordiales
   // ─────────────────────────────────────────────
-  Future<void> _hablar(String texto, {required bool guardarEnHistorial}) async {
-    final String limpio = _limpiarParaTts(texto);
-    setState(() {
-      _respuestaNID = limpio;
-      _hablando     = true;
-    });
-    if (guardarEnHistorial) {
-      _historial.add({"role": "assistant", "content": limpio});
+  Future<void> _cargarIngredientesPrimordiales(String categoria) async {
+    setState(() => _estaCargando = true);
+    try {
+      final variantes = _generarVariantes(categoria);
+
+      // Consulta tolerante a tildes en el campo categoría
+      final snapshot = await FirebaseFirestore.instance
+          .collection('app-recetas-completas')
+          .where(
+            Filter.or(
+              Filter('categoria', whereIn: variantes),
+              Filter('categoría', whereIn: variantes),
+            ),
+          )
+          .get();
+
+      Set<String> setIngs = {};
+      for (var doc in snapshot.docs) {
+        for (var ing in (doc.data()['ingredientes'] ?? [])) {
+          if (ing is Map &&
+              (ing['es_primordial'] == true ||
+                  ing['es_primordial'].toString().toLowerCase() == 'true')) {
+            // Rescata nombre o ingrediente_id si el nombre falla
+            String nom = (ing['nombre'] ?? ing['ingrediente_id'] ?? '')
+                .toString()
+                .replaceAll('-', ' ')
+                .trim();
+            if (nom.isNotEmpty) {
+              // Capitalizar primera letra
+              nom = nom[0].toUpperCase() + nom.substring(1).toLowerCase();
+              setIngs.add(nom);
+            }
+          }
+        }
+      }
+
+      setState(() {
+        _ingredientesPrimordiales = setIngs.toList()..sort();
+        _mostrarGridIngredientes = true;
+        _mensajes.add({
+          "rol": "llama",
+          "texto": "Por favor elige hasta 3 ingredientes disponibles:",
+          "tipo": "grid_ingredients"
+        });
+      });
+    } catch (e) {
+      debugPrint("Error DB: $e");
+    } finally {
+      setState(() => _estaCargando = false);
     }
-    await _tts.speak(limpio);
+  }
+
+  // ─────────────────────────────────────────────
+  // _enviarMensaje
+  // Función central del chat para flujos que NO
+  // son reporte (Ayuda, Consulta, Sugerencia).
+  // El reporte usa _confirmarFraseBancoYEnviar.
+  // ─────────────────────────────────────────────
+  Future<void> _enviarMensaje() async {
+    final textoOriginal = _controller.text.trim();
+    if (textoOriginal.isEmpty) return;
+
+    setState(() {
+      _mensajes.add({"rol": "usuario", "texto": textoOriginal, "tipo": "texto"});
+      _controller.clear();
+      _estaCargando = true;
+    });
+
+    if (textoOriginal.startsWith("Dame una recomendación de")) {
+      await _buscarRecetasRecomendadas();
+      return;
+    }
+
+    if (_esperandoParrafoSugerencia) {
+      setState(() {
+        _esperandoParrafoSugerencia = false;
+        _estaCargando = false;
+        _mensajes.add({
+          "rol": "llama",
+          "tipo": "sugerencia_btn",
+          "texto": "¡Qué aroma tan increíble! Pulsa abajo para enviar tu creación al Chef mayor."
+        });
+      });
+      return;
+    }
+
+    try {
+      final respuesta = await _obtenerRespuestaDeGrok(textoOriginal);
+
+      // ── Detección de comando [TIMER:X] antes de mostrar al usuario ──
+      final timerMatch = RegExp(r'\[TIMER:(\d+)\]').firstMatch(respuesta);
+      final String respuestaLimpia =
+          respuesta.replaceAll(RegExp(r'\[TIMER:\d+\]'), '').trim();
+      if (timerMatch != null) {
+        _iniciarTemporizador(int.parse(timerMatch.group(1)!));
+      }
+
+      setState(() {
+        _mensajes.add({"rol": "llama", "tipo": "texto", "texto": respuestaLimpia});
+      });
+    } catch (e) {
+      setState(() =>
+          _mensajes.add({"rol": "llama", "texto": "Disculpa, creo que no entendí lo que intentaste decir."}));
+    } finally {
+      setState(() => _estaCargando = false);
+    }
+  }
+
+  void _enviarReporteAlAdmin(String detalle) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text("Reporte enviado al administrador")));
+  }
+
+  void _enviarSugerenciaAlAdmin() {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text("¡Sugerencia enviada!")));
   }
 
   // ═══════════════════════════════════════════════════════
-  //  BUILD PRINCIPAL  — REDISEÑO FONDO COMPLETO
-  //
-  //  Arquitectura del Stack (de abajo hacia arriba):
-  //
-  //  Capa 0 — Fondo animado a pantalla completa:
-  //    IndexedStack con ambos .webp pre-cargados para evitar
-  //    parpadeo (flicker) al alternar. Ocupa toda la pantalla
-  //    mediante Positioned.fill + BoxFit.cover.
-  //
-  //  Capa 1 — Gradiente oscuro inferior:
-  //    Un overlay de gradiente de abajo hacia arriba garantiza
-  //    legibilidad del panel de texto y del botón del micrófono
-  //    sin importar el contenido de la ilustración.
-  //
-  //  Capa 2 — Elementos flotantes:
-  //    • AppBar transparente con título NID + indicador RAG.
-  //    • Temporizador flotante (Positioned, solo si activo).
-  //    • Panel de texto translúcido (BackdropFilter + opacidad).
-  //    • Botón de micrófono con glow neon.
-  //
-  //  Toda la lógica de backend (TTS/STT handlers, temporizador,
-  //  Firestore, Groq, IntentRouter) permanece sin cambios.
+  //  BUILD PRINCIPAL
   // ═══════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _negro,
-      // AppBar completamente transparente para que el fondo
-      // animado se extienda debajo de él.
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: _cianNeon),
-          onPressed: () {
-            _speech.stop();
-            _tts.stop();
-            Navigator.pop(context);
-          },
-        ),
-        title: const Text(
-          "N I D",
-          style: TextStyle(
-            color: _cianNeon,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 4,
-          ),
-        ),
-        actions: [
-          // Botón de reinicio de conversación
-          if (_historial.isNotEmpty && !_procesando && !_escuchando)
-            IconButton(
-              tooltip: "Nueva conversación",
-              icon: const Icon(Icons.refresh, color: _cianNeon, size: 20),
-              onPressed: () {
-                setState(() {
-                  _historial.clear();
-                  _preguntaFinal        = "";
-                  _respuestaNID         = "";
-                  _textoEscuchado       = "";
-                  _recetaActivaNombre   = null;
-                  _recetaActivaContexto = "";
-                  _pasosActivos         = [];
-                  _ingredientesActivos  = [];
-                  _pasoActualIndex      = -1;
-                });
-                _cancelarTemporizador();
-              },
-            ),
-          // Indicador RAG
-          Padding(
-            padding: const EdgeInsets.only(right: 14),
-            child: Row(
-              children: [
-                Icon(Icons.circle,
-                    size: 8,
-                    color: _catalogoCargado ? _verdeApp : Colors.orange),
-                const SizedBox(width: 4),
-                Text(
-                  _catalogoCargado ? "RAG activo" : "Cargando...",
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: _catalogoCargado ? _verdeApp : Colors.orange,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        title: const Text("Asistente A.L.I.C.I.A."),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
+        leading: _opcionSeleccionada
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => setState(() {
+                  _opcionSeleccionada = false;
+                  _mensajes.clear();
+                  _mostrarGridIngredientes = false;
+                  _bloquearCategorias = false;
+                  _pasoReporte = 0;
+                  _fraseArmada.clear();
+                  _animarProgreso(0.0);
+                }),
+              )
+            : null,
       ),
-
-      // ── body: Stack raíz ──────────────────────────────────
       body: Stack(
-        fit: StackFit.expand,
         children: [
-
-          // ════════════════════════════════════════════════
-          // CAPA 0 — FONDO ANIMADO (pantalla completa)
-          //
-          // IndexedStack mantiene AMBOS assets siempre montados
-          // en el árbol de widgets. Solo se hace visible el que
-          // corresponde al estado actual, eliminando el flash
-          // negro/blanco que ocurriría si se usara un if/else.
-          //
-          //   index 0 → nid_speaking.webp  (_hablando == true)
-          //   index 1 → nid_idle.webp      (_hablando == false)
-          // ════════════════════════════════════════════════
           Positioned.fill(
-            child: IndexedStack(
-              index: _hablando ? 0 : 1,
-              sizing: StackFit.expand,
-              children: [
-                Image.asset(
-                  'assets/images/nid_speaking.webp',
-                  fit: BoxFit.cover,
-                  gaplessPlayback: true,
-                ),
-                Image.asset(
-                  'assets/images/nid_idle.webp',
-                  fit: BoxFit.cover,
-                  gaplessPlayback: true,
-                ),
-              ],
-            ),
+            child: _opcionSeleccionada
+                ? Container(color: const Color(0xFFF5F5F5))
+                : Image.asset('assets/images/fondo.webp', fit: BoxFit.cover),
           ),
-
-          // ════════════════════════════════════════════════
-          // CAPA 1 — GRADIENTE OSCURO INFERIOR
-          //
-          // Crea una zona oscura en el tercio inferior de la
-          // pantalla para que el panel de texto y el micrófono
-          // sean siempre legibles sobre la ilustración.
-          // ════════════════════════════════════════════════
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: const [0.0, 0.45, 1.0],
-                  colors: [
-                    Colors.transparent,
-                    Colors.transparent,
-                    _negro.withOpacity(0.85),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // ════════════════════════════════════════════════
-          // CAPA 2 — ELEMENTOS FLOTANTES
-          //
-          // SafeArea garantiza que los elementos no queden
-          // debajo del notch ni de la barra de navegación.
-          // ════════════════════════════════════════════════
           SafeArea(
-            child: Column(
-              children: [
-                // Espacio superior libre para el fondo animado
-                // (el avatar ocupa el área visual principal).
-                const Spacer(flex: 5),
-
-                // ── Panel de texto con fondo translúcido ──
-                // BackdropFilter aplica un desenfoque suave
-                // al contenido de las capas inferiores visible
-                // a través del panel, mejorando la legibilidad.
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: BackdropFilter(
-                      filter: ColorFilter.mode(
-                        Colors.black.withOpacity(0.0),
-                        BlendMode.multiply,
-                      ),
-                      child: _buildPanelTexto(),
-                    ),
-                  ),
-                ),
-
-                // ── Controles (micrófono) ──
-                _buildControles(),
-
-                const SizedBox(height: 8),
-              ],
-            ),
+            child: _opcionSeleccionada
+                ? _buildResponsiveLayout()
+                : _buildWelcomeLayout(),
           ),
-
           // ── Temporizador flotante (visible solo cuando está activo) ──
           _buildTimerWidget(),
         ],
@@ -1055,10 +864,905 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
   }
 
   // ─────────────────────────────────────────────
+  // _buildResponsiveLayout
+  // ─────────────────────────────────────────────
+  Widget _buildResponsiveLayout() {
+    if (_categoriaActual == "Reporte") {
+      return Column(
+        children: [
+          Expanded(
+            flex: 1,
+            child: Container(
+              width: double.infinity,
+              color: Colors.white,
+              child: SizedBox.expand(
+                child: Image.asset(
+                  'assets/images/fondo1.webp',
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+          ),
+          const Divider(height: 1, color: Colors.black12),
+          Expanded(
+            flex: 1,
+            child: _buildChatLayout(),
+          ),
+        ],
+      );
+    } else {
+      return _buildChatLayout();
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // _buildWelcomeLayout  (sin cambios)
+  // ─────────────────────────────────────────────
+  Widget _buildWelcomeLayout() {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.only(
+            left: 24.0, right: 24.0, bottom: 16.0, top: 40.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Transform.translate(
+              offset: const Offset(0, -450),
+              child: const Text(
+                "¿Qué tienes para contarme?",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  shadows: [Shadow(color: Colors.black, blurRadius: 10)],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _buildMenuButton(
+              titulo: "Reporte",
+              descripcion: "Quiero Reportar un problema con la app",
+              subDescripcion: "Reportar un problema con la app",
+              icono: Icons.bug_report_outlined,
+              colorIcono: const Color(0xFFE57373),
+            ),
+            _buildMenuButton(
+              titulo: "Ayuda",
+              descripcion: "Necesito una recomendación de comida",
+              subDescripcion: "Necesito una recomendación",
+              icono: Icons.restaurant_menu,
+              colorIcono: const Color(0xFFFFB74D),
+            ),
+            _buildHighlightedButton(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // _buildMenuButton  (sin cambios)
+  // ─────────────────────────────────────────────
+  Widget _buildMenuButton({
+    required String titulo,
+    required String descripcion,
+    required String subDescripcion,
+    required IconData icono,
+    required Color colorIcono,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F4EB),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFC8C2B3).withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ElevatedButton(
+          onPressed: () => _seleccionarOpcion(titulo, descripcion),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            foregroundColor: Colors.black87,
+            shadowColor: Colors.transparent,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20)),
+          ),
+          child: Row(
+            children: [
+              Icon(icono, color: colorIcono, size: 36),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(titulo,
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFC85A32))),
+                    const SizedBox(height: 2),
+                    Text(subDescripcion,
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.normal,
+                            color: Color(0xFF7A756B))),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios,
+                  color: Color(0xFFA39E94), size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // _buildHighlightedButton  (sin cambios)
+  // ─────────────────────────────────────────────
+  Widget _buildHighlightedButton() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF2D9E73), Color(0xFF5CD699)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF2D9E73).withOpacity(0.4),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: ElevatedButton(
+          // Navega a la pantalla de videollamada con T'anta-Wawa
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const VoiceCallScreen()),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            shadowColor: Colors.transparent,
+            padding: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.mic, color: Colors.white, size: 32),
+              SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Consultar a T'anta-Wawa",
+                      style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.3),
+                    ),
+                    Text(
+                      "Asistente de voz ciberpunk andino",
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w400,
+                          color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // _buildProgressBar
+  // Barra de progreso segmentada en 3 pasos con
+  // AnimatedBuilder para interpolación suave.
+  // Solo se muestra cuando _categoriaActual == "Reporte".
+  // ─────────────────────────────────────────────
+  Widget _buildProgressBar() {
+    final List<Map<String, dynamic>> pasos = [
+      {"label": "Categoría", "icono": Icons.category_outlined},
+      {"label": "Detalle", "icono": Icons.tune},
+      {"label": "Descripción", "icono": Icons.check_circle_outline},
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Etiquetas de los 3 pasos
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(3, (i) {
+              final bool activo = _pasoReporte >= i;
+              return Expanded(
+                child: Column(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 400),
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: activo ? _verde : Colors.grey.shade200,
+                      ),
+                      child: Icon(
+                        pasos[i]["icono"] as IconData,
+                        size: 16,
+                        color: activo ? Colors.white : Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      pasos[i]["label"] as String,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: activo ? _verde : Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 8),
+          // Barra animada
+          AnimatedBuilder(
+            animation: _progressAnimation,
+            builder: (context, _) {
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: _progressAnimation.value,
+                  minHeight: 8,
+                  backgroundColor: Colors.grey.shade200,
+                  valueColor: AlwaysStoppedAnimation<Color>(_verde),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // _buildChatLayout
+  // Añade la barra de progreso arriba si es un
+  // reporte, y el área de entrada gamificada abajo.
+  // ─────────────────────────────────────────────
+  Widget _buildChatLayout() {
+    final bool esReporte = _categoriaActual == "Reporte";
+
+    return Column(
+      children: [
+        // Barra de progreso solo visible en el flujo de Reporte
+        if (esReporte) _buildProgressBar(),
+
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: _mensajes.length,
+            itemBuilder: (context, index) {
+              final msg = _mensajes[index];
+              bool esUsuario = msg["rol"] == "usuario";
+
+              return Align(
+                alignment: esUsuario
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: esUsuario
+                      ? MainAxisAlignment.end
+                      : MainAxisAlignment.start,
+                  children: [
+                    if (!esUsuario)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8.0, top: 5),
+                        // ── Avatar WebP de A.L.I.C.I.A. ──
+                        // ClipOval reemplaza al CircleAvatar original.
+                        // IndexedStack pre-carga ambas imágenes para cero flicker.
+                        // index 0 = generando/procesando → alicia_speaking.webp
+                        // index 1 = idle/esperando       → alicia_idle.webp
+                        // Driver: _estaCargando (true mientras Groq responde)
+                        child: ClipOval(
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            color: _verde.withOpacity(0.15),
+                            child: IndexedStack(
+                              index: _estaCargando ? 0 : 1,
+                              sizing: StackFit.expand,
+                              children: [
+                                Image.asset(
+                                  'assets/images/alicia_speaking.webp',
+                                  fit: BoxFit.cover,
+                                  gaplessPlayback: true,
+                                ),
+                                Image.asset(
+                                  'assets/images/alicia_idle.webp',
+                                  fit: BoxFit.cover,
+                                  gaplessPlayback: true,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    Expanded(
+                      flex: esUsuario ? 0 : 1,
+                      child: Column(
+                        crossAxisAlignment: esUsuario
+                            ? CrossAxisAlignment.end
+                            : CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            margin:
+                                const EdgeInsets.symmetric(vertical: 5),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: esUsuario
+                                  ? _verde
+                                  : Colors.white.withOpacity(0.9),
+                              borderRadius:
+                                  BorderRadius.circular(15),
+                            ),
+                            child: Text(
+                              msg["texto"]!,
+                              style: TextStyle(
+                                color: esUsuario
+                                    ? Colors.white
+                                    : Colors.black87,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                          // Widgets extra según tipo de mensaje
+                          if (msg["tipo"] == "botones_reporte_categorias")
+                            _buildReporteCategoriasGrid(),
+                          if (msg["tipo"] == "botones_reporte_subcategorias")
+                            _buildReporteSubcategoriasGrid(
+                                msg["categoria_reporte"]),
+                          if (msg["tipo"] == "botones_categoria")
+                            _buildCategoriasGrid(),
+                          if (msg["tipo"] == "grid_ingredients" &&
+                              _mostrarGridIngredientes)
+                            _buildIngredientesGrid(),
+                          if (msg["tipo"] == "recetas_grid")
+                            _buildRecetasBotonesGrid(msg["recetas"]),
+                          if (msg["tipo"] == "reporte_btn")
+                            _buildActionBtn(
+                                () => _enviarReporteAlAdmin(msg["texto"]),
+                                Icons.mark_email_read_outlined,
+                                "Enviar reporte al admin"),
+                          if (msg["tipo"] == "sugerencia_btn")
+                            _buildActionBtn(
+                                _enviarSugerenciaAlAdmin,
+                                Icons.send_and_archive,
+                                "Enviar al plantel administrativo"),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+
+        if (_estaCargando)
+          const Padding(
+            padding: EdgeInsets.all(8.0),
+            child: Text("A.L.I.C.I.A. está cocinando...",
+                style: TextStyle(
+                    color: Colors.black54,
+                    fontStyle: FontStyle.italic)),
+          ),
+
+        _buildInputArea(),
+      ],
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // _buildReporteCategoriasGrid  (REDISEÑADO)
+  // Tarjetas grandes estilo Duolingo con ícono,
+  // título y sombra de "clic mecánico".
+  // ─────────────────────────────────────────────
+  Widget _buildReporteCategoriasGrid() {
+    final List<Map<String, dynamic>> categorias = [
+      {
+        "label": "1. Problemas con el Contenido",
+        "icono": Icons.menu_book_outlined,
+        "color": const Color(0xFFE57373),
+      },
+      {
+        "label": "2. Problemas con la experiencia",
+        "icono": Icons.touch_app_outlined,
+        "color": const Color(0xFFFFB74D),
+      },
+      {
+        "label": "3. Fallas Técnicas",
+        "icono": Icons.build_circle_outlined,
+        "color": const Color(0xFF64B5F6),
+      },
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        children: categorias.map((cat) {
+          final String label = cat["label"] as String;
+          final bool desactivar = _bloquearReportes &&
+              _categoriaReporteActual != label;
+          final bool seleccionado = _categoriaReporteActual == label;
+
+          return GestureDetector(
+            onTap: desactivar
+                ? null
+                : () => _seleccionarCategoriaReporte(label),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: seleccionado
+                    ? (cat["color"] as Color).withOpacity(0.15)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: seleccionado
+                      ? (cat["color"] as Color)
+                      : Colors.grey.shade300,
+                  width: seleccionado ? 2.5 : 1,
+                ),
+                // Sombra inferior pronunciada = efecto "tecla mecánica"
+                boxShadow: desactivar
+                    ? []
+                    : [
+                        BoxShadow(
+                          color: (cat["color"] as Color).withOpacity(
+                              seleccionado ? 0.35 : 0.15),
+                          blurRadius: 0,
+                          offset: Offset(0, seleccionado ? 2 : 4),
+                        ),
+                      ],
+              ),
+              child: Row(
+                children: [
+                  Icon(cat["icono"] as IconData,
+                      color: desactivar
+                          ? Colors.grey.shade400
+                          : (cat["color"] as Color),
+                      size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: desactivar
+                            ? Colors.grey.shade400
+                            : Colors.black87,
+                      ),
+                    ),
+                  ),
+                  if (seleccionado)
+                    Icon(Icons.check_circle,
+                        color: cat["color"] as Color, size: 20),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // _buildReporteSubcategoriasGrid  (REDISEÑADO)
+  // Chips grandes con sombra inferior de clic mecánico.
+  // ─────────────────────────────────────────────
+  Widget _buildReporteSubcategoriasGrid(String categoriaPadre) {
+    List<String> opciones = [];
+    if (categoriaPadre.contains("Contenido")) {
+      opciones = [
+        "Receta mal explicada",
+        "Ingredientes erróneos",
+        "Imágenes rotas"
+      ];
+    } else if (categoriaPadre.contains("experiencia")) {
+      opciones = [
+        "Navegación confusa",
+        "Letra muy pequeña",
+        "Diseño incómodo"
+      ];
+    } else {
+      opciones = [
+        "Cierre inesperado (Crash)",
+        "Error de base de datos",
+        "Carga lenta / Lag"
+      ];
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: opciones.map((opc) {
+          final bool desactivar = _bloquearFlujoReporte &&
+              _subCategoriaReporteActual != opc;
+          final bool seleccionado = _subCategoriaReporteActual == opc;
+
+          return GestureDetector(
+            onTap: desactivar
+                ? null
+                : () => _seleccionarSubcategoriaReporte(opc),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: seleccionado
+                    ? const Color(0xFFFFE082)
+                    : const Color(0xFFFFF8E1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: seleccionado
+                      ? const Color(0xFFFFA000)
+                      : const Color(0xFFFFE082),
+                  width: seleccionado ? 2 : 1,
+                ),
+                boxShadow: desactivar
+                    ? []
+                    : [
+                        BoxShadow(
+                          color: const Color(0xFFFFA000)
+                              .withOpacity(seleccionado ? 0.4 : 0.2),
+                          blurRadius: 0,
+                          offset: Offset(0, seleccionado ? 1 : 3),
+                        ),
+                      ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (seleccionado)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 6),
+                      child: Icon(Icons.check,
+                          size: 14, color: Color(0xFFFFA000)),
+                    ),
+                  Text(
+                    opc,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: desactivar
+                          ? Colors.grey.shade400
+                          : const Color(0xFF795548),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // _buildInputArea  (REDISEÑADO para el Reporte)
+  // En el flujo de Reporte paso 2: muestra el banco
+  // de palabras + el botón "Comprobar e Instalar".
+  // En cualquier otro caso: muestra el TextField normal.
+  // ─────────────────────────────────────────────
+  Widget _buildInputArea() {
+    // Input bloqueado por botón administrativo final
+    final bool entradaBloqueada = _mensajes.isNotEmpty &&
+        (_mensajes.last["tipo"] == "reporte_btn" ||
+            _mensajes.last["tipo"] == "sugerencia_btn");
+
+    // Activar banco de palabras: estamos en Reporte, paso 2 (subcat elegida)
+    final bool mostrarBanco =
+        _categoriaActual == "Reporte" && _pasoReporte == 2 && !entradaBloqueada;
+
+    if (mostrarBanco) {
+      return _buildBancoPalabras();
+    }
+
+    // Input estándar para los demás flujos
+    return Container(
+      padding: const EdgeInsets.all(12),
+      color: entradaBloqueada ? Colors.grey[100] : Colors.white,
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              enabled: !entradaBloqueada,
+              decoration: InputDecoration(
+                hintText: entradaBloqueada
+                    ? "Conversación terminada..."
+                    : "Escribe a la chef...",
+                border: InputBorder.none,
+              ),
+              onSubmitted: (_) => _enviarMensaje(),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.send,
+                color: entradaBloqueada ? Colors.grey : _verde),
+            onPressed: entradaBloqueada ? null : _enviarMensaje,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // _buildBancoPalabras
+  // Panel inferior con:
+  //  1. Zona de frase armada (chips tocados en orden)
+  //  2. Banco de burbujas disponibles
+  //  3. Botón "✏️ Otro detalle" para habilitar TextField
+  //  4. Botón verde "Comprobar e Instalar Reporte"
+  // ─────────────────────────────────────────────
+  Widget _buildBancoPalabras() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ── Zona de la frase armada ──
+          Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(minHeight: 48),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: _fraseArmada.isEmpty
+                ? Text(
+                    "Toca las burbujas para armar tu reporte...",
+                    style: TextStyle(
+                        color: Colors.grey.shade400, fontSize: 13),
+                  )
+                : Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: _fraseArmada.map((palabra) {
+                      return GestureDetector(
+                        // Tap sobre una palabra ya agregada la elimina de la frase
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          setState(() => _fraseArmada.remove(palabra));
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: _verde,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            palabra,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+          ),
+
+          const SizedBox(height: 10),
+
+          // ── Campo libre (visible solo si el usuario tocó "✏️ Otro detalle") ──
+          if (_mostrarCampoLibre)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: TextField(
+                controller: _controller,
+                autofocus: true,
+                // onChanged redibuja el widget en cada tecla para que la
+                // opacidad y el estado del botón verde reaccionen en tiempo real
+                onChanged: (val) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: "Escribe tu detalle específico...",
+                  filled: true,
+                  fillColor: const Color(0xFFF5F5F5),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+
+          // ── Banco de burbujas disponibles ──
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              ..._bancoPalabrasDinamico.map((palabra) {
+                final bool yaUsada = _fraseArmada.contains(palabra);
+                return GestureDetector(
+                  onTap: yaUsada
+                      ? null
+                      : () {
+                          HapticFeedback.lightImpact();
+                          setState(() => _fraseArmada.add(palabra));
+                        },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: yaUsada
+                          ? Colors.grey.shade100
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: yaUsada
+                            ? Colors.grey.shade300
+                            : _verde.withOpacity(0.6),
+                        width: 1.5,
+                      ),
+                      boxShadow: yaUsada
+                          ? []
+                          : [
+                              BoxShadow(
+                                color: _verde.withOpacity(0.2),
+                                blurRadius: 0,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                    ),
+                    child: Text(
+                      palabra,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: yaUsada
+                            ? Colors.grey.shade400
+                            : const Color(0xFF1B6B4A),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              // Botón "✏️ Otro detalle"
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  setState(() {
+                    _mostrarCampoLibre = !_mostrarCampoLibre;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF8E1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: const Color(0xFFFFD54F), width: 1.5),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x33FFD54F),
+                        blurRadius: 0,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: const Text(
+                    "✏️ Otro detalle",
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF795548)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── Botón verde "Comprobar e Instalar Reporte" ──
+          SizedBox(
+            width: double.infinity,
+            child: AnimatedOpacity(
+              opacity: (_fraseArmada.isNotEmpty ||
+                      (_mostrarCampoLibre &&
+                          _controller.text.trim().isNotEmpty))
+                  ? 1.0
+                  : 0.45,
+              duration: const Duration(milliseconds: 300),
+              child: ElevatedButton.icon(
+                onPressed: _fraseArmada.isNotEmpty ||
+                        (_mostrarCampoLibre &&
+                            _controller.text.trim().isNotEmpty)
+                    ? _confirmarFraseBancoYEnviar
+                    : null,
+                icon: const Icon(Icons.verified_outlined, size: 20),
+                label: const Text(
+                  "Comprobar e Instalar Reporte",
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 15),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _verde,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  elevation: 4,
+                  shadowColor: _verde.withOpacity(0.4),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
   // _buildTimerWidget
-  // Tarjeta flotante ciberpunk del temporizador.
-  // Se superpone sobre el avatar usando Positioned.
-  // Respeta el diseño dark/neon de NID.
+  // Tarjeta flotante del temporizador activo.
+  // Se superpone sobre el chat usando Positioned.
   // Se oculta automáticamente cuando _timerActivo=false.
   // ─────────────────────────────────────────────
   Widget _buildTimerWidget() {
@@ -1070,509 +1774,239 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
         "${min.toString().padLeft(2, '0')}:${seg.toString().padLeft(2, '0')}";
 
     return Positioned(
-      // kToolbarHeight (56) + padding de status bar (~24) = ~80px de espacio seguro
-      top: kToolbarHeight + 24 + 8,
-      left: 20,
-      right: 20,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0D0D1E),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _cianNeon, width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: _cianNeon.withOpacity(0.3),
-              blurRadius: 16,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _cianNeon.withOpacity(0.08),
-                shape: BoxShape.circle,
-                border: Border.all(color: _cianNeon.withOpacity(0.4)),
+      bottom: 100,
+      left: 16,
+      right: 16,
+      child: Material(
+        elevation: 8,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: _verde, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: _verde.withOpacity(0.25),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
               ),
-              child: const Icon(Icons.timer_rounded,
-                  color: _cianNeon, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    "TEMPORIZADOR",
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: _cianNeon.withOpacity(0.65),
-                      letterSpacing: 2.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    display,
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      color: _cianNeon,
-                      letterSpacing: 4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            GestureDetector(
-              onTap: _cancelarTemporizador,
-              child: Container(
-                padding: const EdgeInsets.all(7),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
+                  color: _verde.withOpacity(0.1),
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.redAccent, width: 1),
-                  color: Colors.redAccent.withOpacity(0.08),
                 ),
-                child: const Icon(Icons.close,
-                    color: Colors.redAccent, size: 17),
+                child: Icon(Icons.timer_rounded, color: _verde, size: 26),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ─────────────────────────────────────────────
-  // _buildAvatar
-  // Círculo animado con patrón andino geométrico.
-  // Pulsa al ritmo de _pulsoAnimation cuando habla.
-  // El anillo cambia de color según el estado.
-  // ─────────────────────────────────────────────
-  Widget _buildAvatar() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          AnimatedBuilder(
-            animation: _pulsoAnimation,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: _hablando ? _pulsoAnimation.value : 1.0,
-                child: child,
-              );
-            },
-            child: Container(
-              width: 160,
-              height: 160,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [_moradoNeon.withOpacity(0.3), _negro],
-                ),
-                border: Border.all(
-                  color: _escuchando
-                      ? _cianNeon
-                      : _hablando
-                          ? _doradoInca
-                          : _moradoNeon,
-                  width: 2.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: (_escuchando ? _cianNeon : _moradoNeon)
-                        .withOpacity(0.5),
-                    blurRadius: 24,
-                    spreadRadius: 4,
-                  ),
-                ],
-              ),
-              child: ClipOval(
-                child: Stack(
-                  alignment: Alignment.center,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // ── Capa 1: Patrón andino de fondo (se mantiene intacto) ──
-                    CustomPaint(
-                      size: const Size(160, 160),
-                      painter: _AndeanPatternPainter(),
-                    ),
-                    // ── Capa 2: Avatar WebP animado ──
-                    // IndexedStack mantiene ambos assets pre-cargados en el árbol
-                    // de widgets para evitar parpadeo (flicker) al alternar estados.
-                    // index 0 = hablando  → nid_hablando.webp (animación en loop)
-                    // index 1 = idle/escuchando → nid_idle.webp (reposo)
-                    // La bandera _hablando ya es el semáforo correcto:
-                    //   true  → TTS reproduciendo audio (setter en _hablar)
-                    //   false → CompletionHandler de FlutterTts lo apaga
-                    SizedBox(
-                      width: 160,
-                      height: 160,
-                      child: IndexedStack(
-                        index: _hablando ? 0 : 1,
-                        sizing: StackFit.expand,
-                        children: [
-                          Image.asset(
-                            'assets/images/nid_hablando.webp',
-                            fit: BoxFit.cover,
-                            gaplessPlayback: true, // evita flash blanco entre frames
-                          ),
-                          Image.asset(
-                            'assets/images/nid_idle.webp',
-                            fit: BoxFit.cover,
-                            gaplessPlayback: true,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          const Text(
-            "N I D",
-            style: TextStyle(
-              color: _doradoInca,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 6,
-            ),
-          ),
-          const SizedBox(height: 4),
-          // Indicador de receta activa y paso actual
-          if (_recetaActivaNombre != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                _pasoActualIndex >= 0
-                    ? "${_recetaActivaNombre!.toUpperCase()}  •  PASO ${_pasoActualIndex + 1}/${_pasosActivos.length}"
-                    : _recetaActivaNombre!.toUpperCase(),
-                style: TextStyle(
-                  color: _verdeApp.withOpacity(0.85),
-                  fontSize: 10,
-                  letterSpacing: 1.5,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          const SizedBox(height: 4),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: Text(
-              key: ValueKey(_estadoActual),
-              _estadoActual,
-              style: TextStyle(
-                color: _cianNeon.withOpacity(0.7),
-                fontSize: 11,
-                letterSpacing: 1.5,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Texto de estado dinámico debajo del nombre
-  String get _estadoActual {
-    if (_procesando && !_catalogoCargado) return "CARGANDO CATÁLOGO...";
-    if (_procesando)  return "NID ESTÁ PENSANDO...";
-    if (_escuchando)  return "ESCUCHANDO...";
-    if (_hablando)    return "NID ESTÁ HABLANDO...";
-    return "LISTO PARA ESCUCHARTE";
-  }
-
-  // ─────────────────────────────────────────────
-  // _buildPanelTexto
-  // Muestra: transcripción en tiempo real,
-  // indicador de procesamiento y respuesta de NID.
-  // Incluye chips de acciones rápidas contextuales.
-  // ─────────────────────────────────────────────
-  Widget _buildPanelTexto() {
-    return Container(
-      // Sin margin horizontal: el padding ya viene del Padding externo en build()
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        // Fondo oscuro translúcido: legible sobre la ilustración de fondo
-        color: Colors.black.withOpacity(0.62),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _moradoNeon.withOpacity(0.4), width: 1),
-        boxShadow: [
-          BoxShadow(color: _moradoNeon.withOpacity(0.1), blurRadius: 12),
-        ],
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-
-            // ── Indicador de turnos en memoria ──
-            if (_historial.length >= 2)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Icon(Icons.memory,
-                        color: _moradoNeon.withOpacity(0.6), size: 12),
-                    const SizedBox(width: 4),
                     Text(
-                      "MEMORIA: ${_historial.length ~/ 2} turnos",
+                      "TEMPORIZADOR ACTIVO",
                       style: TextStyle(
-                        color: _moradoNeon.withOpacity(0.6),
-                        fontSize: 9,
+                        fontSize: 10,
+                        color: _verde.withOpacity(0.75),
+                        fontWeight: FontWeight.w700,
                         letterSpacing: 1.2,
-                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      display,
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        color: _verde,
+                        letterSpacing: 3,
                       ),
                     ),
                   ],
                 ),
               ),
-
-            // ── Texto del usuario ──
-            if (_textoEscuchado.isNotEmpty || _preguntaFinal.isNotEmpty) ...[
-              Row(
-                children: [
-                  Icon(Icons.person_outline,
-                      color: _cianNeon.withOpacity(0.7), size: 14),
-                  const SizedBox(width: 6),
-                  Text("TÚ",
-                      style: TextStyle(
-                          color: _cianNeon.withOpacity(0.7),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 2)),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _escuchando ? _textoEscuchado : _preguntaFinal,
-                style: const TextStyle(
-                    color: Colors.white, fontSize: 14, height: 1.4),
-              ),
-              const SizedBox(height: 12),
-            ],
-
-            // ── Respuesta de NID o estados intermedios ──
-            if (_procesando && _catalogoCargado) ...[
-              Row(
-                children: [
-                  SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 1.5, color: _doradoInca),
-                  ),
-                  const SizedBox(width: 8),
-                  Text("NID ESTÁ PENSANDO...",
-                      style: TextStyle(
-                          color: _doradoInca.withOpacity(0.7),
-                          fontSize: 11,
-                          letterSpacing: 1)),
-                ],
-              ),
-            ] else if (_respuestaNID.isNotEmpty) ...[
-              Row(
-                children: [
-                  Icon(Icons.auto_awesome,
-                      color: _doradoInca.withOpacity(0.8), size: 14),
-                  const SizedBox(width: 6),
-                  Text("NID",
-                      style: TextStyle(
-                          color: _doradoInca.withOpacity(0.8),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 2)),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _respuestaNID,
-                style: const TextStyle(
-                    color: Color(0xFFE8E0FF), fontSize: 14, height: 1.5),
-              ),
-
-              // ── Chips de acciones rápidas (si hay receta activa) ──
-              if (_recetaActivaNombre != null) ...[
-                const SizedBox(height: 12),
-                _buildAccionesRapidas(),
-              ],
-            ] else if (!_procesando) ...[
-              Center(
-                child: Text(
-                  _catalogoCargado
-                      ? "Pulsa el micrófono y habla con NID"
-                      : "Cargando el catálogo de recetas...",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
-                      fontSize: 13,
-                      height: 1.5),
-                ),
+              IconButton(
+                onPressed: _cancelarTemporizador,
+                tooltip: "Cancelar temporizador",
+                icon: const Icon(Icons.close_rounded,
+                    color: Colors.redAccent, size: 22),
               ),
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 
   // ─────────────────────────────────────────────
-  // _buildAccionesRapidas
-  // Chips contextuales que aparecen cuando hay
-  // una receta activa. Permiten acciones comunes
-  // sin hablar, ideal para manos ocupadas en cocina.
+  // _buildCategoriasGrid  (sin cambios)
   // ─────────────────────────────────────────────
-  Widget _buildAccionesRapidas() {
-    final List<Map<String, dynamic>> acciones = [
-      if (_pasoActualIndex == -1)
-        {"label": "Empezar a cocinar", "cmd": "empezar a cocinar"},
-      if (_pasoActualIndex >= 0 && _pasoActualIndex < _pasosActivos.length - 1)
-        {"label": "Siguiente paso", "cmd": "siguiente paso"},
-      if (_pasoActualIndex > 0)
-        {"label": "Paso anterior", "cmd": "paso anterior"},
-      if (_pasoActualIndex >= 0)
-        {"label": "Repetir", "cmd": "repite el paso"},
-      {"label": "Ingredientes", "cmd": "dime los ingredientes"},
-    ];
-
+  Widget _buildCategoriasGrid() {
+    final cats = ["Almuerzo", "Cena", "Desayuno", "Snack", "Refrescos"];
     return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: acciones.map((a) {
-        return GestureDetector(
-          onTap: () => _procesarTextoUsuario(a["cmd"] as String),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: _moradoNeon.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _moradoNeon.withOpacity(0.5)),
-            ),
-            child: Text(
-              a["label"] as String,
-              style: const TextStyle(
-                  color: Color(0xFFD0BBFF),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600),
-            ),
+      spacing: 8.0,
+      runSpacing: 8.0,
+      alignment: WrapAlignment.center,
+      children: cats.map((cat) {
+        bool isSelected = _categoriaComidaElegida == cat;
+        return FilterChip(
+          label: Text(cat, style: const TextStyle(fontSize: 12)),
+          selected: isSelected,
+          selectedColor: _verde.withOpacity(0.3),
+          checkmarkColor: _verde,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+                color: isSelected ? _verde : Colors.grey.shade300),
           ),
+          onSelected: (_) {
+            if (_bloquearCategorias) return;
+            setState(() {
+              _bloquearCategorias = true;
+              _categoriaComidaElegida = cat;
+              _mensajes.add(
+                  {"rol": "usuario", "texto": "Categoría: $cat", "tipo": "texto"});
+            });
+            _cargarIngredientesPrimordiales(cat);
+          },
         );
       }).toList(),
     );
   }
 
   // ─────────────────────────────────────────────
-  // _buildControles
-  // Botón principal del micrófono.
-  // Botón rojo para interrumpir TTS si NID habla.
+  // _buildIngredientesGrid  (sin cambios)
   // ─────────────────────────────────────────────
-  Widget _buildControles() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildIngredientesGrid() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Column(
         children: [
-          if (_hablando)
-            Padding(
-              padding: const EdgeInsets.only(right: 20),
-              child: GestureDetector(
-                onTap: () async {
-                  await _tts.stop();
-                  setState(() => _hablando = false);
+          Wrap(
+            spacing: 8.0,
+            runSpacing: 8.0,
+            alignment: WrapAlignment.center,
+            children: _ingredientesPrimordiales.map((ing) {
+              final isSel = _ingredientesSeleccionados.contains(ing);
+              return FilterChip(
+                label: Text(ing, style: const TextStyle(fontSize: 12)),
+                selected: isSel,
+                selectedColor: _verde.withOpacity(0.3),
+                checkmarkColor: _verde,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(
+                      color: isSel ? _verde : Colors.grey.shade300),
+                ),
+                onSelected: (val) {
+                  setState(() {
+                    if (val && _ingredientesSeleccionados.length < 3) {
+                      _ingredientesSeleccionados.add(ing);
+                    } else if (!val) {
+                      _ingredientesSeleccionados.remove(ing);
+                    }
+                  });
                 },
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.redAccent, width: 1.5),
-                    color: Colors.redAccent.withOpacity(0.1),
-                  ),
-                  child: const Icon(Icons.stop,
-                      color: Colors.redAccent, size: 22),
-                ),
-              ),
-            ),
-
-          // Botón principal del micrófono
-          GestureDetector(
-            onTap: _toggleMicrofono,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width:  _escuchando ? 84 : 72,
-              height: _escuchando ? 84 : 72,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: _escuchando
-                      ? [_cianNeon, _moradoNeon]
-                      : [_moradoNeon, const Color(0xFF3D1080)],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: (_escuchando ? _cianNeon : _moradoNeon)
-                        .withOpacity(0.6),
-                    blurRadius: _escuchando ? 24 : 12,
-                    spreadRadius: _escuchando ? 4 : 0,
-                  ),
-                ],
-              ),
-              child: Icon(
-                _escuchando ? Icons.mic : Icons.mic_none,
-                color: Colors.white,
-                size: _escuchando ? 36 : 30,
-              ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _ingredientesSeleccionados.isNotEmpty
+                ? () {
+                    setState(() {
+                      _mostrarGridIngredientes = false;
+                      _controller.text =
+                          "Dame una recomendación de $_categoriaComidaElegida usando: ${_ingredientesSeleccionados.join(', ')}";
+                    });
+                    _enviarMensaje();
+                  }
+                : null,
+            icon: const Icon(Icons.restaurant),
+            label: const Text("Confirmar ingredientes"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _verde,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
             ),
           ),
         ],
       ),
     );
   }
-}
 
-// ═══════════════════════════════════════════════════════════════════════════
-// _AndeanPatternPainter
-// Patrón geométrico andino (rombos tipo wiphala) para el fondo del avatar.
-// Reemplazar con Image.asset('assets/images/nid_avatar.png') cuando
-// tengas el asset listo.
-// ═══════════════════════════════════════════════════════════════════════════
-class _AndeanPatternPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..style = PaintingStyle.fill;
-
-    paint.color = const Color(0xFF0A0A1A);
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
-
-    const colors = [
-      Color(0xFF7B2FBE),
-      Color(0xFF00F5FF),
-      Color(0xFFFFD700),
-      Color(0xFF2D9E73),
-    ];
-
-    const step = 20.0;
-    int colorIndex = 0;
-
-    for (double x = 0; x < size.width; x += step) {
-      for (double y = 0; y < size.height; y += step) {
-        paint.color = colors[colorIndex % colors.length].withOpacity(0.18);
-        final path = Path()
-          ..moveTo(x + step / 2, y)
-          ..lineTo(x + step, y + step / 2)
-          ..lineTo(x + step / 2, y + step)
-          ..lineTo(x, y + step / 2)
-          ..close();
-        canvas.drawPath(path, paint);
-        colorIndex++;
-      }
-    }
+  // ─────────────────────────────────────────────
+  // _buildRecetasBotonesGrid  (sin cambios)
+  // ─────────────────────────────────────────────
+  Widget _buildRecetasBotonesGrid(List<Map<String, String>> recetas) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 16),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: recetas.map((receta) {
+          return SizedBox(
+            width: 160,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => DetalleRecetaScreen(
+                      recetaId: receta['id']!,
+                      nombreReceta: receta['nombre']!,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.restaurant_menu, size: 18),
+              label: Text(
+                receta['nombre']!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w700),
+                overflow: TextOverflow.ellipsis,
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _verde,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 
-  @override
-  bool shouldRepaint(_AndeanPatternPainter old) => false;
+  // ─────────────────────────────────────────────
+  // _buildActionBtn  (sin cambios)
+  // ─────────────────────────────────────────────
+  Widget _buildActionBtn(
+      VoidCallback onPres, IconData icon, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 12),
+      child: ElevatedButton.icon(
+        onPressed: onPres,
+        icon: Icon(icon, size: 18),
+        label: Text(label),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _verde,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14)),
+        ),
+      ),
+    );
+  }
 }

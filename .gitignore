@@ -44,3 +44,14 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 .env
+
+# Archivos efímeros generados por Flutter
+linux/flutter/ephemeral/
+macos/Flutter/Flutter-Generated.xcconfig
+macos/Flutter/flutter_export_environment.sh
+windows/flutter/ephemeral/
+
+# Plataformas no usadas
+linux/
+macos/
+windows/
