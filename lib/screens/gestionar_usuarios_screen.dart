@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_page.dart';
+import '../servicios/historial_servicio.dart';
 
 class GestionarUsuariosScreen
     extends StatefulWidget {
@@ -446,6 +447,19 @@ class _GestionarUsuariosScreenState
   'rol':
       nuevoRol,
 });
+await HistorialService
+    .registrar(
+
+  accion:
+      esAdmin
+
+          ? 'Quitó permisos admin a ${data['nombre']}'
+
+          : 'Convirtió en admin a ${data['nombre']}',
+
+  tipo:
+      'roles',
+);
 
 // usuario actual
 

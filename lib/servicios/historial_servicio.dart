@@ -34,31 +34,36 @@ class HistorialService {
           usuarioDoc.data();
 
       await FirebaseFirestore
-          .instance
-          .collection(
-            'app-historial',
-          )
-          .add({
+    .instance
+    .collection(
+      'app-historial',
+    )
+    .add({
 
-        'usuario':
-            data?['nombre'] ??
-                'Sin nombre',
+  'uid':
+      user.uid,
 
-        'correo':
-            user.email ?? '',
+  'rol':
+      data?['rol'] ??
+          'user',
 
-        'accion':
-            accion,
+  'usuario':
+      data?['nombre'] ??
+          'Sin nombre',
 
-        'tipo':
-            tipo,
+  'correo':
+      user.email ?? '',
 
-        'fecha':
-            Timestamp.now(),
-      });
-    }
+  'accion':
+      accion,
 
-    catch (e) {
+  'tipo':
+      tipo,
+
+  'fecha':
+      Timestamp.now(),
+});
+    } catch (e) {
 
       print(
         'Error historial: $e',

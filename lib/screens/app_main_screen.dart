@@ -9,6 +9,7 @@ import 'sugerencias_chat_screen.dart';
 import 'mis_recetas_screen.dart';
 import 'package:lottie/lottie.dart';
 import 'components/notificacion_campana.dart'; 
+import '../servicios/historial_servicio.dart';
 
 class AppMainScreen extends StatefulWidget {
   const AppMainScreen({super.key});
@@ -377,8 +378,18 @@ class _AjustesScreenState extends State<_AjustesScreen> {
                           ],
                         ),
                       );
+                      
 
                       if (confirmar == true) {
+                        await HistorialService
+    .registrar(
+
+  accion:
+      'Cerró sesión',
+
+  tipo:
+      'logout',
+);
                         await FirebaseAuth.instance.signOut();
                         if (!context.mounted) return;
                         Navigator.pushAndRemoveUntil(

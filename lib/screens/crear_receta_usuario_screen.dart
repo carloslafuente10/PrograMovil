@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../servicios/notificaciones_servicio.dart';
+import '../servicios/historial_servicio.dart';
 
 class _IngredienteSeleccionado {
   final String id;
@@ -240,7 +241,12 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         final doc = await FirebaseFirestore.instance
             .collection('recetas_personales').add(payload);
         _recetaPersonalId = doc.id;
+        
       }
+      await HistorialService.registrar(
+  accion: 'Guardó receta personal ${_nombreCtrl.text.trim()}',
+  tipo: 'recetas',
+);
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) _mostrarSnack('Error al guardar: $e');
@@ -263,7 +269,12 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         final doc = await FirebaseFirestore.instance
             .collection('recetas_personales').add(payload);
         _recetaPersonalId = doc.id;
+       
       }
+       await HistorialService.registrar(
+  accion: 'Guardó borrador ${_nombreCtrl.text.trim()}',
+  tipo: 'recetas',
+);
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) _mostrarSnack('Error al guardar: $e');
@@ -337,6 +348,12 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         recipeName:   _nombreCtrl.text.trim(),
         usuarioEmail: FirebaseAuth.instance.currentUser?.email ?? '',
       );
+      await HistorialService.registrar(
+  accion: _esReenvio
+      ? 'Reenvió receta ${_nombreCtrl.text.trim()} a revisión'
+      : 'Envió receta ${_nombreCtrl.text.trim()} a revisión',
+  tipo: 'recetas',
+);
 
       if (mounted) {
         Navigator.pop(context);
