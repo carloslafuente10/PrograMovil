@@ -4,9 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'detalle_receta_screen.dart';
 import 'voice_call_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'components/receta_card_widget.dart';
 
 class SugerenciasChatScreen extends StatefulWidget {
   const SugerenciasChatScreen({super.key});
@@ -17,7 +19,6 @@ class SugerenciasChatScreen extends StatefulWidget {
 
 class _SugerenciasChatScreenState extends State<SugerenciasChatScreen>
     with TickerProviderStateMixin {
-
   // ─────────────────────────────────────────────
   // VARIABLES DE ESTADO GENERALES
   // ─────────────────────────────────────────────
@@ -29,29 +30,25 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen>
   bool _esperandoDetalleReporte = false;
   bool _esperandoParrafoSugerencia = false;
   final Color _verde = const Color(0xFF2D9E73);
+  bool _mostrarInterpretacionReporte = false;
+  bool _mostrarDetalleManualExtendido = false;
+  bool _mostrarPasoFinalTimbre = false;
+  String _interpretacionIA = "";
 
   // ─────────────────────────────────────────────
   // VARIABLES DEL FLUJO DE REPORTE (GAMIFICADO)
   // ─────────────────────────────────────────────
-
-  /// Paso actual del flujo de reporte: 0=sin iniciar, 1=cat elegida, 2=subcat elegida, 3=frase completada
   int _pasoReporte = 0;
-
   bool _bloquearReportes = false;
   String _categoriaReporteActual = "";
   String _subCategoriaReporteActual = "";
   bool _bloquearFlujoReporte = false;
-
-  /// Chips del banco de palabras que el usuario ha seleccionado (en orden de toque)
   final List<String> _fraseArmada = [];
-
-  /// true = el usuario activó el TextField libre desde el botón "✏️ Otro detalle"
   bool _mostrarCampoLibre = false;
 
-  /// Animación de la barra de progreso segmentada
   late AnimationController _progressController;
   late Animation<double> _progressAnimation;
-  double _progreso = 0.0; // 0.0 → 1.0
+  double _progreso = 0.0;
 
   // ─────────────────────────────────────────────
   // VARIABLES DEL FLUJO DE AYUDA
@@ -65,23 +62,18 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen>
   // ─────────────────────────────────────────────
   // VARIABLES DEL TEMPORIZADOR NATIVO
   // ─────────────────────────────────────────────
-  Timer?    _countdownTimer;
-  Duration  _timerDuration = Duration.zero;
-  bool      _timerActivo   = false;
+  Timer? _countdownTimer;
+  Duration _timerDuration = Duration.zero;
+  bool _timerActivo = false;
 
-  // ─────────────────────────────────────────────
-  // BANCO DE PALABRAS DINÁMICO (PASO 3)
-  // Se rellena en _seleccionarSubcategoriaReporte
-  // según la subcategoría elegida por el usuario.
-  // ─────────────────────────────────────────────
   List<String> _bancoPalabrasDinamico = [];
 
   // ─────────────────────────────────────────────
-  // CONFIGURACIÓN GROQ / SYSTEM PROMPT
+  // CONFIGURACIÓN GROQ / SYSTEM PROMPT (De tu compañero)
   // ─────────────────────────────────────────────
   final String _apiKeyGrok = dotenv.env['GROQ_API_KEY'] ?? '';
   final String _systemPrompt = """
-Eres A.L.I.C.I.A., la chef virtual oficial de PrograMovil.
+Eres A.L.I.C.I.A., la chef virtual oficial del Mercado Andino.
 Tu misión es asistir con recetas, reportes de errores y sugerencias basándote ÚNICAMENTE en el contexto que se te entregue.
 
 REGLAS CRÍTICAS DE RESPUESTA:
@@ -94,29 +86,26 @@ REGLA DE CALORÍAS Y TIEMPOS:
 Nunca declares valores absolutos. SIEMPRE usa lenguaje de estimación.
   - Correcto: "Aproximadamente 350 calorías", "Alrededor de 20 minutos".
   - Prohibido: "Tiene 350 kcal", "Toma exactamente 20 minutos".
-  - REGLA DEL TEMPORIZADOR: Cada vez que menciones una cantidad de tiempo en una receta o paso (ej. "alrededor de 10 minutos"), finaliza esa oración preguntando de forma natural si el usuario desea iniciar un temporizador. Si el usuario responde afirmativamente ("sí", "dale", "inicia", "perfecto", "claro"), añade al FINAL de tu respuesta el comando oculto [TIMER:X] donde X es el número entero de minutos. Este comando no debe ser leído en voz alta ni mostrado visualmente al usuario; es solo una instrucción interna para la aplicación.
+  - REGLA DEL TEMPORIZADOR: Cada vez que menciones una cantidad de tiempo en una receta o paso (ej. "alrededor de 10 minutos"), finaliza esa oración preguntando de forma natural si el usuario desea iniciar un temporizador.
+Si el usuario responde afirmativamente ("sí", "dale", "inicia", "perfecto", "claro"), añade al FINAL de tu respuesta el comando oculto [TIMER:X] donde X es el número entero de minutos.
+Este comando no debe ser leído en voz alta ni mostrado visualmente al usuario;
+es solo una instrucción interna para la aplicación.
 
 REGLA DE RECETAS PASO A PASO:
 Jamás entregues la receta completa ni múltiples pasos en un solo mensaje.
 Al confirmar una receta, pregunta: "¿Te parece si empezamos por el primer paso?" y detente.
 Solo avanza al siguiente paso cuando el usuario lo confirme explícitamente.
-
 REGLA DE PORCIONES DINÁMICAS:
 Si el usuario pide adaptar para N personas, calcula tú mismo cada cantidad y devuélvela en texto fluido.
 Prohibido pedirle al usuario que haga el cálculo por su cuenta.
-
 REGLA DE PERSISTENCIA:
 Si en un mensaje anterior confirmaste que una receta existe, mantén esa confirmación durante toda la conversación.
 Jamás te contradigas diciendo que no cuentas con una receta que ya confirmaste.
 """;
 
-  // ─────────────────────────────────────────────
-  // initState / dispose
-  // ─────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
-    // Controlador de la barra de progreso animada
     _progressController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -134,11 +123,6 @@ Jamás te contradigas diciendo que no cuentas con una receta que ya confirmaste.
     super.dispose();
   }
 
-  // ─────────────────────────────────────────────
-  // _animarProgreso
-  // Anima la barra de progreso desde el valor
-  // actual hacia el nuevo target (0.0 a 1.0).
-  // ─────────────────────────────────────────────
   void _animarProgreso(double nuevoValor) {
     final double inicio = _progreso;
     _progressAnimation = Tween<double>(begin: inicio, end: nuevoValor).animate(
@@ -149,15 +133,13 @@ Jamás te contradigas diciendo que no cuentas con una receta que ya confirmaste.
   }
 
   // ─────────────────────────────────────────────
-  // _iniciarTemporizador / _cancelarTemporizador
-  // Motor nativo del temporizador. Usa dart:async.
-  // Se dispara cuando la IA responde con [TIMER:X].
+  // MOTOR DEL TEMPORIZADOR (De tu compañero)
   // ─────────────────────────────────────────────
   void _iniciarTemporizador(int minutos) {
-    _cancelarTemporizador(); // Cancela uno previo si existe
+    _cancelarTemporizador();
     setState(() {
       _timerDuration = Duration(minutes: minutos);
-      _timerActivo   = true;
+      _timerActivo = true;
     });
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
@@ -166,7 +148,6 @@ Jamás te contradigas diciendo que no cuentas con una receta que ya confirmaste.
           _timerDuration -= const Duration(seconds: 1);
         } else {
           _cancelarTemporizador();
-          // Notificación de finalización
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Row(
@@ -192,12 +173,78 @@ Jamás te contradigas diciendo que no cuentas con una receta que ya confirmaste.
   }
 
   // ─────────────────────────────────────────────
-  // _construirPromptValidacion
-  // Genera el prompt de validación para la IA
-  // dado categoría, subcategoría y texto del usuario.
+  // SANITIZACIÓN DE RECETAS (De tu compañero)
   // ─────────────────────────────────────────────
+  String _sanitizarRecetaParaContexto(Map<String, dynamic> data) {
+    final String nombre = (data['nombre'] ?? '').toString().trim();
+    final String categoria = (data['categoria'] ?? '').toString().trim();
+    final String calorias = (data['calorias'] ?? '').toString().trim();
+    final String tiempo = (data['tiempo'] ?? '').toString().trim();
+
+    final List rawIng = data['ingredientes'] ?? [];
+    final List<String> ingsLimpios = rawIng
+        .map<String>((ing) {
+          if (ing is Map) {
+            final String nom =
+                (ing['nombre'] ?? ing['name'] ?? ing['ingrediente'] ?? '')
+                    .toString()
+                    .trim();
+            final String can =
+                (ing['cantidad'] ??
+                        ing['amount'] ??
+                        ing['gramos'] ??
+                        ing['unidades'] ??
+                        '')
+                    .toString()
+                    .trim();
+            final String uni = (ing['unidad'] ?? ing['unit'] ?? '')
+                .toString()
+                .trim();
+            if (nom.isEmpty) return '';
+            if (can.isNotEmpty && uni.isNotEmpty) return "$can $uni de $nom";
+            if (can.isNotEmpty) return "$can de $nom";
+            return nom;
+          }
+          return ing.toString().trim();
+        })
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    final List rawPasos = data['pasos'] ?? [];
+    final List<String> pasosLimpios = rawPasos
+        .map<String>((paso) {
+          if (paso is Map) {
+            return (paso['descripcion'] ??
+                    paso['texto'] ??
+                    paso['detalle'] ??
+                    paso['step'] ??
+                    paso.toString())
+                .toString()
+                .trim();
+          }
+          return paso.toString().trim();
+        })
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    final StringBuffer ctx = StringBuffer();
+    if (nombre.isNotEmpty) ctx.writeln("RECETA: $nombre");
+    if (categoria.isNotEmpty) ctx.writeln("  Categoría: $categoria");
+    if (calorias.isNotEmpty) ctx.writeln("  Calorías aproximadas: $calorias");
+    if (tiempo.isNotEmpty) ctx.writeln("  Tiempo aproximado: $tiempo");
+    if (ingsLimpios.isNotEmpty)
+      ctx.writeln("  Ingredientes: ${ingsLimpios.join(', ')}");
+    for (int i = 0; i < pasosLimpios.length; i++) {
+      ctx.writeln("  Paso ${i + 1}: ${pasosLimpios[i]}");
+    }
+    return ctx.toString();
+  }
+
   String _construirPromptValidacion(
-      String categoriaReporte, String subCategoria, String textoUsuario) {
+    String categoriaReporte,
+    String subCategoria,
+    String textoUsuario,
+  ) {
     return """
 Eres el sistema de control de calidad de la app PrograMovil. Tu única tarea es validar si la descripción de un reporte de error enviada por el usuario es legítima.
 
@@ -212,88 +259,15 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 """;
   }
 
-  // ═══════════════════════════════════════════════════════
-  // _sanitizarRecetaParaContexto — HELPER DE SANITIZACIÓN
-  //
-  // Misma lógica que en voice_call_screen.dart.
-  // Convierte el mapa crudo de Firestore en un String
-  // legible y semánticamente unificado antes de enviarlo
-  // como contexto a Groq, eliminando ráfagas de números.
-  //
-  // Uso: llamar con doc.data() antes de generateContent.
-  // Devuelve un String listo para insertar en el prompt.
-  // ═══════════════════════════════════════════════════════
-  String _sanitizarRecetaParaContexto(Map<String, dynamic> data) {
-    final String nombre    = (data['nombre']    ?? '').toString().trim();
-    final String categoria = (data['categoria'] ?? '').toString().trim();
-    final String calorias  = (data['calorias']  ?? '').toString().trim();
-    final String tiempo    = (data['tiempo']    ?? '').toString().trim();
-
-    // ── Ingredientes: unificación semántica de nombre + cantidad + unidad ──
-    final List rawIng = data['ingredientes'] ?? [];
-    final List<String> ingsLimpios = rawIng.map<String>((ing) {
-      if (ing is Map) {
-        final String nom = (ing['nombre']     ??
-                            ing['name']       ??
-                            ing['ingrediente']?? '').toString().trim();
-        final String can = (ing['cantidad']   ??
-                            ing['amount']     ??
-                            ing['gramos']     ??
-                            ing['unidades']   ?? '').toString().trim();
-        final String uni = (ing['unidad']     ??
-                            ing['unit']       ?? '').toString().trim();
-        if (nom.isEmpty) return '';
-        if (can.isNotEmpty && uni.isNotEmpty) return "$can $uni de $nom";
-        if (can.isNotEmpty) return "$can de $nom";
-        return nom;
-      }
-      return ing.toString().trim();
-    }).where((s) => s.isNotEmpty).toList();
-
-    // ── Pasos ──
-    final List rawPasos = data['pasos'] ?? [];
-    final List<String> pasosLimpios = rawPasos.map<String>((paso) {
-      if (paso is Map) {
-        return (paso['descripcion'] ??
-                paso['texto']       ??
-                paso['detalle']     ??
-                paso['step']        ??
-                paso.toString()).toString().trim();
-      }
-      return paso.toString().trim();
-    }).where((s) => s.isNotEmpty).toList();
-
-    final StringBuffer ctx = StringBuffer();
-    if (nombre.isNotEmpty)    ctx.writeln("RECETA: $nombre");
-    if (categoria.isNotEmpty) ctx.writeln("  Categoría: $categoria");
-    if (calorias.isNotEmpty)  ctx.writeln("  Calorías aproximadas: $calorias");
-    if (tiempo.isNotEmpty)    ctx.writeln("  Tiempo aproximado: $tiempo");
-    if (ingsLimpios.isNotEmpty) {
-      ctx.writeln("  Ingredientes: ${ingsLimpios.join(', ')}");
-    }
-    for (int i = 0; i < pasosLimpios.length; i++) {
-      ctx.writeln("  Paso ${i + 1}: ${pasosLimpios[i]}");
-    }
-    return ctx.toString();
-  }
-
-  // ─────────────────────────────────────────────
-  // _obtenerRespuestaDeGrok
-  // Envía el historial completo + mensaje al modelo
-  // LLaMA vía Groq y devuelve la respuesta de texto.
-  // ─────────────────────────────────────────────
   Future<String> _obtenerRespuestaDeGrok(String mensajeUsuario) async {
     final url = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
     List<Map<String, String>> historialParaApi = [
-      {"role": "system", "content": _systemPrompt}
+      {"role": "system", "content": _systemPrompt},
     ];
     for (var msg in _mensajes) {
       if (msg["tipo"] == "texto") {
         String roleApi = (msg["rol"] == "usuario") ? "user" : "assistant";
-        historialParaApi.add({
-          "role": roleApi,
-          "content": msg["texto"] ?? ""
-        });
+        historialParaApi.add({"role": roleApi, "content": msg["texto"] ?? ""});
       }
     }
     try {
@@ -306,7 +280,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
         body: jsonEncode({
           "model": "llama-3.1-8b-instant",
           "messages": historialParaApi,
-          "temperature": 0.4
+          "temperature": 0.4,
         }),
       );
       if (response.statusCode == 200) {
@@ -322,9 +296,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     }
   }
 
-  // ─────────────────────────────────────────────
-  // _verificarRecetaEnFirebase  (sin cambios)
-  // ─────────────────────────────────────────────
   Future<bool> _verificarRecetaEnFirebase(String texto) async {
     try {
       await Future.delayed(const Duration(milliseconds: 600));
@@ -335,11 +306,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     }
   }
 
-  // ─────────────────────────────────────────────
-  // _generarVariantes
-  // Genera variantes de una categoría para tolerar
-  // tildes, mayúsculas y plural/singular en Firestore.
-  // ─────────────────────────────────────────────
   List<String> _generarVariantes(String categoria) {
     String base = categoria.trim();
     String singular = base.endsWith('s')
@@ -360,16 +326,14 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
   }
 
   // ─────────────────────────────────────────────
-  // _buscarRecetasRecomendadas
+  // BÚSQUEDA DE RECETAS (Fusión Porcentajes + Contexto)
   // ─────────────────────────────────────────────
   Future<void> _buscarRecetasRecomendadas() async {
-    if (_categoriaComidaElegida == null || _ingredientesSeleccionados.isEmpty) return;
-
+    if (_categoriaComidaElegida == null || _ingredientesSeleccionados.isEmpty)
+      return;
     setState(() => _estaCargando = true);
     try {
       final variantes = _generarVariantes(_categoriaComidaElegida!);
-
-      // Consulta amplia tolerante a tildes en el campo categoría
       final snapshot = await FirebaseFirestore.instance
           .collection('app-recetas-completas')
           .where(
@@ -380,50 +344,86 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           )
           .get();
 
-      List<Map<String, String>> recetasEncontradas = [];
-
+      List<Map<String, dynamic>> recetasEncontradas = [];
       for (var doc in snapshot.docs) {
         final data = doc.data();
-        // ── Sanitizar datos crudos antes de cualquier uso (Fix 2) ──
-        final String contextoSanitizado = _sanitizarRecetaParaContexto(data);
+        final String contextoSanitizado = _sanitizarRecetaParaContexto(
+          data,
+        ); // De tu compañero
         List ingredientesDoc = data['ingredientes'] ?? [];
 
-        // Normalizar nombres de ingredientes: quitar guiones y espacios extra
         List<String> nombresReceta = ingredientesDoc
-            .map((i) => (i is Map
-                    ? (i['nombre'] ?? i['name'] ?? i['ingrediente_id'] ?? '')
-                    : i.toString())
-                .toString()
-                .trim()
-                .toLowerCase()
-                .replaceAll('-', ' '))
+            .map(
+              (i) =>
+                  (i is Map
+                          ? (i['nombre'] ??
+                                i['name'] ??
+                                i['ingrediente_id'] ??
+                                '')
+                          : i.toString())
+                      .toString()
+                      .trim()
+                      .toLowerCase()
+                      .replaceAll('-', ' '),
+            )
+            .where((n) => n.isNotEmpty)
             .toList();
 
-        // La receta aparece si tiene AL MENOS UNO de los ingredientes seleccionados
-        bool tieneIngrediente = _ingredientesSeleccionados.any(
-          (ingSel) => nombresReceta.contains(ingSel.toLowerCase().trim()),
-        );
+        if (nombresReceta.isEmpty) continue;
 
-        if (tieneIngrediente) {
+        int coincidencias = 0;
+        for (String ingSel in _ingredientesSeleccionados) {
+          if (nombresReceta.any(
+            (nr) =>
+                nr.contains(ingSel.toLowerCase().trim()) ||
+                ingSel.toLowerCase().trim().contains(nr),
+          )) {
+            coincidencias++;
+          }
+        }
+
+        // Lógica de porcentajes y límite visual (Tu lógica)
+        if (coincidencias > 0) {
+          double porcentaje = (coincidencias / nombresReceta.length) * 100;
+          if (porcentaje > 100) porcentaje = 100.0;
+
           recetasEncontradas.add({
             'id': doc.id,
-            'nombre': (data['nombre'] ?? "Receta").toString(),
-            'contexto': contextoSanitizado, // disponible para inyectar si se necesita
+            'nombre': data['nombre']?.toString() ?? "Receta",
+            'img': data['imagen']?.toString() ?? '',
+            'calorias':
+                (data['calorías'] ?? data['calorias'])?.toString() ?? '—',
+            'tiempo': data['tiempo']?.toString() ?? '—',
+            'categoria':
+                (data['categoría'] ?? data['categoria'])?.toString() ?? '',
+            'porcentaje': porcentaje,
+            'contexto':
+                contextoSanitizado, // Listo para inyectar si se necesita
           });
         }
+      }
+
+      recetasEncontradas.sort(
+        (a, b) =>
+            (b['porcentaje'] as double).compareTo(a['porcentaje'] as double),
+      );
+      if (recetasEncontradas.length > 4) {
+        recetasEncontradas = recetasEncontradas.sublist(0, 4);
       }
 
       setState(() {
         if (recetasEncontradas.isEmpty) {
           _mensajes.add({
             "rol": "llama",
-            "texto": "He buscado en mi alacena pero no tengo una receta exacta con esa combinación. 🥣 ¿Intentamos con otros ingredientes?",
+            "texto":
+                "He buscado en mi alacena pero no tengo una receta exacta con esa combinación. 🥣 ¿Intentamos con otros ingredientes?",
             "tipo": "texto",
           });
         } else {
           _mensajes.add({
             "rol": "llama",
-            "texto": "¡He encontrado el maridaje perfecto! 👨‍🍳 Aquí tienes las opciones que mejor combinan con tu selección.",
+            "texto":
+                "¡He encontrado el maridaje perfecto! 👨‍🍳 Aquí tienes las opciones que mejor combinan con tu selección.",
             "tipo": "recetas_grid",
             "recetas": recetasEncontradas,
           });
@@ -431,17 +431,18 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       });
     } catch (e) {
       debugPrint("Error buscar recetas: $e");
-      setState(() => _mensajes.add({"rol": "llama", "texto": "Se nos ha derramado el caldo... Error en la conexión."}));
+      setState(
+        () => _mensajes.add({
+          "rol": "llama",
+          "texto": "Se nos ha derramado el caldo... Error en la conexión.",
+          "tipo": "texto",
+        }),
+      );
     } finally {
       setState(() => _estaCargando = false);
     }
   }
 
-  // ─────────────────────────────────────────────
-  // _seleccionarOpcion
-  // Limpia todo el estado y arranca el flujo
-  // correspondiente al botón del menú principal.
-  // ─────────────────────────────────────────────
   void _seleccionarOpcion(String titulo, String descripcion) {
     setState(() {
       _opcionSeleccionada = true;
@@ -457,7 +458,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       _categoriaReporteActual = "";
       _subCategoriaReporteActual = "";
       _bloquearReportes = false;
-      // Reset gamificación
       _pasoReporte = 0;
       _fraseArmada.clear();
       _mostrarCampoLibre = false;
@@ -467,36 +467,31 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       String tipoMensaje = "texto";
 
       if (titulo == "Reporte") {
-        saludoChef = "¡Alto al fuego en la cocina! 🍳 Vamos a documentar tu reporte paso a paso. Primero, ¿qué área está quemada?";
+        saludoChef =
+            "¡Alto al fuego en la cocina! 🍳 Vamos a documentar tu reporte paso a paso. Primero, ¿qué área está quemada?";
         tipoMensaje = "botones_reporte_categorias";
         _esperandoDetalleReporte = true;
         _animarProgreso(0.0);
       } else if (titulo == "Ayuda") {
-        saludoChef = "Aquí estoy para guiarte en tu siguiente comida. Por favor selecciona una categoría:";
+        saludoChef =
+            "Aquí estoy para guiarte en tu siguiente comida. Por favor selecciona una categoría:";
         tipoMensaje = "botones_categoria";
       } else if (titulo == "Consulta Especifica") {
-        saludoChef = "¡Entrando comandas de alta cocina! 🚀 Escribe libremente tu inquietud culinaria o técnica.";
+        saludoChef =
+            "¡Entrando comandas de alta cocina! 🚀 Escribe libremente tu inquietud culinaria o técnica.";
       } else {
-        saludoChef = "¡Me encanta experimentar! Cuéntame tu idea completa (Nombre, ingredientes y toque especial) en un solo párrafo. 📝";
+        saludoChef =
+            "¡Me encanta experimentar! Cuéntame tu idea completa (Nombre, ingredientes y toque especial) en un solo párrafo. 📝";
         _esperandoParrafoSugerencia = true;
       }
 
-      _mensajes.add({
-        "rol": "llama",
-        "texto": saludoChef,
-        "tipo": tipoMensaje
-      });
+      _mensajes.add({"rol": "llama", "texto": saludoChef, "tipo": tipoMensaje});
     });
   }
 
-  // ─────────────────────────────────────────────
-  // _seleccionarCategoriaReporte  (PASO 1 → 2)
-  // Bloquea las categorías, guarda la elegida y
-  // avanza la barra al 33%. Añade las subcategorías.
-  // ─────────────────────────────────────────────
   void _seleccionarCategoriaReporte(String categoria) {
     if (_bloquearReportes) return;
-    HapticFeedback.lightImpact(); // Respuesta táctil estilo Duolingo
+    HapticFeedback.lightImpact();
     setState(() {
       _bloquearReportes = true;
       _categoriaReporteActual = categoria;
@@ -505,33 +500,39 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       _mensajes.add({"rol": "usuario", "texto": categoria, "tipo": "texto"});
       List<String> subCats = [];
       if (categoria.contains("Contenido")) {
-        subCats = ["Receta mal explicada", "Ingredientes erróneos", "Imágenes rotas"];
+        subCats = [
+          "Receta mal explicada",
+          "Ingredientes erróneos",
+          "Imágenes rotas",
+        ];
       } else if (categoria.contains("experiencia")) {
-        subCats = ["Navegación confusa", "Letra muy pequeña", "Diseño incómodo"];
+        subCats = [
+          "Navegación confusa",
+          "Letra muy pequeña",
+          "Diseño incómodo",
+        ];
       } else {
-        subCats = ["Cierre inesperado (Crash)", "Error de base de datos", "Carga lenta / Lag"];
+        subCats = [
+          "Cierre inesperado (Crash)",
+          "Error de base de datos",
+          "Carga lenta / Lag",
+        ];
       }
       _mensajes.add({
         "rol": "llama",
-        "texto": "Perfecto chef. Ahora elige el problema específico que encontraste:",
+        "texto":
+            "Perfecto chef. Ahora elige el problema específico que encontraste:",
         "tipo": "botones_reporte_subcategorias",
         "opciones": subCats,
-        "categoria_reporte": categoria
+        "categoria_reporte": categoria,
       });
     });
     _animarProgreso(0.33);
   }
 
-  // ─────────────────────────────────────────────
-  // _seleccionarSubcategoriaReporte  (PASO 2 → 3)
-  // Guarda la subcategoría, avanza la barra al 66%
-  // y activa el banco de palabras en el input.
-  // ─────────────────────────────────────────────
   void _seleccionarSubcategoriaReporte(String subcat) {
     if (_bloquearFlujoReporte) return;
     HapticFeedback.lightImpact();
-
-    // ── Banco dinámico: palabras específicas para cada subcategoría ──
     List<String> nuevoBanco;
     switch (subcat) {
       case "Receta mal explicada":
@@ -568,8 +569,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
         ];
         break;
       default:
-        // Flujos de experiencia (Navegación, Letra, Diseño)
-        // y técnicos (Crash, Base de datos, Lag)
         nuevoBanco = [
           "La pantalla",
           "No funciona",
@@ -587,25 +586,25 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       _pasoReporte = 2;
       _fraseArmada.clear();
       _mostrarCampoLibre = false;
-      _bancoPalabrasDinamico = nuevoBanco; // ← cargamos el banco correcto
-      _mensajes.add({"rol": "usuario", "texto": "Problema específico: $subcat", "tipo": "texto"});
+      _bancoPalabrasDinamico = nuevoBanco;
+      _mensajes.add({
+        "rol": "usuario",
+        "texto": "Problema específico: $subcat",
+        "tipo": "texto",
+      });
       _mensajes.add({
         "rol": "llama",
-        "texto": "¡Comanda anotada! 📋 Ahora arma tu descripción tocando las burbujas en orden:",
-        "tipo": "texto"
+        "texto":
+            "¡Comanda anotada! 📋 Ahora arma tu descripción tocando las burbujas en orden:",
+        "tipo": "texto",
       });
     });
     _animarProgreso(0.66);
   }
 
-  // ─────────────────────────────────────────────
-  // _confirmarFraseBancoYEnviar  (PASO 3 → fin)
-  // Toma la frase armada por el usuario, la valida
-  // con Groq y termina el flujo de reporte.
-  // ─────────────────────────────────────────────
   Future<void> _confirmarFraseBancoYEnviar() async {
-    // Si el campo libre está activo, tomamos su texto; si no, usamos la frase armada
-    final String textoFinal = _mostrarCampoLibre && _controller.text.trim().isNotEmpty
+    final String textoFinal =
+        _mostrarCampoLibre && _controller.text.trim().isNotEmpty
         ? _controller.text.trim()
         : _fraseArmada.join(" ");
 
@@ -613,36 +612,37 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
     HapticFeedback.mediumImpact();
     _animarProgreso(1.0);
-
     setState(() {
       _pasoReporte = 3;
       _mensajes.add({"rol": "usuario", "texto": textoFinal, "tipo": "texto"});
       _estaCargando = true;
       _controller.clear();
     });
-
     try {
-      // Validación con Groq
       String promptValidacion = _construirPromptValidacion(
-          _categoriaReporteActual, _subCategoriaReporteActual, textoFinal);
-      final respuestaValidacion = await _obtenerRespuestaDeGrok(promptValidacion);
-
+        _categoriaReporteActual,
+        _subCategoriaReporteActual,
+        textoFinal,
+      );
+      final respuestaValidacion = await _obtenerRespuestaDeGrok(
+        promptValidacion,
+      );
       if (respuestaValidacion.trim().toUpperCase().contains("INVALIDO")) {
         setState(() {
           _estaCargando = false;
-          _pasoReporte = 2; // Regresamos al paso 2 para que reintente
+          _pasoReporte = 2;
           _fraseArmada.clear();
           _animarProgreso(0.66);
           _mensajes.add({
             "rol": "llama",
             "tipo": "texto",
-            "texto": "¡Uy chef! Esa combinación de ingredientes no describe un problema de la app. 🍳 Intenta de nuevo con las burbujas."
+            "texto":
+                "¡Uy chef! Esa combinación de ingredientes no describe un problema de la app. 🍳 Intenta de nuevo con las burbujas.",
           });
         });
         return;
       }
 
-      // Validación exitosa: determinar respuesta según categoría
       if (_categoriaReporteActual.contains("Contenido") ||
           _subCategoriaReporteActual == "Receta mal explicada") {
         bool existeEnFirebase = await _verificarRecetaEnFirebase(textoFinal);
@@ -658,12 +658,13 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
             "tipo": "texto",
             "texto": existeEnFirebase
                 ? "He verificado en Firebase. El elemento ya está bajo el radar de nuestra cocina de desarrollo. ✅"
-                : "¡Uy chef! Revisé en Firebase y ese platillo o ingrediente no está registrado en nuestro recetario."
+                : "¡Uy chef! Revisé en Firebase y ese platillo o ingrediente no está registrado en nuestro recetario.",
           });
           _mensajes.add({
             "rol": "llama",
             "tipo": "sugerencia_btn",
-            "texto": "¿Deseas enviar formalmente esta comanda de error al plantel administrativo?"
+            "texto":
+                "¿Deseas enviar formalmente esta comanda de error al plantel administrativo?",
           });
         });
       } else {
@@ -675,11 +676,16 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           _bloquearFlujoReporte = false;
           _subCategoriaReporteActual = "";
           _categoriaReporteActual = "";
-          _mensajes.add({"rol": "llama", "tipo": "texto", "texto": respuestaIA});
+          _mensajes.add({
+            "rol": "llama",
+            "tipo": "texto",
+            "texto": respuestaIA,
+          });
           _mensajes.add({
             "rol": "llama",
             "tipo": "sugerencia_btn",
-            "texto": "¿Deseas enviar formalmente esta comanda de error al plantel administrativo?"
+            "texto":
+                "¿Deseas enviar formalmente esta comanda de error al plantel administrativo?",
           });
         });
       }
@@ -691,21 +697,17 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
         _mensajes.add({
           "rol": "llama",
           "tipo": "sugerencia_btn",
-          "texto": "¡Vaya, el horno se apagó! Pero guardé tu comanda. ¿La enviamos de igual forma?"
+          "texto":
+              "¡Vaya, el horno se apagó! Pero guardé tu comanda. ¿La enviamos de igual forma?",
         });
       });
     }
   }
 
-  // ─────────────────────────────────────────────
-  // _cargarIngredientesPrimordiales
-  // ─────────────────────────────────────────────
   Future<void> _cargarIngredientesPrimordiales(String categoria) async {
     setState(() => _estaCargando = true);
     try {
       final variantes = _generarVariantes(categoria);
-
-      // Consulta tolerante a tildes en el campo categoría
       final snapshot = await FirebaseFirestore.instance
           .collection('app-recetas-completas')
           .where(
@@ -722,13 +724,11 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           if (ing is Map &&
               (ing['es_primordial'] == true ||
                   ing['es_primordial'].toString().toLowerCase() == 'true')) {
-            // Rescata nombre o ingrediente_id si el nombre falla
             String nom = (ing['nombre'] ?? ing['ingrediente_id'] ?? '')
                 .toString()
                 .replaceAll('-', ' ')
                 .trim();
             if (nom.isNotEmpty) {
-              // Capitalizar primera letra
               nom = nom[0].toUpperCase() + nom.substring(1).toLowerCase();
               setIngs.add(nom);
             }
@@ -741,8 +741,8 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
         _mostrarGridIngredientes = true;
         _mensajes.add({
           "rol": "llama",
-          "texto": "Por favor elige hasta 3 ingredientes disponibles:",
-          "tipo": "grid_ingredients"
+          "texto": "Por favor elige los ingredientes disponibles:",
+          "tipo": "grid_ingredients",
         });
       });
     } catch (e) {
@@ -753,17 +753,18 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
   }
 
   // ─────────────────────────────────────────────
-  // _enviarMensaje
-  // Función central del chat para flujos que NO
-  // son reporte (Ayuda, Consulta, Sugerencia).
-  // El reporte usa _confirmarFraseBancoYEnviar.
+  // ENVÍO DE MENSAJES (Fusión Regex Temporizador)
   // ─────────────────────────────────────────────
   Future<void> _enviarMensaje() async {
     final textoOriginal = _controller.text.trim();
     if (textoOriginal.isEmpty) return;
 
     setState(() {
-      _mensajes.add({"rol": "usuario", "texto": textoOriginal, "tipo": "texto"});
+      _mensajes.add({
+        "rol": "usuario",
+        "texto": textoOriginal,
+        "tipo": "texto",
+      });
       _controller.clear();
       _estaCargando = true;
     });
@@ -780,7 +781,8 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
         _mensajes.add({
           "rol": "llama",
           "tipo": "sugerencia_btn",
-          "texto": "¡Qué aroma tan increíble! Pulsa abajo para enviar tu creación al Chef mayor."
+          "texto":
+              "¡Qué aroma tan increíble! Pulsa abajo para enviar tu creación al Chef mayor.",
         });
       });
       return;
@@ -789,33 +791,130 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     try {
       final respuesta = await _obtenerRespuestaDeGrok(textoOriginal);
 
-      // ── Detección de comando [TIMER:X] antes de mostrar al usuario ──
+      // Motor Regex del Temporizador (De tu compañero)
       final timerMatch = RegExp(r'\[TIMER:(\d+)\]').firstMatch(respuesta);
-      final String respuestaLimpia =
-          respuesta.replaceAll(RegExp(r'\[TIMER:\d+\]'), '').trim();
+      final String respuestaLimpia = respuesta
+          .replaceAll(RegExp(r'\[TIMER:\d+\]'), '')
+          .trim();
+
       if (timerMatch != null) {
         _iniciarTemporizador(int.parse(timerMatch.group(1)!));
       }
 
       setState(() {
-        _mensajes.add({"rol": "llama", "tipo": "texto", "texto": respuestaLimpia});
+        _mensajes.add({
+          "rol": "llama",
+          "tipo": "texto",
+          "texto": respuestaLimpia,
+        });
       });
     } catch (e) {
-      setState(() =>
-          _mensajes.add({"rol": "llama", "texto": "Disculpa, creo que no entendí lo que intentaste decir."}));
+      setState(
+        () => _mensajes.add({
+          "rol": "llama",
+          "texto": "Disculpa, creo que no entendí lo que intentaste decir.",
+        }),
+      );
     } finally {
       setState(() => _estaCargando = false);
     }
   }
 
-  void _enviarReporteAlAdmin(String detalle) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text("Reporte enviado al administrador")));
-  }
+  // ─────────────────────────────────────────────
+  // LÓGICA DE ENVÍO DE REPORTES Y EMAILJS (Tu lógica)
+  // ─────────────────────────────────────────────
+  Future<void> _procesarEnvioAlAdmin() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Error: Debes iniciar sesión para reportar."),
+        ),
+      );
+      return;
+    }
 
-  void _enviarSugerenciaAlAdmin() {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text("¡Sugerencia enviada!")));
+    setState(() => _estaCargando = true);
+    try {
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day);
+      final Timestamp inicioDeHoy = Timestamp.fromDate(startOfDay);
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('app_reportes')
+          .where('uid', isEqualTo: user.uid)
+          .where('fecha', isGreaterThanOrEqualTo: inicioDeHoy)
+          .count()
+          .get();
+
+      if (snapshot.count != null && snapshot.count! >= 3) {
+        setState(() {
+          _estaCargando = false;
+          _mensajes.add({
+            "rol": "llama",
+            "tipo": "texto",
+            "texto":
+                "¡Límite alcanzado! 🛑 Ya has enviado 3 reportes hoy. Nuestros ingenieros están revisando tus comandas. Vuelve a intentarlo mañana.",
+          });
+        });
+        return;
+      }
+
+      String textoReporte = "Sin detalle";
+      if (_mensajes.length >= 2) {
+        textoReporte =
+            _mensajes[_mensajes.length - 2]["texto"] ?? "Sin detalle";
+      }
+
+      await FirebaseFirestore.instance.collection('app_reportes').add({
+        'uid': user.uid,
+        'categoria': _categoriaReporteActual,
+        'subcategoria': _subCategoriaReporteActual,
+        'detalle': textoReporte,
+        'fecha': FieldValue.serverTimestamp(),
+      });
+
+      final url = Uri.parse('https://api.emailjs.com/api/v1.0/email/send');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'service_id': 'service_p1xoabd',
+          'template_id': 'template_olqqlqg',
+          'user_id': 'ldU0dd5S1pMTSYDwk',
+          'template_params': {
+            'user_uid': user.uid,
+            'categoria': _categoriaReporteActual,
+            'subcategoria': _subCategoriaReporteActual,
+            'detalle': textoReporte,
+          },
+        }),
+      );
+      if (response.statusCode != 200) {
+        throw Exception("Fallo en la API de correos: ${response.body}");
+      }
+
+      setState(() {
+        _estaCargando = false;
+        _mensajes.add({
+          "rol": "llama",
+          "tipo": "texto",
+          "texto":
+              "¡Comanda entregada al Chef Mayor! 👨‍🍳 Tu reporte ha sido enviado con éxito al correo del administrador.",
+        });
+      });
+    } catch (e) {
+      debugPrint("Error al enviar reporte: $e");
+      setState(() {
+        _estaCargando = false;
+        _mensajes.add({
+          "rol": "llama",
+          "tipo": "texto",
+          "texto":
+              "Se derramó la sopa en el servidor. Revisa tu conexión e intenta de nuevo.",
+        });
+      });
+    }
   }
 
   // ═══════════════════════════════════════════════════════
@@ -856,16 +955,13 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                 ? _buildResponsiveLayout()
                 : _buildWelcomeLayout(),
           ),
-          // ── Temporizador flotante (visible solo cuando está activo) ──
+          // Temporizador de tu compañero integrado en la vista
           _buildTimerWidget(),
         ],
       ),
     );
   }
 
-  // ─────────────────────────────────────────────
-  // _buildResponsiveLayout
-  // ─────────────────────────────────────────────
   Widget _buildResponsiveLayout() {
     if (_categoriaActual == "Reporte") {
       return Column(
@@ -884,10 +980,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
             ),
           ),
           const Divider(height: 1, color: Colors.black12),
-          Expanded(
-            flex: 1,
-            child: _buildChatLayout(),
-          ),
+          Expanded(flex: 1, child: _buildChatLayout()),
         ],
       );
     } else {
@@ -895,15 +988,16 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     }
   }
 
-  // ─────────────────────────────────────────────
-  // _buildWelcomeLayout  (sin cambios)
-  // ─────────────────────────────────────────────
   Widget _buildWelcomeLayout() {
     return Align(
       alignment: Alignment.bottomCenter,
       child: SingleChildScrollView(
         padding: const EdgeInsets.only(
-            left: 24.0, right: 24.0, bottom: 16.0, top: 40.0),
+          left: 24.0,
+          right: 24.0,
+          bottom: 16.0,
+          top: 40.0,
+        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
@@ -942,9 +1036,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-  // ─────────────────────────────────────────────
-  // _buildMenuButton  (sin cambios)
-  // ─────────────────────────────────────────────
   Widget _buildMenuButton({
     required String titulo,
     required String descripcion,
@@ -974,7 +1065,8 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
             shadowColor: Colors.transparent,
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20)),
+              borderRadius: BorderRadius.circular(20),
+            ),
           ),
           child: Row(
             children: [
@@ -984,22 +1076,31 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(titulo,
-                        style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFC85A32))),
+                    Text(
+                      titulo,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFC85A32),
+                      ),
+                    ),
                     const SizedBox(height: 2),
-                    Text(subDescripcion,
-                        style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.normal,
-                            color: Color(0xFF7A756B))),
+                    Text(
+                      subDescripcion,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.normal,
+                        color: Color(0xFF7A756B),
+                      ),
+                    ),
                   ],
                 ),
               ),
-              const Icon(Icons.arrow_forward_ios,
-                  color: Color(0xFFA39E94), size: 18),
+              const Icon(
+                Icons.arrow_forward_ios,
+                color: Color(0xFFA39E94),
+                size: 18,
+              ),
             ],
           ),
         ),
@@ -1007,9 +1108,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-  // ─────────────────────────────────────────────
-  // _buildHighlightedButton  (sin cambios)
-  // ─────────────────────────────────────────────
   Widget _buildHighlightedButton() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -1030,7 +1128,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           ],
         ),
         child: ElevatedButton(
-          // Navega a la pantalla de videollamada con T'anta-Wawa
           onPressed: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const VoiceCallScreen()),
@@ -1041,7 +1138,8 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
             shadowColor: Colors.transparent,
             padding: const EdgeInsets.all(16),
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15)),
+              borderRadius: BorderRadius.circular(15),
+            ),
           ),
           child: const Row(
             children: [
@@ -1054,16 +1152,18 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                     Text(
                       "Consultar a T'anta-Wawa",
                       style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.3),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.3,
+                      ),
                     ),
                     Text(
                       "Asistente de voz ciberpunk andino",
                       style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w400,
-                          color: Colors.white70),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.white70,
+                      ),
                     ),
                   ],
                 ),
@@ -1075,26 +1175,18 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-  // ─────────────────────────────────────────────
-  // _buildProgressBar
-  // Barra de progreso segmentada en 3 pasos con
-  // AnimatedBuilder para interpolación suave.
-  // Solo se muestra cuando _categoriaActual == "Reporte".
-  // ─────────────────────────────────────────────
   Widget _buildProgressBar() {
     final List<Map<String, dynamic>> pasos = [
       {"label": "Categoría", "icono": Icons.category_outlined},
       {"label": "Detalle", "icono": Icons.tune},
       {"label": "Descripción", "icono": Icons.check_circle_outline},
     ];
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       color: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Etiquetas de los 3 pasos
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(3, (i) {
@@ -1132,7 +1224,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
             }),
           ),
           const SizedBox(height: 8),
-          // Barra animada
           AnimatedBuilder(
             animation: _progressAnimation,
             builder: (context, _) {
@@ -1153,16 +1244,12 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
   }
 
   // ─────────────────────────────────────────────
-  // _buildChatLayout
-  // Añade la barra de progreso arriba si es un
-  // reporte, y el área de entrada gamificada abajo.
+  // FUSIÓN: Avatar Animado (De tu compañero) + Burbuja TextFlexible (Tuya)
   // ─────────────────────────────────────────────
   Widget _buildChatLayout() {
     final bool esReporte = _categoriaActual == "Reporte";
-
     return Column(
       children: [
-        // Barra de progreso solo visible en el flujo de Reporte
         if (esReporte) _buildProgressBar(),
 
         Expanded(
@@ -1187,12 +1274,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                     if (!esUsuario)
                       Padding(
                         padding: const EdgeInsets.only(right: 8.0, top: 5),
-                        // ── Avatar WebP de A.L.I.C.I.A. ──
-                        // ClipOval reemplaza al CircleAvatar original.
-                        // IndexedStack pre-carga ambas imágenes para cero flicker.
-                        // index 0 = generando/procesando → alicia_speaking.webp
-                        // index 1 = idle/esperando       → alicia_idle.webp
-                        // Driver: _estaCargando (true mientras Groq responde)
+                        // Avatar animado inyectado aquí
                         child: ClipOval(
                           child: Container(
                             width: 36,
@@ -1203,12 +1285,12 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                               sizing: StackFit.expand,
                               children: [
                                 Image.asset(
-                                  'assets/images/alicia_speaking.webp',
+                                  'assets/images/nid_speaking.webp', // index 0: relatando
                                   fit: BoxFit.cover,
                                   gaplessPlayback: true,
                                 ),
                                 Image.asset(
-                                  'assets/images/alicia_idle.webp',
+                                  'assets/images/nid_idle.webp', // index 1: esperando
                                   fit: BoxFit.cover,
                                   gaplessPlayback: true,
                                 ),
@@ -1217,23 +1299,21 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                           ),
                         ),
                       ),
-                    Expanded(
-                      flex: esUsuario ? 0 : 1,
+                    Flexible(
+                      // Solución al bottom overflow que aplicaste
                       child: Column(
                         crossAxisAlignment: esUsuario
                             ? CrossAxisAlignment.end
                             : CrossAxisAlignment.start,
                         children: [
                           Container(
-                            margin:
-                                const EdgeInsets.symmetric(vertical: 5),
+                            margin: const EdgeInsets.symmetric(vertical: 5),
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: esUsuario
                                   ? _verde
                                   : Colors.white.withOpacity(0.9),
-                              borderRadius:
-                                  BorderRadius.circular(15),
+                              borderRadius: BorderRadius.circular(15),
                             ),
                             child: Text(
                               msg["texto"]!,
@@ -1245,29 +1325,26 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                               ),
                             ),
                           ),
-                          // Widgets extra según tipo de mensaje
                           if (msg["tipo"] == "botones_reporte_categorias")
                             _buildReporteCategoriasGrid(),
                           if (msg["tipo"] == "botones_reporte_subcategorias")
                             _buildReporteSubcategoriasGrid(
-                                msg["categoria_reporte"]),
+                              msg["categoria_reporte"],
+                            ),
                           if (msg["tipo"] == "botones_categoria")
                             _buildCategoriasGrid(),
                           if (msg["tipo"] == "grid_ingredients" &&
                               _mostrarGridIngredientes)
                             _buildIngredientesGrid(),
                           if (msg["tipo"] == "recetas_grid")
-                            _buildRecetasBotonesGrid(msg["recetas"]),
-                          if (msg["tipo"] == "reporte_btn")
+                            _buildRecetasGridCards(msg["recetas"]),
+                          if (msg["tipo"] == "reporte_btn" ||
+                              msg["tipo"] == "sugerencia_btn")
                             _buildActionBtn(
-                                () => _enviarReporteAlAdmin(msg["texto"]),
-                                Icons.mark_email_read_outlined,
-                                "Enviar reporte al admin"),
-                          if (msg["tipo"] == "sugerencia_btn")
-                            _buildActionBtn(
-                                _enviarSugerenciaAlAdmin,
-                                Icons.send_and_archive,
-                                "Enviar al plantel administrativo"),
+                              _procesarEnvioAlAdmin,
+                              Icons.send_and_archive,
+                              "Enviar al plantel administrativo",
+                            ),
                         ],
                       ),
                     ),
@@ -1281,10 +1358,13 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
         if (_estaCargando)
           const Padding(
             padding: EdgeInsets.all(8.0),
-            child: Text("A.L.I.C.I.A. está cocinando...",
-                style: TextStyle(
-                    color: Colors.black54,
-                    fontStyle: FontStyle.italic)),
+            child: Text(
+              "A.L.I.C.I.A. está cocinando...",
+              style: TextStyle(
+                color: Colors.black54,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
           ),
 
         _buildInputArea(),
@@ -1293,9 +1373,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
   }
 
   // ─────────────────────────────────────────────
-  // _buildReporteCategoriasGrid  (REDISEÑADO)
-  // Tarjetas grandes estilo Duolingo con ícono,
-  // título y sombra de "clic mecánico".
+  // UI ARQUITECTURA TÁCTIL (Tus diseños conservados)
   // ─────────────────────────────────────────────
   Widget _buildReporteCategoriasGrid() {
     final List<Map<String, dynamic>> categorias = [
@@ -1315,14 +1393,13 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
         "color": const Color(0xFF64B5F6),
       },
     ];
-
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Column(
         children: categorias.map((cat) {
           final String label = cat["label"] as String;
-          final bool desactivar = _bloquearReportes &&
-              _categoriaReporteActual != label;
+          final bool desactivar =
+              _bloquearReportes && _categoriaReporteActual != label;
           final bool seleccionado = _categoriaReporteActual == label;
 
           return GestureDetector(
@@ -1332,8 +1409,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: BoxDecoration(
                 color: seleccionado
                     ? (cat["color"] as Color).withOpacity(0.15)
@@ -1345,13 +1421,13 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                       : Colors.grey.shade300,
                   width: seleccionado ? 2.5 : 1,
                 ),
-                // Sombra inferior pronunciada = efecto "tecla mecánica"
                 boxShadow: desactivar
                     ? []
                     : [
                         BoxShadow(
                           color: (cat["color"] as Color).withOpacity(
-                              seleccionado ? 0.35 : 0.15),
+                            seleccionado ? 0.35 : 0.15,
+                          ),
                           blurRadius: 0,
                           offset: Offset(0, seleccionado ? 2 : 4),
                         ),
@@ -1359,11 +1435,13 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
               ),
               child: Row(
                 children: [
-                  Icon(cat["icono"] as IconData,
-                      color: desactivar
-                          ? Colors.grey.shade400
-                          : (cat["color"] as Color),
-                      size: 28),
+                  Icon(
+                    cat["icono"] as IconData,
+                    color: desactivar
+                        ? Colors.grey.shade400
+                        : (cat["color"] as Color),
+                    size: 28,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -1378,8 +1456,11 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                     ),
                   ),
                   if (seleccionado)
-                    Icon(Icons.check_circle,
-                        color: cat["color"] as Color, size: 20),
+                    Icon(
+                      Icons.check_circle,
+                      color: cat["color"] as Color,
+                      size: 20,
+                    ),
                 ],
               ),
             ),
@@ -1389,29 +1470,21 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-  // ─────────────────────────────────────────────
-  // _buildReporteSubcategoriasGrid  (REDISEÑADO)
-  // Chips grandes con sombra inferior de clic mecánico.
-  // ─────────────────────────────────────────────
   Widget _buildReporteSubcategoriasGrid(String categoriaPadre) {
     List<String> opciones = [];
     if (categoriaPadre.contains("Contenido")) {
       opciones = [
         "Receta mal explicada",
         "Ingredientes erróneos",
-        "Imágenes rotas"
+        "Imágenes rotas",
       ];
     } else if (categoriaPadre.contains("experiencia")) {
-      opciones = [
-        "Navegación confusa",
-        "Letra muy pequeña",
-        "Diseño incómodo"
-      ];
+      opciones = ["Navegación confusa", "Letra muy pequeña", "Diseño incómodo"];
     } else {
       opciones = [
         "Cierre inesperado (Crash)",
         "Error de base de datos",
-        "Carga lenta / Lag"
+        "Carga lenta / Lag",
       ];
     }
 
@@ -1421,8 +1494,8 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
         spacing: 8,
         runSpacing: 8,
         children: opciones.map((opc) {
-          final bool desactivar = _bloquearFlujoReporte &&
-              _subCategoriaReporteActual != opc;
+          final bool desactivar =
+              _bloquearFlujoReporte && _subCategoriaReporteActual != opc;
           final bool seleccionado = _subCategoriaReporteActual == opc;
 
           return GestureDetector(
@@ -1431,8 +1504,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                 : () => _seleccionarSubcategoriaReporte(opc),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: seleccionado
                     ? const Color(0xFFFFE082)
@@ -1448,8 +1520,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                     ? []
                     : [
                         BoxShadow(
-                          color: const Color(0xFFFFA000)
-                              .withOpacity(seleccionado ? 0.4 : 0.2),
+                          color: const Color(
+                            0xFFFFA000,
+                          ).withOpacity(seleccionado ? 0.4 : 0.2),
                           blurRadius: 0,
                           offset: Offset(0, seleccionado ? 1 : 3),
                         ),
@@ -1461,8 +1534,11 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                   if (seleccionado)
                     const Padding(
                       padding: EdgeInsets.only(right: 6),
-                      child: Icon(Icons.check,
-                          size: 14, color: Color(0xFFFFA000)),
+                      child: Icon(
+                        Icons.check,
+                        size: 14,
+                        color: Color(0xFFFFA000),
+                      ),
                     ),
                   Text(
                     opc,
@@ -1483,27 +1559,15 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-  // ─────────────────────────────────────────────
-  // _buildInputArea  (REDISEÑADO para el Reporte)
-  // En el flujo de Reporte paso 2: muestra el banco
-  // de palabras + el botón "Comprobar e Instalar".
-  // En cualquier otro caso: muestra el TextField normal.
-  // ─────────────────────────────────────────────
   Widget _buildInputArea() {
-    // Input bloqueado por botón administrativo final
-    final bool entradaBloqueada = _mensajes.isNotEmpty &&
+    final bool entradaBloqueada =
+        _mensajes.isNotEmpty &&
         (_mensajes.last["tipo"] == "reporte_btn" ||
             _mensajes.last["tipo"] == "sugerencia_btn");
-
-    // Activar banco de palabras: estamos en Reporte, paso 2 (subcat elegida)
     final bool mostrarBanco =
         _categoriaActual == "Reporte" && _pasoReporte == 2 && !entradaBloqueada;
+    if (mostrarBanco) return _buildBancoPalabras();
 
-    if (mostrarBanco) {
-      return _buildBancoPalabras();
-    }
-
-    // Input estándar para los demás flujos
     return Container(
       padding: const EdgeInsets.all(12),
       color: entradaBloqueada ? Colors.grey[100] : Colors.white,
@@ -1523,8 +1587,10 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
             ),
           ),
           IconButton(
-            icon: Icon(Icons.send,
-                color: entradaBloqueada ? Colors.grey : _verde),
+            icon: Icon(
+              Icons.send,
+              color: entradaBloqueada ? Colors.grey : _verde,
+            ),
             onPressed: entradaBloqueada ? null : _enviarMensaje,
           ),
         ],
@@ -1532,238 +1598,425 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-  // ─────────────────────────────────────────────
-  // _buildBancoPalabras
-  // Panel inferior con:
-  //  1. Zona de frase armada (chips tocados en orden)
-  //  2. Banco de burbujas disponibles
-  //  3. Botón "✏️ Otro detalle" para habilitar TextField
-  //  4. Botón verde "Comprobar e Instalar Reporte"
-  // ─────────────────────────────────────────────
   Widget _buildBancoPalabras() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
+  return Container(
+    padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.06),
+          blurRadius: 8,
+          offset: const Offset(0, -2),
+        ),
+      ],
+    ),
+    child: ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.45,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ── Zona de la frase armada ──
-          Container(
-            width: double.infinity,
-            constraints: const BoxConstraints(minHeight: 48),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5F5F5),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: _fraseArmada.isEmpty
-                ? Text(
-                    "Toca las burbujas para armar tu reporte...",
-                    style: TextStyle(
-                        color: Colors.grey.shade400, fontSize: 13),
-                  )
-                : Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: _fraseArmada.map((palabra) {
-                      return GestureDetector(
-                        // Tap sobre una palabra ya agregada la elimina de la frase
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          setState(() => _fraseArmada.remove(palabra));
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: _verde,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            palabra,
-                            style: const TextStyle(
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 1. ÁREA DE VISUALIZACIÓN DE BURBUJAS SELECCIONADAS
+            Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(minHeight: 48),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: _fraseArmada.isEmpty
+                  ? Text(
+                      "Toca las burbujas para armar tu reporte...",
+                      style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                    )
+                  : Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: _fraseArmada.map((palabra) {
+                        return GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            setState(() => _fraseArmada.remove(palabra));
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: _verde,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              palabra,
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 13,
-                                fontWeight: FontWeight.w600),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-          ),
+                        );
+                      }).toList(),
+                    ),
+            ),
+            const SizedBox(height: 10),
 
-          const SizedBox(height: 10),
-
-          // ── Campo libre (visible solo si el usuario tocó "✏️ Otro detalle") ──
-          if (_mostrarCampoLibre)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: TextField(
-                controller: _controller,
-                autofocus: true,
-                // onChanged redibuja el widget en cada tecla para que la
-                // opacidad y el estado del botón verde reaccionen en tiempo real
-                onChanged: (val) => setState(() {}),
-                decoration: InputDecoration(
-                  hintText: "Escribe tu detalle específico...",
-                  filled: true,
-                  fillColor: const Color(0xFFF5F5F5),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+            // 2. INPUT PARA ESCRIBIR PALABRAS QUE SE CONVIERTEN EN BURBUJAS (EVITA RESPUESTA DE RECETAS)
+            if (_mostrarCampoLibre)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: TextField(
+                  controller: _controller,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: "Escribe una palabra y presiona enviar...",
+                    filled: true,
+                    fillColor: const Color(0xFFF5F5F5),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(Icons.add_circle, color: _verde),
+                      onPressed: () {
+                        final texto = _controller.text.trim();
+                        if (texto.isNotEmpty) {
+                          setState(() {
+                            // En lugar de enviarlo a la IA, se agrega localmente como burbuja
+                            _fraseArmada.add(texto);
+                            _controller.clear();
+                          });
+                        }
+                      },
+                    ),
                   ),
+                  onSubmitted: (val) {
+                    final texto = val.trim();
+                    if (texto.isNotEmpty) {
+                      setState(() {
+                        _fraseArmada.add(texto);
+                        _controller.clear();
+                      });
+                    }
+                  },
                 ),
               ),
-            ),
 
-          // ── Banco de burbujas disponibles ──
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              ..._bancoPalabrasDinamico.map((palabra) {
-                final bool yaUsada = _fraseArmada.contains(palabra);
-                return GestureDetector(
-                  onTap: yaUsada
-                      ? null
-                      : () {
-                          HapticFeedback.lightImpact();
-                          setState(() => _fraseArmada.add(palabra));
-                        },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: yaUsada
-                          ? Colors.grey.shade100
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: yaUsada
-                            ? Colors.grey.shade300
-                            : _verde.withOpacity(0.6),
-                        width: 1.5,
+            // 3. BANCO DE PALABRAS DINÁMICO PREDEFINIDO
+            if (!_mostrarInterpretacionReporte && !_mostrarPasoFinalTimbre) ...[
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  ..._bancoPalabrasDinamico.map((palabra) {
+                    final bool yaUsada = _fraseArmada.contains(palabra);
+                    return GestureDetector(
+                      onTap: yaUsada
+                          ? null
+                          : () {
+                              HapticFeedback.lightImpact();
+                              setState(() => _fraseArmada.add(palabra));
+                            },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: yaUsada ? Colors.grey.shade100 : Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: yaUsada ? Colors.grey.shade300 : _verde.withOpacity(0.6),
+                            width: 1.5,
+                          ),
+                          boxShadow: yaUsada ? [] : [
+                            BoxShadow(
+                              color: _verde.withOpacity(0.2),
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          palabra,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: yaUsada ? Colors.grey.shade400 : const Color(0xFF1B6B4A),
+                          ),
+                        ),
                       ),
-                      boxShadow: yaUsada
-                          ? []
-                          : [
-                              BoxShadow(
-                                color: _verde.withOpacity(0.2),
-                                blurRadius: 0,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                    ),
-                    child: Text(
-                      palabra,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: yaUsada
-                            ? Colors.grey.shade400
-                            : const Color(0xFF1B6B4A),
+                    );
+                  }),
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      setState(() => _mostrarCampoLibre = !_mostrarCampoLibre);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF8E1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFFFD54F), width: 1.5),
+                        boxShadow: const [
+                          BoxShadow(color: Color(0x33FFD54F), offset: Offset(0, 3)),
+                        ],
+                      ),
+                      child: const Text(
+                        "✏️ Otro detalle",
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF795548)),
                       ),
                     ),
                   ),
-                );
-              }),
-              // Botón "✏️ Otro detalle"
-              GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  setState(() {
-                    _mostrarCampoLibre = !_mostrarCampoLibre;
-                  });
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF8E1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: const Color(0xFFFFD54F), width: 1.5),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x33FFD54F),
-                        blurRadius: 0,
-                        offset: Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: const Text(
-                    "✏️ Otro detalle",
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF795548)),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // BOTÓN: COMPROBAR E INSTALAR REPORTE
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _fraseArmada.isNotEmpty
+                      ? () {
+                          // Forzamos la interpretación técnica de A.L.I.C.I.A
+                          setState(() {
+                            _mostrarInterpretacionReporte = true;
+                            _interpretacionIA = _fraseArmada.join(" y ");
+                          });
+                        }
+                      : null,
+                  icon: const Icon(Icons.verified_outlined, size: 20),
+                  label: const Text("Comprobar e Instalar Reporte", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _verde,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                 ),
               ),
             ],
-          ),
 
-          const SizedBox(height: 12),
-
-          // ── Botón verde "Comprobar e Instalar Reporte" ──
-          SizedBox(
-            width: double.infinity,
-            child: AnimatedOpacity(
-              opacity: (_fraseArmada.isNotEmpty ||
-                      (_mostrarCampoLibre &&
-                          _controller.text.trim().isNotEmpty))
-                  ? 1.0
-                  : 0.45,
-              duration: const Duration(milliseconds: 300),
-              child: ElevatedButton.icon(
-                onPressed: _fraseArmada.isNotEmpty ||
-                        (_mostrarCampoLibre &&
-                            _controller.text.trim().isNotEmpty)
-                    ? _confirmarFraseBancoYEnviar
-                    : null,
-                icon: const Icon(Icons.verified_outlined, size: 20),
-                label: const Text(
-                  "Comprobar e Instalar Reporte",
-                  style: TextStyle(
-                      fontWeight: FontWeight.w800, fontSize: 15),
+            // 4. FLUJO DE INTERPRETACIÓN EXCLUSIVO DE SOPORTE (A.L.I.C.I.A)
+            if (_mostrarInterpretacionReporte && !_mostrarPasoFinalTimbre) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _verde.withOpacity(0.5)),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _verde,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  elevation: 4,
-                  shadowColor: _verde.withOpacity(0.4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "🤖 A.L.I.C.I.A Interpreta:",
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green[850], fontSize: 14),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "El error al que te refieres tiene que ver con \"Problema detectado en base a: $_interpretacionIA\".",
+                      style: const TextStyle(fontSize: 13, color: Colors.black87),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ),
-        ],
+              const SizedBox(height: 10),
+              if (_mostrarDetalleManualExtendido)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: TextField(
+                    controller: _controller,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      hintText: "Escribe detalladamente a mano tu problema...",
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        setState(() {
+                          _mostrarDetalleManualExtendido = true;
+                        });
+                      },
+                      style: OutlinedButton.styleFrom(side: BorderSide(color: _verde)),
+                      child: const Text("Agregar más detalle", style: TextStyle(fontSize: 12)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _mostrarPasoFinalTimbre = true;
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(backgroundColor: _verde, foregroundColor: Colors.white),
+                      child: const Text("Sí, es correcto", style: TextStyle(fontSize: 12)),
+                    ),
+                  ),
+                ],
+              ),
+              if (_mostrarDetalleManualExtendido)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _mostrarPasoFinalTimbre = true;
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(backgroundColor: _verde, foregroundColor: Colors.white),
+                      child: const Text("Terminar de redactar"),
+                    ),
+                  ),
+                ),
+            ],
+
+            // 5. PASO FINAL: INTERFAZ DEL TIMBRE DE COCINA 3D NATIVO
+            if (_mostrarPasoFinalTimbre) _buildTimbreMesaCocinaSection(),
+          ],
+        ),
       ),
-    );
-  }
+    ),
+  );
+}
+
+  Widget _buildTimbreMesaCocinaSection() {
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      const SizedBox(height: 10),
+      GestureDetector(
+        onTap: () {
+          HapticFeedback.vibrate();
+          // Aquí pones la llamada a la función real de tu backend que guarda el reporte
+          // Ej: _enviarReporteFinalAPlantel();
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('🔔 Reporte enviado con éxito a la cocina')),
+          );
+          setState(() {
+            // Reiniciamos los estados del flujo de reporte
+            _mostrarPasoFinalTimbre = false;
+            _mostrarInterpretacionReporte = false;
+            _mostrarDetalleManualExtendido = false;
+            _fraseArmada.clear();
+          });
+        },
+        child: Column(
+          children: [
+            // Cuerpito del Timbre de Mesa en 3D
+            Stack(
+              alignment: Alignment.topCenter,
+              children: [
+                // Base o Plato del timbre
+                Container(
+                  width: 140,
+                  height: 35,
+                  margin: const EdgeInsets.only(top: 45),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade400,
+                    borderRadius: const BorderRadius.all(Radius.elliptical(140, 35)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 10,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                    gradient: LinearGradient(
+                      colors: [Colors.grey.shade500, Colors.grey.shade300, Colors.grey.shade600],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                  ),
+                ),
+                // Campana metálica esférica
+                Container(
+                  width: 100,
+                  height: 65,
+                  margin: const EdgeInsets.only(top: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade700,
+                    borderRadius: const BorderRadius.all(Radius.elliptical(100, 65)),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFB71C1C), Color(0xFFEF5350), Color(0xFF7F0000)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                ),
+                // Botón superior / Pulsador
+                Container(
+                  width: 32,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade800,
+                    borderRadius: BorderRadius.circular(6),
+                    gradient: LinearGradient(
+                      colors: [Colors.grey.shade900, Colors.grey.shade600],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              "Enviar reporte al plantel de cocina para ser revisado",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 14,
+                color: Color(0xFFB71C1C),
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 16),
+      // TEXTO OBLIGATORIO DE RESPUESTA POR CORREO
+      const Text(
+        "¡Se te enviará la respuesta a tu correo cuando el problema ya esté solucionado!",
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: Colors.black87,
+        ),
+      ),
+      const SizedBox(height: 6),
+      // TEXTO ADVERTENCIA DE SATURACIÓN
+      Text(
+        "Tres reportes por día serán suficientes para no saturar la cocina",
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: Colors.grey.shade500,
+          fontStyle: FontStyle.italic,
+        ),
+      ),
+    ],
+  );
+}
 
   // ─────────────────────────────────────────────
-  // _buildTimerWidget
-  // Tarjeta flotante del temporizador activo.
-  // Se superpone sobre el chat usando Positioned.
-  // Se oculta automáticamente cuando _timerActivo=false.
+  // UI DEL TEMPORIZADOR NATIVO (De tu compañero)
   // ─────────────────────────────────────────────
   Widget _buildTimerWidget() {
     if (!_timerActivo) return const SizedBox.shrink();
@@ -1772,7 +2025,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     final int seg = _timerDuration.inSeconds % 60;
     final String display =
         "${min.toString().padLeft(2, '0')}:${seg.toString().padLeft(2, '0')}";
-
     return Positioned(
       bottom: 100,
       left: 16,
@@ -1834,8 +2086,11 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
               IconButton(
                 onPressed: _cancelarTemporizador,
                 tooltip: "Cancelar temporizador",
-                icon: const Icon(Icons.close_rounded,
-                    color: Colors.redAccent, size: 22),
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: Colors.redAccent,
+                  size: 22,
+                ),
               ),
             ],
           ),
@@ -1844,97 +2099,218 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-  // ─────────────────────────────────────────────
-  // _buildCategoriasGrid  (sin cambios)
-  // ─────────────────────────────────────────────
   Widget _buildCategoriasGrid() {
-    final cats = ["Almuerzo", "Cena", "Desayuno", "Snack", "Refrescos"];
-    return Wrap(
-      spacing: 8.0,
-      runSpacing: 8.0,
-      alignment: WrapAlignment.center,
-      children: cats.map((cat) {
-        bool isSelected = _categoriaComidaElegida == cat;
-        return FilterChip(
-          label: Text(cat, style: const TextStyle(fontSize: 12)),
-          selected: isSelected,
-          selectedColor: _verde.withOpacity(0.3),
-          checkmarkColor: _verde,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(
-                color: isSelected ? _verde : Colors.grey.shade300),
-          ),
-          onSelected: (_) {
-            if (_bloquearCategorias) return;
-            setState(() {
-              _bloquearCategorias = true;
-              _categoriaComidaElegida = cat;
-              _mensajes.add(
-                  {"rol": "usuario", "texto": "Categoría: $cat", "tipo": "texto"});
-            });
-            _cargarIngredientesPrimordiales(cat);
-          },
-        );
-      }).toList(),
+    final List<Map<String, dynamic>> cats = [
+      {
+        "nombre": "Desayuno",
+        "icono": Icons.free_breakfast,
+        "color": const Color(0xFFFFB74D),
+      },
+      {
+        "nombre": "Almuerzo",
+        "icono": Icons.lunch_dining,
+        "color": const Color(0xFFE57373),
+      },
+      {
+        "nombre": "Cena",
+        "icono": Icons.dinner_dining,
+        "color": const Color(0xFF7986CB),
+      },
+      {
+        "nombre": "Snack",
+        "icono": Icons.fastfood,
+        "color": const Color(0xFF81C784),
+      },
+      {
+        "nombre": "Refrescos",
+        "icono": Icons.local_drink,
+        "color": const Color(0xFF4FC3F7),
+      },
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 12,
+        alignment: WrapAlignment.center,
+        children: cats.map((cat) {
+          final String nombre = cat["nombre"];
+          final bool isSelected = _categoriaComidaElegida == nombre;
+          final bool desactivar = _bloquearCategorias && !isSelected;
+          final Color baseColor = cat["color"];
+
+          return GestureDetector(
+            onTap: desactivar
+                ? null
+                : () {
+                    HapticFeedback.lightImpact();
+                    if (_bloquearCategorias) return;
+                    setState(() {
+                      _bloquearCategorias = true;
+                      _categoriaComidaElegida = nombre;
+                      _mensajes.add({
+                        "rol": "usuario",
+                        "texto": "Categoría: $nombre",
+                        "tipo": "texto",
+                      });
+                    });
+                    _cargarIngredientesPrimordiales(nombre);
+                  },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: isSelected ? baseColor.withOpacity(0.15) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isSelected ? baseColor : Colors.grey.shade300,
+                  width: isSelected ? 2.5 : 1.5,
+                ),
+                boxShadow: desactivar
+                    ? []
+                    : [
+                        BoxShadow(
+                          color: baseColor.withOpacity(isSelected ? 0.5 : 0.2),
+                          blurRadius: 0,
+                          offset: Offset(0, isSelected ? 1 : 4),
+                        ),
+                      ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    cat["icono"],
+                    size: 18,
+                    color: desactivar ? Colors.grey.shade400 : baseColor,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    nombre,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      color: desactivar ? Colors.grey.shade400 : Colors.black87,
+                    ),
+                  ),
+                  if (isSelected) ...[
+                    const SizedBox(width: 6),
+                    Icon(Icons.check_circle, size: 16, color: baseColor),
+                  ],
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 
-  // ─────────────────────────────────────────────
-  // _buildIngredientesGrid  (sin cambios)
-  // ─────────────────────────────────────────────
   Widget _buildIngredientesGrid() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
         children: [
           Wrap(
-            spacing: 8.0,
-            runSpacing: 8.0,
+            spacing: 10.0,
+            runSpacing: 12.0,
             alignment: WrapAlignment.center,
             children: _ingredientesPrimordiales.map((ing) {
-              final isSel = _ingredientesSeleccionados.contains(ing);
-              return FilterChip(
-                label: Text(ing, style: const TextStyle(fontSize: 12)),
-                selected: isSel,
-                selectedColor: _verde.withOpacity(0.3),
-                checkmarkColor: _verde,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(
-                      color: isSel ? _verde : Colors.grey.shade300),
-                ),
-                onSelected: (val) {
+              final bool isSel = _ingredientesSeleccionados.contains(ing);
+              return GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
                   setState(() {
-                    if (val && _ingredientesSeleccionados.length < 3) {
-                      _ingredientesSeleccionados.add(ing);
-                    } else if (!val) {
+                    if (isSel) {
                       _ingredientesSeleccionados.remove(ing);
+                    } else if (_ingredientesSeleccionados.length < 8) {
+                      _ingredientesSeleccionados.add(ing);
                     }
                   });
                 },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSel ? _verde.withOpacity(0.12) : Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: isSel ? _verde : Colors.grey.shade300,
+                      width: isSel ? 2 : 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: isSel
+                            ? _verde.withOpacity(0.3)
+                            : Colors.grey.withOpacity(0.15),
+                        blurRadius: 0,
+                        offset: Offset(0, isSel ? 1 : 3),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isSel)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Icon(
+                            Icons.check_circle,
+                            size: 16,
+                            color: _verde,
+                          ),
+                        ),
+                      Text(
+                        ing,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: isSel ? _verde : Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               );
             }).toList(),
           ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: _ingredientesSeleccionados.isNotEmpty
-                ? () {
-                    setState(() {
-                      _mostrarGridIngredientes = false;
-                      _controller.text =
-                          "Dame una recomendación de $_categoriaComidaElegida usando: ${_ingredientesSeleccionados.join(', ')}";
-                    });
-                    _enviarMensaje();
-                  }
-                : null,
-            icon: const Icon(Icons.restaurant),
-            label: const Text("Confirmar ingredientes"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _verde,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: AnimatedOpacity(
+              opacity: _ingredientesSeleccionados.isNotEmpty ? 1.0 : 0.45,
+              duration: const Duration(milliseconds: 300),
+              child: ElevatedButton.icon(
+                onPressed: _ingredientesSeleccionados.isNotEmpty
+                    ? () {
+                        HapticFeedback.mediumImpact();
+                        setState(() {
+                          _mostrarGridIngredientes = false;
+                          _controller.text =
+                              "Dame una recomendación de $_categoriaComidaElegida usando: ${_ingredientesSeleccionados.join(', ')}";
+                        });
+                        _enviarMensaje();
+                      }
+                    : null,
+                icon: const Icon(Icons.restaurant_menu, size: 20),
+                label: const Text(
+                  "Cocinar con estos ingredientes",
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _verde,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 4,
+                  shadowColor: _verde.withOpacity(0.4),
+                ),
+              ),
             ),
           ),
         ],
@@ -1942,21 +2318,20 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-  // ─────────────────────────────────────────────
-  // _buildRecetasBotonesGrid  (sin cambios)
-  // ─────────────────────────────────────────────
-  Widget _buildRecetasBotonesGrid(List<Map<String, String>> recetas) {
+  Widget _buildRecetasGridCards(List<dynamic> recetasData) {
+    final recetas = recetasData.cast<Map<String, dynamic>>();
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 16),
       child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
+        spacing: 12,
+        runSpacing: 16,
+        alignment: WrapAlignment.center,
         children: recetas.map((receta) {
           return SizedBox(
-            width: 160,
-            height: 52,
-            child: ElevatedButton.icon(
-              onPressed: () {
+            width: 150,
+            height: 215,
+            child: GestureDetector(
+              onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -1967,20 +2342,10 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                   ),
                 );
               },
-              icon: const Icon(Icons.restaurant_menu, size: 18),
-              label: Text(
-                receta['nombre']!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w700),
-                overflow: TextOverflow.ellipsis,
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _verde,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+              child: RecetaCardWidget(
+                receta: receta,
+                verde: _verde,
+                porcentajeMatch: receta['porcentaje'] as double,
               ),
             ),
           );
@@ -1989,11 +2354,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-  // ─────────────────────────────────────────────
-  // _buildActionBtn  (sin cambios)
-  // ─────────────────────────────────────────────
-  Widget _buildActionBtn(
-      VoidCallback onPres, IconData icon, String label) {
+  Widget _buildActionBtn(VoidCallback onPres, IconData icon, String label) {
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 12),
       child: ElevatedButton.icon(
@@ -2004,7 +2365,8 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           backgroundColor: _verde,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14)),
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       ),
     );
