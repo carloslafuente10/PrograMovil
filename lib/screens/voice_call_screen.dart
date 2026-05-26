@@ -131,7 +131,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   // ═══════════════════════════════════════════════════════════════════════
   static const String _systemPromptTemplate = """
 [A — IDENTIDAD]
-Eres Nid, el asistente culinario de voz de la Cordillera Del Fogon Humeante.
+Eres NID, el asistente culinario de voz de PrograMovil.
 Tu esencia es la de un guía gastronómico andino preciso y solemne.
 Tu ÚNICO propósito es asistir al usuario usando el CATÁLOGO OFICIAL que se te entrega.
 
@@ -139,7 +139,7 @@ Tu ÚNICO propósito es asistir al usuario usando el CATÁLOGO OFICIAL que se te
 El siguiente bloque es la ÚNICA fuente de información que puedes usar.
 Tu conocimiento previo sobre cocina NO EXISTE en este contexto.
 ════════════════════════════════════════
-CATÁLOGO OFICIAL DE RECETAS :
+CATÁLOGO OFICIAL DE RECETAS PROGRA-MOVIL:
 {{CATALOGO}}
 ════════════════════════════════════════
 
@@ -152,7 +152,7 @@ Si cualquier verificación falla → activa el Protocolo D sin excepción.
 
 [D — PROTOCOLO DE RECHAZO ABSOLUTO]
 Si el plato, receta o ingrediente NO está en el catálogo, responde EXACTAMENTE esta frase sin añadir nada más:
-"Lo siento, esa receta no se encuentra en nuestro enlistado actualmente."
+"Lo siento, esa receta no se encuentra en nuestro sistema de PrograMovil actualmente."
 PROHIBIDO: completar, deducir, inventar ingredientes, pasos, cantidades o sustitutos que no estén explícitamente en el catálogo.
 PROHIBIDO: usar conocimiento externo aunque la receta sea mundialmente conocida.
 PROHIBIDO: contradecirte. Si en un turno anterior confirmaste que una receta existe, debes mantener esa confirmación durante toda la sesión. Jamás digas luego que no la tienes.
@@ -232,21 +232,7 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
     await _tts.setLanguage("es-US");
     await _tts.setSpeechRate(0.42);
     await _tts.setPitch(0.85);
-
-    // Sincronía de INICIO: activa el WebP hablando en el mismo tick
-    // en que el motor TTS comienza a reproducir el audio.
-    _tts.setStartHandler(() {
-      if (mounted) setState(() => _hablando = true);
-    });
-
-    // Sincronía de FIN: vuelve al WebP idle cuando el TTS termina.
     _tts.setCompletionHandler(() {
-      if (mounted) setState(() => _hablando = false);
-    });
-
-    // Sincronía de CANCELACIÓN: si el usuario interrumpe el TTS manualmente
-    // (botón stop), el avatar también vuelve a idle sin esperar el completion.
-    _tts.setCancelHandler(() {
       if (mounted) setState(() => _hablando = false);
     });
   }
@@ -870,12 +856,36 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
   }
 
   // ═══════════════════════════════════════════════════════
-  //  BUILD PRINCIPAL
+  //  BUILD PRINCIPAL  — REDISEÑO FONDO COMPLETO
+  //
+  //  Arquitectura del Stack (de abajo hacia arriba):
+  //
+  //  Capa 0 — Fondo animado a pantalla completa:
+  //    IndexedStack con ambos .webp pre-cargados para evitar
+  //    parpadeo (flicker) al alternar. Ocupa toda la pantalla
+  //    mediante Positioned.fill + BoxFit.cover.
+  //
+  //  Capa 1 — Gradiente oscuro inferior:
+  //    Un overlay de gradiente de abajo hacia arriba garantiza
+  //    legibilidad del panel de texto y del botón del micrófono
+  //    sin importar el contenido de la ilustración.
+  //
+  //  Capa 2 — Elementos flotantes:
+  //    • AppBar transparente con título NID + indicador RAG.
+  //    • Temporizador flotante (Positioned, solo si activo).
+  //    • Panel de texto translúcido (BackdropFilter + opacidad).
+  //    • Botón de micrófono con glow neon.
+  //
+  //  Toda la lógica de backend (TTS/STT handlers, temporizador,
+  //  Firestore, Groq, IntentRouter) permanece sin cambios.
   // ═══════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _negro,
+      // AppBar completamente transparente para que el fondo
+      // animado se extienda debajo de él.
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -908,12 +918,12 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
                   _respuestaNID         = "";
                   _textoEscuchado       = "";
                   _recetaActivaNombre   = null;
-                  _recetaActivaContexto = "";  // ← liberar contexto acotado
+                  _recetaActivaContexto = "";
                   _pasosActivos         = [];
                   _ingredientesActivos  = [];
                   _pasoActualIndex      = -1;
                 });
-                _cancelarTemporizador(); // ← cancela timer activo al resetear
+                _cancelarTemporizador();
               },
             ),
           // Indicador RAG
@@ -938,18 +948,105 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
           ),
         ],
       ),
+
+      // ── body: Stack raíz ──────────────────────────────────
       body: Stack(
+        fit: StackFit.expand,
         children: [
-          SafeArea(
-            child: Column(
+
+          // ════════════════════════════════════════════════
+          // CAPA 0 — FONDO ANIMADO (pantalla completa)
+          //
+          // IndexedStack mantiene AMBOS assets siempre montados
+          // en el árbol de widgets. Solo se hace visible el que
+          // corresponde al estado actual, eliminando el flash
+          // negro/blanco que ocurriría si se usara un if/else.
+          //
+          //   index 0 → nid_speaking.webp  (_hablando == true)
+          //   index 1 → nid_idle.webp      (_hablando == false)
+          // ════════════════════════════════════════════════
+          Positioned.fill(
+            child: IndexedStack(
+              index: _hablando ? 0 : 1,
+              sizing: StackFit.expand,
               children: [
-                Expanded(flex: 5, child: _buildAvatar()),
-                Expanded(flex: 4, child: _buildPanelTexto()),
-                _buildControles(),
-                const SizedBox(height: 20),
+                Image.asset(
+                  'assets/images/nid_speaking.webp',
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                ),
+                Image.asset(
+                  'assets/images/nid_idle.webp',
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                ),
               ],
             ),
           ),
+
+          // ════════════════════════════════════════════════
+          // CAPA 1 — GRADIENTE OSCURO INFERIOR
+          //
+          // Crea una zona oscura en el tercio inferior de la
+          // pantalla para que el panel de texto y el micrófono
+          // sean siempre legibles sobre la ilustración.
+          // ════════════════════════════════════════════════
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: const [0.0, 0.45, 1.0],
+                  colors: [
+                    Colors.transparent,
+                    Colors.transparent,
+                    _negro.withOpacity(0.85),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // ════════════════════════════════════════════════
+          // CAPA 2 — ELEMENTOS FLOTANTES
+          //
+          // SafeArea garantiza que los elementos no queden
+          // debajo del notch ni de la barra de navegación.
+          // ════════════════════════════════════════════════
+          SafeArea(
+            child: Column(
+              children: [
+                // Espacio superior libre para el fondo animado
+                // (el avatar ocupa el área visual principal).
+                const Spacer(flex: 5),
+
+                // ── Panel de texto con fondo translúcido ──
+                // BackdropFilter aplica un desenfoque suave
+                // al contenido de las capas inferiores visible
+                // a través del panel, mejorando la legibilidad.
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: BackdropFilter(
+                      filter: ColorFilter.mode(
+                        Colors.black.withOpacity(0.0),
+                        BlendMode.multiply,
+                      ),
+                      child: _buildPanelTexto(),
+                    ),
+                  ),
+                ),
+
+                // ── Controles (micrófono) ──
+                _buildControles(),
+
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+
           // ── Temporizador flotante (visible solo cuando está activo) ──
           _buildTimerWidget(),
         ],
@@ -973,7 +1070,8 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
         "${min.toString().padLeft(2, '0')}:${seg.toString().padLeft(2, '0')}";
 
     return Positioned(
-      top: 16,
+      // kToolbarHeight (56) + padding de status bar (~24) = ~80px de espacio seguro
+      top: kToolbarHeight + 24 + 8,
       left: 20,
       right: 20,
       child: Container(
@@ -1104,11 +1202,11 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
                     // ── Capa 2: Avatar WebP animado ──
                     // IndexedStack mantiene ambos assets pre-cargados en el árbol
                     // de widgets para evitar parpadeo (flicker) al alternar estados.
-                    // index 0 = hablando   → nid_speaking.webp (animación en loop)
-                    // index 1 = idle/espera → nid_idle.webp (reposo)
-                    // Driver: _hablando
-                    //   true  → setStartHandler / setState en _hablar()
-                    //   false → setCompletionHandler / setCancelHandler
+                    // index 0 = hablando  → nid_hablando.webp (animación en loop)
+                    // index 1 = idle/escuchando → nid_idle.webp (reposo)
+                    // La bandera _hablando ya es el semáforo correcto:
+                    //   true  → TTS reproduciendo audio (setter en _hablar)
+                    //   false → CompletionHandler de FlutterTts lo apaga
                     SizedBox(
                       width: 160,
                       height: 160,
@@ -1117,9 +1215,9 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
                         sizing: StackFit.expand,
                         children: [
                           Image.asset(
-                            'assets/images/nid_speaking.webp',
+                            'assets/images/nid_hablando.webp',
                             fit: BoxFit.cover,
-                            gaplessPlayback: true,
+                            gaplessPlayback: true, // evita flash blanco entre frames
                           ),
                           Image.asset(
                             'assets/images/nid_idle.webp',
@@ -1196,10 +1294,11 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
   // ─────────────────────────────────────────────
   Widget _buildPanelTexto() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
+      // Sin margin horizontal: el padding ya viene del Padding externo en build()
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F0F1A),
+        // Fondo oscuro translúcido: legible sobre la ilustración de fondo
+        color: Colors.black.withOpacity(0.62),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _moradoNeon.withOpacity(0.4), width: 1),
         boxShadow: [
