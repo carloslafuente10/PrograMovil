@@ -86,7 +86,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     }
   }
 
-  // desde ingredientes_maestros cuando el nombre viene vacío
   Future<void> _cargarDatosExistentes(Map<String, dynamic> data) async {
     _nombreCtrl.text       = data['nombre'] ?? '';
     _caloriasCtrl.text     = data['calorias']?.toString() ?? '';
@@ -102,7 +101,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       String nombre = i['nombre']?.toString() ?? '';
       String? imagen = i['imagen']?.toString();
 
-      // ✅ Si el nombre está vacío, resolver desde ingredientes_maestros
       if (nombre.isEmpty && ingId.isNotEmpty) {
         try {
           final doc = await FirebaseFirestore.instance
@@ -1115,7 +1113,7 @@ class _BottomBar extends StatelessWidget {
     final bool btnEnviarActivo = puedeEnviar && todoValido;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+      padding: EdgeInsets.fromLTRB(16, 10, 16, MediaQuery.of(context).padding.bottom + 12),
       decoration: BoxDecoration(color: Colors.white,
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, -2))]),
       child: Row(children: [
@@ -1212,9 +1210,6 @@ class _DialogConfirmar extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════
-//  WIDGETS AUXILIARES
-// ═══════════════════════════════════════════════
 class _Label extends StatelessWidget {
   final String texto; final bool obligatorio; final bool error;
   const _Label(this.texto, {this.obligatorio = false, this.error = false});
