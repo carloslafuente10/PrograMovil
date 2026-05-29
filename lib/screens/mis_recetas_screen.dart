@@ -2,18 +2,82 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'crear_receta_usuario_screen.dart';
+import 'detalle_receta_screen.dart';
+import '../servicios/notificaciones_servicio.dart';
 
-class MisRecetasScreen extends StatelessWidget {
+class MisRecetasScreen extends StatefulWidget {
   const MisRecetasScreen({super.key});
 
+  @override
+  State<MisRecetasScreen> createState() => _MisRecetasScreenState();
+}
+
+class _MisRecetasScreenState extends State<MisRecetasScreen>
+    with SingleTickerProviderStateMixin {
   static const Color _verde = Color(0xFF2D9E73);
-  static const Color _verdeClaro = Color(0xFFE8F7F1);
   static const Color _fondo = Color(0xFFF5F6FA);
+  late TabController _tabController;
+
+  static const _estadosConfig = {
+    'guardada': (
+      Color(0xFFE8F7F1),
+      Color(0xFF065F46),
+      Icons.bookmark_rounded,
+      'Guardada',
+    ),
+    'borrador': (
+      Color(0xFFFFF3CD),
+      Color(0xFF856404),
+      Icons.edit_note_rounded,
+      'Borrador',
+    ),
+    'copia': (
+      Color(0xFFE8F4FD),
+      Color(0xFF0D6EFD),
+      Icons.copy_rounded,
+      'Copia',
+    ),
+    'en_revision': (
+      Color(0xFFE8F4FD),
+      Color(0xFF0D6EFD),
+      Icons.hourglass_top_rounded,
+      'En revisión',
+    ),
+    'publicada': (
+      Color(0xFFD1FAE5),
+      Color(0xFF065F46),
+      Icons.check_circle_rounded,
+      'Publicada',
+    ),
+    'rechazada': (
+      Color(0xFFFFE4E6),
+      Color(0xFF9F1239),
+      Icons.cancel_rounded,
+      'Rechazada',
+    ),
+    'rechazada_editada': (
+      Color(0xFFFFF3CD),
+      Color(0xFF856404),
+      Icons.edit_note_rounded,
+      'Lista p/ reenviar',
+    ),
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 6, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final String userId =
-        FirebaseAuth.instance.currentUser?.uid ?? 'usuario_desconocido';
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
     return Scaffold(
       backgroundColor: _fondo,
@@ -28,7 +92,7 @@ class MisRecetasScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Mis Recetas Personales',
+          'Mis Recetas',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w700,
@@ -37,430 +101,341 @@ class MisRecetasScreen extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(
-              Icons.add_circle_outline_rounded,
-              color: Colors.white,
-            ),
-            tooltip: 'Copiar receta de la app',
-            onPressed: () => _mostrarDialogoCopiar(context, userId),
+            icon: const Icon(Icons.copy_all_rounded, color: Colors.white),
+            tooltip: 'Copiar receta del catálogo',
+            onPressed: () => _abrirBuscadorRecetasDB(context),
           ),
         ],
-      ),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            color: _verde,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: _fondo,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
-                ),
-              ),
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('recetas_personales')
-                    .where('creador_id', isEqualTo: userId)
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  final count = snapshot.data?.docs.length ?? 0;
-
-                  return Row(
-                    children: [
-                      const Icon(
-                        Icons.restaurant_menu_rounded,
-                        color: _verde,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '$count recetas personales',
-                        style: const TextStyle(
-                          color: _verde,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const Spacer(),
-                      GestureDetector(
-                        onTap: () => _mostrarDialogoCopiar(context, userId),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _verdeClaro,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(
-                                Icons.content_copy_rounded,
-                                color: _verde,
-                                size: 12,
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                'Copiar receta',
-                                style: TextStyle(
-                                  color: _verde,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white60,
+          labelStyle: const TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
           ),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('recetas_personales')
-                  .where('creador_id', isEqualTo: userId)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: _verde),
-                  );
-                }
-                final docs = snapshot.data?.docs ?? [];
-                if (docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.restaurant_menu_rounded,
-                          size: 56,
-                          color: Colors.grey[300],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Aún no tienes recetas personales',
-                          style: TextStyle(
-                            color: Colors.grey[500],
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Crea una nueva o copia una de la app',
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                return GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 80),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    mainAxisExtent: 220,
-                  ),
-                  itemCount: docs.length,
-                  itemBuilder: (context, i) {
-                    final data = docs[i].data() as Map<String, dynamic>;
-                    return MiRecetaCard(
-                      datosCompletos: data,
-                      docId: docs[i].id,
-                    );
-                  },
-                );
-              },
-            ),
+          tabAlignment: TabAlignment.start,
+          tabs: const [
+            Tab(text: 'Guardadas'),
+            Tab(text: 'Borradores'),
+            Tab(text: 'Copias'),
+            Tab(text: 'Publicadas'),
+            Tab(text: 'Revisión'),
+            Tab(text: 'Rechazadas'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // Guardadas: todas las recetas propias (no copias, no borradores)
+          _TabRecetas(
+            uid: uid,
+            estadosConfig: _estadosConfig,
+            filtro: (e, esCopia) => !esCopia && e != 'borrador',
+            emptyMsg: 'No tienes recetas guardadas',
+            emptySubMsg: 'Crea y guarda tus propias recetas',
+          ),
+          // Borradores
+          _TabRecetas(
+            uid: uid,
+            estadosConfig: _estadosConfig,
+            filtro: (e, esCopia) => !esCopia && e == 'borrador',
+            emptyMsg: 'No tienes borradores',
+            emptySubMsg: 'Los borradores son recetas en proceso',
+          ),
+          // Copias
+          _TabRecetas(
+            uid: uid,
+            estadosConfig: _estadosConfig,
+            filtro: (e, esCopia) => esCopia,
+            emptyMsg: 'No tienes copias',
+            emptySubMsg: 'Copia recetas del catálogo para editarlas',
+          ),
+          // Publicadas
+          _TabRecetas(
+            uid: uid,
+            estadosConfig: _estadosConfig,
+            filtro: (e, esCopia) => !esCopia && e == 'publicada',
+            emptyMsg: 'No tienes recetas publicadas',
+            emptySubMsg: 'Envía tus recetas para que el admin las apruebe',
+          ),
+          // Revisión
+          _TabRecetas(
+            uid: uid,
+            estadosConfig: _estadosConfig,
+            filtro: (e, esCopia) => !esCopia && e == 'en_revision',
+            emptyMsg: 'Ninguna receta en revisión',
+            emptySubMsg: 'Aquí aparecen las que enviaste al admin',
+          ),
+          // Rechazadas
+          _TabRecetas(
+            uid: uid,
+            estadosConfig: _estadosConfig,
+            filtro: (e, esCopia) => !esCopia && e == 'rechazada',
+            emptyMsg: 'No tienes recetas rechazadas',
+            emptySubMsg: '',
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: _verde,
-        elevation: 4,
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const CrearRecetaUsuarioScreen(),
-            ),
-          );
-        },
-        icon: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CrearRecetaUsuarioScreen()),
+        ),
+        icon: const Icon(Icons.add_rounded, color: Colors.white),
         label: const Text(
           'Nueva receta',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
       ),
     );
   }
 
-  static void _mostrarDialogoCopiar(BuildContext context, String userId) {
+  void _abrirBuscadorRecetasDB(BuildContext context) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _CopiarRecetaSheet(userId: userId),
+      builder: (_) => const _BuscadorRecetasDBSheet(),
     );
   }
 }
 
-// ── Bottom sheet para buscar y copiar recetas de la BD ───────────────────────
+class _TabRecetas extends StatelessWidget {
+  final String uid;
+  final Map<String, dynamic> estadosConfig;
+  final bool Function(String estado, bool esCopia) filtro;
+  final String emptyMsg;
+  final String emptySubMsg;
 
-class _CopiarRecetaSheet extends StatefulWidget {
-  final String userId;
-  const _CopiarRecetaSheet({required this.userId});
-
-  @override
-  State<_CopiarRecetaSheet> createState() => _CopiarRecetaSheetState();
-}
-
-class _CopiarRecetaSheetState extends State<_CopiarRecetaSheet> {
   static const Color _verde = Color(0xFF2D9E73);
-  final TextEditingController _buscarCtrl = TextEditingController();
-  String _filtro = '';
 
-  @override
-  void dispose() {
-    _buscarCtrl.dispose();
-    super.dispose();
-  }
+  const _TabRecetas({
+    required this.uid,
+    required this.estadosConfig,
+    required this.filtro,
+    required this.emptyMsg,
+    required this.emptySubMsg,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.85,
-      maxChildSize: 0.95,
-      minChildSize: 0.5,
-      builder: (ctx, scrollCtrl) => Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFFF5F6FA),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('recetas_personales')
+          .where('usuarioId', isEqualTo: uid)
+          .snapshots(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: _verde));
+        }
+        final allDocs = snap.data?.docs ?? [];
+        final docs = allDocs.where((d) {
+          final data = d.data() as Map<String, dynamic>;
+          final estado = data['estado'] ?? 'borrador';
+          final esCopia = data['copiadaDe'] != null;
+          return filtro(estado, esCopia);
+        }).toList();
+
+        if (docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.menu_book_rounded,
+                  size: 60,
+                  color: Colors.grey[300],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  emptyMsg,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (emptySubMsg.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    emptySubMsg,
+                    style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                  ),
+                ],
+              ],
+            ),
+          );
+        }
+
+        return GridView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: 0.82,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+          ),
+          itemCount: docs.length,
+          itemBuilder: (ctx, i) {
+            final data = docs[i].data() as Map<String, dynamic>;
+            return _RecetaPersonalCard(
+              docId: docs[i].id,
+              data: data,
+              estadosConfig: estadosConfig,
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _RecetaPersonalCard extends StatelessWidget {
+  final String docId;
+  final Map<String, dynamic> data;
+  final Map<String, dynamic> estadosConfig;
+  static const Color _verde = Color(0xFF2D9E73);
+
+  const _RecetaPersonalCard({
+    required this.docId,
+    required this.data,
+    required this.estadosConfig,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final nombre = data['nombre'] ?? 'Sin título';
+    final estado = data['estado'] ?? 'borrador';
+    final img = data['imagen'] ?? '';
+    final calorias = data['calorias']?.toString() ?? '0';
+    final categoria = data['categoria'] ?? '';
+    final esCopia = data['copiadaDe'] != null;
+
+    final configKey = esCopia ? 'copia' : estado;
+    final cfg = estadosConfig[configKey] as (Color, Color, IconData, String)?;
+    final bgColor = cfg?.$1 ?? const Color(0xFFF3F4F6);
+    final txtColor = cfg?.$2 ?? Colors.grey;
+    final icon = cfg?.$3 ?? Icons.circle;
+
+    final enRevision = data['estadoRevision'] == 'pendiente';
+
+    return GestureDetector(
+      onTap: () => _mostrarOpciones(context),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.07),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 10),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            Expanded(
+              child: Stack(
                 children: [
-                  const Text(
-                    'Copiar receta de la app',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 17,
-                      color: Color(0xFF1A1A2E),
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
+                    ),
+                    child: img.startsWith('http')
+                        ? Image.network(
+                            img,
+                            width: double.infinity,
+                            height: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _ImgPlaceholder(),
+                          )
+                        : _ImgPlaceholder(),
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: bgColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, color: txtColor, size: 12),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Elige una receta para guardar una copia editable en tu perfil',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _buscarCtrl,
-                    onChanged: (v) => setState(() => _filtro = v.toLowerCase()),
-                    decoration: InputDecoration(
-                      hintText: 'Buscar receta...',
-                      prefixIcon: const Icon(
-                        Icons.search_rounded,
-                        color: _verde,
-                        size: 20,
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
+                  if (enRevision)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0D6EFD),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'En revisión',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('app-recetas-completas')
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: _verde),
-                    );
-                  }
-                  var docs = snapshot.data?.docs ?? [];
-                  if (_filtro.isNotEmpty) {
-                    docs = docs.where((d) {
-                      final nombre =
-                          (d.data() as Map<String, dynamic>)['nombre']
-                              ?.toString()
-                              .toLowerCase() ??
-                          '';
-                      return nombre.contains(_filtro);
-                    }).toList();
-                  }
-                  if (docs.isEmpty) {
-                    return Center(
-                      child: Text(
-                        'No se encontraron recetas',
-                        style: TextStyle(color: Colors.grey[400]),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (categoria.isNotEmpty)
+                    Text(
+                      categoria,
+                      style: const TextStyle(
+                        color: _verde,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
                       ),
-                    );
-                  }
-                  return ListView.separated(
-                    controller: scrollCtrl,
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                    itemCount: docs.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (context, i) {
-                      final data = docs[i].data() as Map<String, dynamic>;
-                      final nombre = data['nombre']?.toString() ?? 'Sin nombre';
-                      final img = data['imagen']?.toString() ?? '';
-                      final categoria = data['categoria']?.toString() ?? '';
-                      final calorias =
-                          (data['calorias'] ?? data['calorías'])?.toString() ??
-                          '0';
-                      return Material(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        elevation: 1,
-                        shadowColor: Colors.black12,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(14),
-                          onTap: () async {
-                            Navigator.pop(context);
-                            await _copiarReceta(context, docs[i].id, data);
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Row(
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: SizedBox(
-                                    width: 60,
-                                    height: 60,
-                                    child: img.isNotEmpty
-                                        ? Image.network(
-                                            img,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) =>
-                                                _PlaceholderImg(),
-                                          )
-                                        : _PlaceholderImg(),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        nombre,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13.5,
-                                          color: Color(0xFF1A1A2E),
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          if (categoria.isNotEmpty)
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 6,
-                                                    vertical: 2,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFE8F7F1),
-                                                borderRadius:
-                                                    BorderRadius.circular(5),
-                                              ),
-                                              child: Text(
-                                                categoria,
-                                                style: const TextStyle(
-                                                  color: _verde,
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ),
-                                          const SizedBox(width: 6),
-                                          Icon(
-                                            Icons.local_fire_department_rounded,
-                                            size: 12,
-                                            color: Colors.orange[400],
-                                          ),
-                                          const SizedBox(width: 2),
-                                          Text(
-                                            '$calorias Cal',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: Colors.grey[500],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE8F7F1),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(
-                                    Icons.content_copy_rounded,
-                                    color: _verde,
-                                    size: 16,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
+                    ),
+                  Text(
+                    nombre,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: Color(0xFF1A1A2E),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.local_fire_department_rounded,
+                        color: Color(0xFFFF6B35),
+                        size: 11,
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        '$calorias cal',
+                        style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],
@@ -469,268 +444,172 @@ class _CopiarRecetaSheetState extends State<_CopiarRecetaSheet> {
     );
   }
 
-  Future<void> _copiarReceta(
-    BuildContext context,
-    String recetaOriginalId,
-    Map<String, dynamic> data,
-  ) async {
-    try {
-      // Obtener pasos de forma robusta
-      List<dynamic> pasos = [];
-      try {
-        final docSteps = await FirebaseFirestore.instance
-            .collection('steps-recetas')
-            .doc(recetaOriginalId)
-            .get();
-        if (docSteps.exists) {
-          pasos = docSteps.data()?['pasos_ordenados'] ?? [];
-        } else {
-          final q = await FirebaseFirestore.instance
-              .collection('steps-recetas')
-              .where('receta_id', isEqualTo: recetaOriginalId)
-              .limit(1)
-              .get();
-          if (q.docs.isNotEmpty) {
-            pasos = q.docs.first.data()['pasos_ordenados'] ?? [];
-          } else {
-            final q2 = await FirebaseFirestore.instance
-                .collection('steps-recetas')
-                .where('recetas_id', isEqualTo: recetaOriginalId)
-                .limit(1)
-                .get();
-            if (q2.docs.isNotEmpty) {
-              pasos = q2.docs.first.data()['pasos_ordenados'] ?? [];
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('Error copiando pasos: $e');
-      }
-
-      // Normalizar ingredientes (cantidad como double)
-      final ingredientesRaw = data['ingredientes'];
-      List<dynamic> ingredientesNorm = [];
-      if (ingredientesRaw is List) {
-        ingredientesNorm = ingredientesRaw.map((item) {
-          if (item is Map) {
-            final map = Map<String, dynamic>.from(item);
-            map['cantidad'] =
-                double.tryParse(map['cantidad']?.toString() ?? '0') ?? 0.0;
-            return map;
-          }
-          return item;
-        }).toList();
-      }
-
-      final copia = {
-        'nombre': data['nombre']?.toString() ?? '',
-        'calorias':
-            double.tryParse(
-              (data['calorias'] ?? data['calorías'])?.toString() ?? '0',
-            ) ??
-            0.0,
-        'tiempo': double.tryParse(data['tiempo']?.toString() ?? '0') ?? 0.0,
-        'imagen': data['imagen']?.toString() ?? '',
-        'categoria': data['categoria']?.toString() ?? '',
-        'subcategoria': data['subcategoria']?.toString() ?? '',
-        'porcion_base': data['porcion_base']?.toString() ?? '1',
-        'ingredientes': ingredientesNorm,
-        'pasos': pasos,
-        'creador_id': widget.userId,
-        'origenRecetaId': recetaOriginalId, // referencia al original
-        'fechaCreacion': DateTime.now().toIso8601String(),
-      };
-
-      await FirebaseFirestore.instance
-          .collection('recetas_personales')
-          .add(copia);
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '¡Receta "${data['nombre']}" copiada! Ya puedes editarla.',
-            ),
-            backgroundColor: _verde,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al copiar receta: $e'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
+  void _mostrarOpciones(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _OpcionesRecetaSheet(
+        docId: docId,
+        data: data,
+        estadosConfig: estadosConfig,
+      ),
+    );
   }
 }
 
-// ── Tarjeta de receta personal ────────────────────────────────────────────────
+class _ImgPlaceholder extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Container(
+    color: const Color(0xFFE8F7F1),
+    child: const Center(
+      child: Icon(Icons.restaurant_rounded, color: Color(0xFF2D9E73), size: 28),
+    ),
+  );
+}
 
-class MiRecetaCard extends StatelessWidget {
-  final Map<String, dynamic> datosCompletos;
+class _OpcionesRecetaSheet extends StatefulWidget {
   final String docId;
+  final Map<String, dynamic> data;
+  final Map<String, dynamic> estadosConfig;
 
-  static const Color _verde = Color(0xFF2D9E73);
-  static const Color _verdeClaro = Color(0xFFE8F7F1);
-
-  const MiRecetaCard({
-    super.key,
-    required this.datosCompletos,
+  const _OpcionesRecetaSheet({
     required this.docId,
+    required this.data,
+    required this.estadosConfig,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final img = datosCompletos['imagen']?.toString() ?? '';
-    final nombre = datosCompletos['nombre']?.toString() ?? 'Sin nombre';
-    final calorias =
-        (datosCompletos['calorias'] ?? datosCompletos['calorías'])
-            ?.toString() ??
-        '0';
-    final category = datosCompletos['categoria']?.toString() ?? '';
-    final esCopia = datosCompletos['origenRecetaId'] != null;
+  State<_OpcionesRecetaSheet> createState() => _OpcionesRecetaSheetState();
+}
 
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      elevation: 2,
-      shadowColor: Colors.black12,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () => showModalBottomSheet(
-          context: context,
-          backgroundColor: Colors.transparent,
-          isScrollControlled: true,
-          builder: (_) => _RecetaOptionsSheet(
-            nombre: nombre,
-            categoria: category,
-            calorias: calorias,
-            docId: docId,
-            datosCompletos: datosCompletos,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(14),
-                  ),
-                  child: SizedBox(
-                    height: 120,
-                    width: double.infinity,
-                    child: img.isNotEmpty
-                        ? Image.network(
-                            img,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _PlaceholderImg(),
-                          )
-                        : _PlaceholderImg(),
-                  ),
-                ),
-                if (esCopia)
-                  Positioned(
-                    top: 6,
-                    left: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      child: const Text(
-                        'Copia',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 8,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
+  static const Color _verde = Color(0xFF2D9E73);
+  bool _eliminando = false;
+  bool _enviando = false;
+
+  String get _estado => widget.data['estado'] ?? 'borrador';
+  bool get _esCopia => widget.data['copiadaDe'] != null;
+  String get _estadoRevision => widget.data['estadoRevision'] ?? '';
+
+  bool get _puedeEnviar =>
+      !_esCopia && _estado == 'guardada' && _estadoRevision != 'pendiente';
+
+  bool get _puedeReenviar => !_esCopia && _estado == 'rechazada_editada';
+
+  bool get _estaRechazadaSinEditar => !_esCopia && _estado == 'rechazada';
+
+  bool get _puedeEditar =>
+      _estado == 'borrador' ||
+      _estado == 'guardada' ||
+      _estado == 'rechazada' ||
+      _estado == 'rechazada_editada' ||
+      _esCopia;
+
+  bool get _enRevisionActiva => _estadoRevision == 'pendiente';
+
+  @override
+  Widget build(BuildContext context) {
+    final nombre = widget.data['nombre'] ?? 'Sin título';
+    final img = widget.data['imagen'] ?? '';
+    final calorias = widget.data['calorias']?.toString() ?? '0';
+    final categoria = widget.data['categoria'] ?? '';
+    final tiempo = widget.data['tiempo']?.toString() ?? '0';
+
+    final configKey = _esCopia ? 'copia' : _estado;
+    final cfg =
+        widget.estadosConfig[configKey] as (Color, Color, IconData, String)?;
+    final bgColor = cfg?.$1 ?? const Color(0xFFF3F4F6);
+    final txtColor = cfg?.$2 ?? Colors.grey;
+    final iconEstado = cfg?.$3 ?? Icons.circle;
+    final label = cfg?.$4 ?? _estado;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+          ),
+
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  width: 64,
+                  height: 64,
+                  child: img.startsWith('http')
+                      ? Image.network(
+                          img,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _ImgPlaceholder(),
+                        )
+                      : _ImgPlaceholder(),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (category.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 1,
-                        ),
-                        margin: const EdgeInsets.only(bottom: 3),
-                        decoration: BoxDecoration(
-                          color: _verdeClaro,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          category,
-                          style: const TextStyle(
-                            color: _verde,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w600,
-                          ),
+                    if (categoria.isNotEmpty)
+                      Text(
+                        categoria,
+                        style: const TextStyle(
+                          color: _verde,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     Text(
                       nombre,
                       style: const TextStyle(
                         fontWeight: FontWeight.w700,
-                        fontSize: 11.5,
-                        color: Color(0xFF1A1A2E),
+                        fontSize: 16,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const Spacer(),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         const Icon(
                           Icons.local_fire_department_rounded,
                           color: Color(0xFFFF6B35),
-                          size: 11,
+                          size: 12,
                         ),
                         const SizedBox(width: 2),
                         Text(
                           '$calorias Cal',
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 11,
                             color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                        const Spacer(),
-                        GestureDetector(
-                          onTap: () => _confirmarEliminar(context, nombre),
-                          child: Container(
-                            padding: const EdgeInsets.all(5),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFEBEE),
-                              borderRadius: BorderRadius.circular(7),
-                            ),
-                            child: const Icon(
-                              Icons.delete_rounded,
-                              color: Color(0xFFE53935),
-                              size: 13,
-                            ),
+                        const SizedBox(width: 10),
+                        Icon(
+                          Icons.timer_outlined,
+                          color: Colors.grey[500],
+                          size: 12,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          '$tiempo min',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[600],
                           ),
                         ),
                       ],
@@ -738,15 +617,457 @@ class MiRecetaCard extends StatelessWidget {
                   ],
                 ),
               ),
+              Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(iconEstado, color: txtColor, size: 11),
+                        const SizedBox(width: 4),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            color: txtColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_enRevisionActiva) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0D6EFD),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'En revisión',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+          const Divider(height: 1),
+          const SizedBox(height: 16),
+
+          if (_esCopia)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F4FD),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    color: Color(0xFF0D6EFD),
+                    size: 14,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Las copias son solo para uso personal y no se pueden publicar.',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF0D6EFD)),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+
+          if (_enRevisionActiva)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F4FD),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.hourglass_top_rounded,
+                    color: Color(0xFF0D6EFD),
+                    size: 14,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Esta receta está en revisión. Espera la respuesta del administrador.',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF0D6EFD)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          if (_estaRechazadaSinEditar)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFEBEE),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: const Color(0xFFE53935).withOpacity(0.3),
+                ),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.edit_notifications_rounded,
+                    color: Color(0xFFE53935),
+                    size: 16,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Esta receta fue rechazada. Debes editarla y corregir los errores señalados antes de poder reenviarla.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFFE53935),
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          Row(
+            children: [
+              Expanded(
+                child: _OpcionBtn(
+                  icon: Icons.play_circle_fill_rounded,
+                  label: 'Ver receta',
+                  sublabel: 'Ingredientes y pasos',
+                  color: _verde,
+                  bgColor: const Color(0xFFE8F7F1),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _verReceta(context);
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _OpcionBtn(
+                  icon: Icons.edit_rounded,
+                  label: 'Editar',
+                  sublabel: 'Modificar campos',
+                  color: _puedeEditar
+                      ? const Color(0xFF1A1A2E)
+                      : Colors.grey[400]!,
+                  bgColor: _puedeEditar
+                      ? const Color(0xFFF5F6FA)
+                      : Colors.grey[100]!,
+                  onTap: _puedeEditar
+                      ? () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CrearRecetaUsuarioScreen(
+                                recetaExistente: widget.data,
+                                recetaPersonalId: widget.docId,
+                              ),
+                            ),
+                          );
+                        }
+                      : null,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          Row(
+            children: [
+              if (_puedeEnviar) ...[
+                Expanded(
+                  child: _OpcionBtn(
+                    icon: _enviando
+                        ? Icons.hourglass_top_rounded
+                        : Icons.send_rounded,
+                    label: _enviando ? 'Enviando...' : 'Publicar',
+                    sublabel: 'Enviar al admin',
+                    color: _verde,
+                    bgColor: const Color(0xFFE8F7F1),
+                    onTap: _enviando ? null : () => _confirmarEnvio(context),
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
+              if (_puedeReenviar) ...[
+                Expanded(
+                  child: _OpcionBtn(
+                    icon: Icons.send_rounded,
+                    label: 'Reenviar',
+                    sublabel: 'A revisión',
+                    color: const Color(0xFF3B82F6),
+                    bgColor: const Color(0xFFE8F4FD),
+                    onTap: () => _confirmarReenvio(context),
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: _OpcionBtn(
+                  icon: Icons.delete_outline_rounded,
+                  label: _eliminando ? 'Eliminando...' : 'Eliminar',
+                  sublabel: 'Borrar esta receta',
+                  color: const Color(0xFFE53935),
+                  bgColor: const Color(0xFFFFEBEE),
+                  onTap: _eliminando ? null : () => _confirmarEliminar(context),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  void _confirmarEliminar(BuildContext context, String nombreReceta) {
-    showDialog(
+  void _verReceta(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _DetalleRecetaPersonalSheet(data: widget.data),
+    );
+  }
+
+  Future<void> _confirmarEnvio(BuildContext context) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Enviar para publicación',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '¿Quieres enviar "${widget.data['nombre']}" al administrador para revisión?',
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F7F1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    color: Color(0xFF2D9E73),
+                    size: 14,
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Tu receta permanecerá en tus recetas guardadas.',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF2D9E73)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancelar', style: TextStyle(color: Colors.grey[600])),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2D9E73),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Enviar', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true || !mounted) return;
+    setState(() => _enviando = true);
+
+    try {
+      final payload = Map<String, dynamic>.from(widget.data);
+      payload['estadoRevision'] = 'pendiente';
+      payload['origenPersonalDocId'] = widget.docId;
+      payload['fechaEnvio'] = FieldValue.serverTimestamp();
+      payload['estado'] = 'pendiente';
+
+      final pendienteRef = await FirebaseFirestore.instance
+          .collection('recetas-pendientes')
+          .add(payload);
+
+      await FirebaseFirestore.instance
+          .collection('recetas_personales')
+          .doc(widget.docId)
+          .update({'estadoRevision': 'pendiente', 'estado': 'en_revision'});
+
+      await NotificacionesServicio.notificarAdmins(
+        recipeId: pendienteRef.id,
+        recipeName: widget.data['nombre'] ?? '',
+        usuarioEmail: FirebaseAuth.instance.currentUser?.email ?? '',
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white),
+                SizedBox(width: 10),
+                Text('Receta enviada para revisión'),
+              ],
+            ),
+            backgroundColor: const Color(0xFF2D9E73),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _enviando = false);
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+    }
+  }
+
+  Future<void> _confirmarReenvio(BuildContext context) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Reenviar a revisión',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          '¿Quieres reenviar "${widget.data['nombre']}" al administrador?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancelar', style: TextStyle(color: Colors.grey[600])),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _verde,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'Reenviar',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true || !context.mounted) return;
+
+    try {
+      final payload = Map<String, dynamic>.from(widget.data);
+      payload['estadoRevision'] = 'pendiente';
+      payload['origenPersonalDocId'] = widget.docId;
+      payload['fechaEnvio'] = FieldValue.serverTimestamp();
+      payload['estado'] = 'pendiente';
+      payload.remove('motivoRechazo');
+
+      final pendienteRef = await FirebaseFirestore.instance
+          .collection('recetas-pendientes')
+          .add(payload);
+
+      await FirebaseFirestore.instance
+          .collection('recetas_personales')
+          .doc(widget.docId)
+          .update({
+            'estado': 'en_revision',
+            'estadoRevision': 'pendiente',
+            'motivoRechazo': FieldValue.delete(),
+          });
+
+      await NotificacionesServicio.notificarAdmins(
+        recipeId: pendienteRef.id,
+        recipeName: widget.data['nombre'] ?? '',
+        usuarioEmail: FirebaseAuth.instance.currentUser?.email ?? '',
+      );
+
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Receta reenviada a revisión'),
+            backgroundColor: _verde,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+    }
+  }
+
+  Future<void> _confirmarEliminar(BuildContext context) async {
+    final enRevision = _estado == 'en_revision';
+
+    final confirmar = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -754,20 +1075,54 @@ class MiRecetaCard extends StatelessWidget {
           'Eliminar receta',
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
-        content: Text('¿Eliminar "$nombreReceta"?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('¿Seguro que quieres eliminar "${widget.data['nombre']}"?'),
+            const SizedBox(height: 10),
+            if (enRevision)
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFEBEE),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.warning_rounded,
+                      color: Color(0xFFE53935),
+                      size: 14,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Esta receta está en revisión. Al eliminarla se cancelará la solicitud al administrador.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFFE53935),
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Text(
+                'Esto solo borra tu copia personal.',
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+          ],
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: Text('Cancelar', style: TextStyle(color: Colors.grey[600])),
           ),
           ElevatedButton(
-            onPressed: () async {
-              await FirebaseFirestore.instance
-                  .collection('recetas_personales')
-                  .doc(docId)
-                  .delete();
-              if (context.mounted) Navigator.pop(context);
-            },
+            onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFE53935),
               shape: RoundedRectangleBorder(
@@ -782,702 +1137,732 @@ class MiRecetaCard extends StatelessWidget {
         ],
       ),
     );
+    if (confirmar != true) return;
+    setState(() => _eliminando = true);
+    try {
+      if (enRevision) {
+        final batch = FirebaseFirestore.instance.batch();
+
+        final pendientesSnap = await FirebaseFirestore.instance
+            .collection('recetas-pendientes')
+            .where('origenPersonalDocId', isEqualTo: widget.docId)
+            .where('estado', isEqualTo: 'pendiente')
+            .get();
+        for (final doc in pendientesSnap.docs) {
+          batch.delete(doc.reference);
+        }
+
+        final notifsSnap = await FirebaseFirestore.instance
+            .collection('notifications')
+            .where('type', isEqualTo: 'recipe_pending')
+            .get();
+        for (final doc in notifsSnap.docs) {
+          final recipeId = doc.data()['recipeId'] as String? ?? '';
+          final esDePendiente = pendientesSnap.docs.any(
+            (p) => p.id == recipeId,
+          );
+          if (esDePendiente) batch.delete(doc.reference);
+        }
+
+        await batch.commit();
+      }
+
+      await FirebaseFirestore.instance
+          .collection('recetas_personales')
+          .doc(widget.docId)
+          .delete();
+
+      if (context.mounted) Navigator.pop(context);
+    } catch (e) {
+      setState(() => _eliminando = false);
+      if (context.mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+    }
   }
 }
 
-class _PlaceholderImg extends StatelessWidget {
+class _OpcionBtn extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String sublabel;
+  final Color color;
+  final Color bgColor;
+  final VoidCallback? onTap;
+
+  const _OpcionBtn({
+    required this.icon,
+    required this.label,
+    required this.sublabel,
+    required this.color,
+    required this.bgColor,
+    this.onTap,
+  });
+
   @override
-  Widget build(BuildContext context) => Container(
-    color: const Color(0xFFE8F7F1),
-    child: const Center(
-      child: Icon(Icons.restaurant_rounded, color: Color(0xFF2D9E73), size: 28),
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            sublabel,
+            style: TextStyle(fontSize: 10, color: color.withOpacity(0.7)),
+          ),
+        ],
+      ),
     ),
   );
 }
 
-// ── Bottom sheet de opciones ──────────────────────────────────────────────────
+class _DetalleRecetaPersonalSheet extends StatefulWidget {
+  final Map<String, dynamic> data;
+  const _DetalleRecetaPersonalSheet({required this.data});
+  @override
+  State<_DetalleRecetaPersonalSheet> createState() =>
+      _DetalleRecetaPersonalSheetState();
+}
 
-class _RecetaOptionsSheet extends StatelessWidget {
-  final String nombre;
-  final String categoria;
-  final String calorias;
-  final String docId;
-  final Map<String, dynamic> datosCompletos;
-
+class _DetalleRecetaPersonalSheetState
+    extends State<_DetalleRecetaPersonalSheet> {
   static const Color _verde = Color(0xFF2D9E73);
-  static const Color _verdeClaro = Color(0xFFE8F7F1);
+  List<Map<String, dynamic>> _ings = [];
+  bool _cargando = true;
 
-  const _RecetaOptionsSheet({
-    required this.nombre,
-    required this.categoria,
-    required this.calorias,
-    required this.docId,
-    required this.datosCompletos,
-  });
+  @override
+  void initState() {
+    super.initState();
+    _cargar();
+  }
+
+  Future<void> _cargar() async {
+    final rawIngs = widget.data['ingredientes'] as List? ?? [];
+    final result = <Map<String, dynamic>>[];
+    for (final item in rawIngs) {
+      final m = item as Map<String, dynamic>;
+      final ingId = m['ingrediente_id']?.toString() ?? '';
+      String nombre = m['nombre']?.toString() ?? ingId;
+      String foto = m['imagen']?.toString() ?? '';
+      if (ingId.isNotEmpty && (foto.isEmpty || nombre == ingId)) {
+        try {
+          final doc = await FirebaseFirestore.instance
+              .collection('ingredientes_maestros')
+              .doc(ingId)
+              .get();
+          if (doc.exists) {
+            nombre = doc.data()!['nombre']?.toString() ?? nombre;
+            foto =
+                doc.data()!['foto']?.toString() ??
+                doc.data()!['imagen']?.toString() ??
+                foto;
+          }
+        } catch (_) {}
+      }
+      result.add({...m, 'nombre': nombre, 'foto': foto});
+    }
+    if (mounted)
+      setState(() {
+        _ings = result;
+        _cargando = false;
+      });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final String img = datosCompletos['imagen']?.toString() ?? '';
-    final String tiempo = datosCompletos['tiempo']?.toString() ?? '';
+    final nombre = widget.data['nombre'] ?? 'Sin título';
+    final calorias = widget.data['calorias']?.toString() ?? '0';
+    final tiempo = widget.data['tiempo']?.toString() ?? '0';
+    final categoria = widget.data['categoria'] ?? '';
+    final imgUrl = widget.data['imagen'] ?? '';
+    final pasos = widget.data['pasos'] as List? ?? [];
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.55,
-      minChildSize: 0.45,
-      maxChildSize: 0.75,
-      expand: false,
+      initialChildSize: 0.92,
+      minChildSize: 0.5,
+      maxChildSize: 0.96,
       builder: (_, scrollCtrl) => Container(
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-        child: SingleChildScrollView(
-          controller: scrollCtrl,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
+        child: Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
               ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: SizedBox(
-                      width: 60,
-                      height: 60,
-                      child: img.isNotEmpty
-                          ? Image.network(
-                              img,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => _PlaceholderImg(),
-                            )
-                          : _PlaceholderImg(),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          nombre,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF1A1A2E),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: scrollCtrl,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (imgUrl.startsWith('http'))
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.network(
+                            imgUrl,
+                            width: double.infinity,
+                            height: 200,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const SizedBox.shrink(),
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            if (categoria.isNotEmpty) ...[
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 7,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _verdeClaro,
-                                  borderRadius: BorderRadius.circular(5),
-                                ),
-                                child: Text(
-                                  categoria,
-                                  style: const TextStyle(
-                                    color: _verde,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
+                      const SizedBox(height: 12),
+                      if (categoria.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE8F7F1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            categoria,
+                            style: const TextStyle(
+                              color: _verde,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 6),
+                      Text(
+                        nombre,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          _Stat(
+                            Icons.local_fire_department_rounded,
+                            '$calorias cal',
+                            const Color(0xFFFF6B35),
+                          ),
+                          const SizedBox(width: 16),
+                          if (tiempo != '0')
+                            _Stat(Icons.timer_outlined, '$tiempo min', _verde),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Ingredientes',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (_cargando)
+                        const Center(
+                          child: CircularProgressIndicator(
+                            color: _verde,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      else
+                        ..._ings.map(
+                          (ing) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 5),
+                            child: Row(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: SizedBox(
+                                    width: 36,
+                                    height: 36,
+                                    child:
+                                        (ing['foto']?.toString() ?? '')
+                                            .startsWith('http')
+                                        ? Image.network(
+                                            ing['foto'],
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) =>
+                                                _IngPlaceholder(),
+                                          )
+                                        : _IngPlaceholder(),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                            ],
-                            const Icon(
-                              Icons.local_fire_department_rounded,
-                              size: 13,
-                              color: Color(0xFFFF6B35),
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              '$calorias Cal',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey[500],
-                              ),
-                            ),
-                            if (tiempo.isNotEmpty) ...[
-                              const SizedBox(width: 8),
-                              const Icon(
-                                Icons.access_time_rounded,
-                                size: 13,
-                                color: Colors.grey,
-                              ),
-                              const SizedBox(width: 3),
-                              Text(
-                                '$tiempo min',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey[500],
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    ing['nombre']?.toString() ?? '',
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ],
+                                Text(
+                                  '${ing['cantidad']} ${ing['unidad']}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      if (pasos.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Preparación',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...pasos.asMap().entries.map(
+                          (e) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 26,
+                                  height: 26,
+                                  decoration: const BoxDecoration(
+                                    color: _verde,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '${e.key + 1}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    (e.value
+                                                as Map<
+                                                  String,
+                                                  dynamic
+                                                >)['instruccion']
+                                            ?.toString() ??
+                                        '',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
-              const SizedBox(height: 24),
-              const Divider(height: 1, color: Color(0xFFF0F0F0)),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => _VistaRecetaPersonal(
-                              datosCompletos: datosCompletos,
-                              docId: docId,
-                            ),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        decoration: BoxDecoration(
-                          color: _verde,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Column(
-                          children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.play_arrow_rounded,
-                                color: Colors.white,
-                                size: 26,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              'Ver receta',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Ingredientes y pasos',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.white.withOpacity(0.75),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => CrearRecetaUsuarioScreen(
-                              docId: docId,
-                              datosIniciales: datosCompletos,
-                              soloLectura: false,
-                              coleccion: 'recetas_personales',
-                            ),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF5F6FA),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFE8E8E8)),
-                        ),
-                        child: Column(
-                          children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: const Color(0xFFE8E8E8),
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.edit_rounded,
-                                color: Color(0xFF1A1A2E),
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              'Editar',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF1A1A2E),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Modificar campos',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.grey[500],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-// ── Vista de receta personal (detalle + pasos embebidos) ──────────────────────
-// AHORA ES STATEFUL Y CARGA NOMBRES DE INGREDIENTES Y PASOS FALTANTES
-
-// ── Helper: formatea cantidades numéricas a fracciones legibles ──────────────
-String _formatCantidad(dynamic valor) {
-  if (valor == null) return '';
-  final d = double.tryParse(valor.toString());
-  if (d == null) return valor.toString();
-  // Parte entera
-  final entero = d.truncate();
-  final decimal = d - entero;
-  const eps = 0.01;
-  String fraccion = '';
-  if ((decimal - 0.25).abs() < eps)
-    fraccion = '¼';
-  else if ((decimal - 0.5).abs() < eps)
-    fraccion = '½';
-  else if ((decimal - 0.75).abs() < eps)
-    fraccion = '¾';
-  else if ((decimal - 0.333).abs() < eps)
-    fraccion = '⅓';
-  else if ((decimal - 0.667).abs() < eps)
-    fraccion = '⅔';
-  else if (decimal > eps)
-    fraccion = d
-        .toStringAsFixed(2)
-        .replaceAll(RegExp(r'0+$'), '')
-        .replaceAll(RegExp(r'\.$'), '');
-
-  if (entero == 0 && fraccion.isNotEmpty) return fraccion;
-  if (fraccion.isEmpty) return entero.toString();
-  return '$entero $fraccion';
-}
-
-class _VistaRecetaPersonal extends StatefulWidget {
-  final Map<String, dynamic> datosCompletos;
-  final String docId;
-  const _VistaRecetaPersonal({
-    required this.datosCompletos,
-    required this.docId,
-  });
-
+class _Stat extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  const _Stat(this.icon, this.label, this.color);
   @override
-  State<_VistaRecetaPersonal> createState() => _VistaRecetaPersonalState();
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, color: color, size: 14),
+      const SizedBox(width: 4),
+      Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          color: Colors.grey[700],
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    ],
+  );
 }
 
-class _VistaRecetaPersonalState extends State<_VistaRecetaPersonal> {
-  static const Color _verde = Color(0xFF2D9E73);
-  static const Color _verdeClaro = Color(0xFFE8F7F1);
-  static const Color _fondo = Color(0xFFF5F6FA);
+class _IngPlaceholder extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Container(
+    color: const Color(0xFFE8F7F1),
+    child: const Icon(
+      Icons.egg_alt_rounded,
+      color: Color(0xFF2D9E73),
+      size: 18,
+    ),
+  );
+}
 
-  List<Map<String, dynamic>> _ingredientesResueltos = [];
-  List<dynamic> _pasos = [];
-  bool _cargando = true;
+class _BuscadorRecetasDBSheet extends StatefulWidget {
+  const _BuscadorRecetasDBSheet();
+  @override
+  State<_BuscadorRecetasDBSheet> createState() =>
+      _BuscadorRecetasDBSheetState();
+}
+
+class _BuscadorRecetasDBSheetState extends State<_BuscadorRecetasDBSheet> {
+  static const Color _verde = Color(0xFF2D9E73);
+  final _searchCtrl = TextEditingController();
+  List<QueryDocumentSnapshot> _resultados = [];
+  bool _buscando = false;
+  bool _copiando = false;
+  String _busqueda = '';
 
   @override
   void initState() {
     super.initState();
-    _cargarDatos();
+    _cargarRecientes();
+    _searchCtrl.addListener(_onChanged);
   }
 
-  Future<void> _cargarDatos() async {
-    // 1. Resolver nombres de ingredientes
-    final ingredientesRaw =
-        (widget.datosCompletos['ingredientes'] as List<dynamic>?) ?? [];
-    List<Map<String, dynamic>> resolviendo = [];
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
-    for (var item in ingredientesRaw) {
-      final map = item is Map
-          ? Map<String, dynamic>.from(item)
-          : <String, dynamic>{};
-      final id = map['ingrediente_id']?.toString() ?? '';
-      final nombreOriginal = map['nombre']?.toString() ?? '';
-      if (nombreOriginal.isNotEmpty) {
-        resolviendo.add(map);
-      } else if (id.isNotEmpty) {
-        String nombreResuelto = '';
-        try {
-          final doc = await FirebaseFirestore.instance
-              .collection('ingredientes_maestros')
-              .doc(id)
-              .get();
-          if (doc.exists) {
-            nombreResuelto = doc.data()?['nombre']?.toString() ?? '';
-          }
-        } catch (_) {}
-        if (nombreResuelto.isEmpty) {
-          // Fallback: transformar ID en texto legible (ej: "lomo-res" -> "Lomo Res")
-          nombreResuelto = id
-              .split('-')
-              .map(
-                (w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1) : '',
-              )
-              .join(' ');
-        }
-        map['nombre'] = nombreResuelto;
-        resolviendo.add(map);
-      } else {
-        resolviendo.add(map);
-      }
+  Future<void> _cargarRecientes() async {
+    setState(() => _buscando = true);
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('app-recetas-completas')
+          .limit(20)
+          .get();
+      if (mounted)
+        setState(() {
+          _resultados = snap.docs;
+          _buscando = false;
+        });
+    } catch (_) {
+      if (mounted) setState(() => _buscando = false);
     }
+  }
 
-    // 2. Cargar pasos si no vienen en el documento
-    List<dynamic> pasosTemp =
-        (widget.datosCompletos['pasos'] as List<dynamic>?) ?? [];
+  void _onChanged() {
+    final q = _searchCtrl.text.trim();
+    if (q == _busqueda) return;
+    _busqueda = q;
+    if (q.isEmpty) {
+      _cargarRecientes();
+      return;
+    }
+    _buscar(q);
+  }
 
-    if (pasosTemp.isEmpty) {
-      // Intentar obtener pasos desde steps-recetas
-      try {
-        // Buscar por docId actual (puede que los pasos estén asociados al ID de la receta personal)
-        final docSteps = await FirebaseFirestore.instance
-            .collection('steps-recetas')
-            .doc(widget.docId)
+  Future<void> _buscar(String q) async {
+    setState(() => _buscando = true);
+    try {
+      QuerySnapshot snap = await FirebaseFirestore.instance
+          .collection('app-recetas-completas')
+          .where('nombre', isGreaterThanOrEqualTo: q)
+          .where('nombre', isLessThan: '${q}z')
+          .limit(20)
+          .get();
+      if (snap.docs.isEmpty) {
+        final qCap = q[0].toUpperCase() + q.substring(1);
+        snap = await FirebaseFirestore.instance
+            .collection('app-recetas-completas')
+            .where('nombre', isGreaterThanOrEqualTo: qCap)
+            .where('nombre', isLessThan: '${qCap}z')
+            .limit(20)
             .get();
-        if (docSteps.exists) {
-          pasosTemp = docSteps.data()?['pasos_ordenados'] ?? [];
-        } else {
-          // Si no, buscar por el campo receta_id usando origenRecetaId
-          final origenId = widget.datosCompletos['origenRecetaId']?.toString();
-          if (origenId != null && origenId.isNotEmpty) {
-            final q = await FirebaseFirestore.instance
-                .collection('steps-recetas')
-                .where('receta_id', isEqualTo: origenId)
-                .limit(1)
-                .get();
-            if (q.docs.isNotEmpty) {
-              pasosTemp = q.docs.first.data()['pasos_ordenados'] ?? [];
-            } else {
-              final q2 = await FirebaseFirestore.instance
-                  .collection('steps-recetas')
-                  .where('recetas_id', isEqualTo: origenId)
-                  .limit(1)
-                  .get();
-              if (q2.docs.isNotEmpty) {
-                pasosTemp = q2.docs.first.data()['pasos_ordenados'] ?? [];
-              }
-            }
-          }
-        }
-      } catch (_) {}
+      }
+      if (mounted)
+        setState(() {
+          _resultados = snap.docs;
+          _buscando = false;
+        });
+    } catch (_) {
+      if (mounted) setState(() => _buscando = false);
     }
+  }
 
-    setState(() {
-      _ingredientesResueltos = resolviendo;
-      _pasos = pasosTemp;
-      _cargando = false;
-    });
+  Future<void> _copiarReceta(QueryDocumentSnapshot doc) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    setState(() => _copiando = true);
+    final receta = doc.data() as Map<String, dynamic>;
+    try {
+      final payload = {
+        'nombre': '${receta['nombre'] ?? 'Receta'} (copia)',
+        'calorias': receta['calorias'] ?? 0,
+        'tiempo': receta['tiempo'] ?? 0,
+        'imagen': receta['imagen'] ?? '',
+        'porciones':
+            int.tryParse(receta['porcion_base']?.toString() ?? '1') ?? 1,
+        'categoria': receta['categoria'] ?? '',
+        'subcategoria': receta['subcategoria'] ?? '',
+        'ingredientes': (receta['ingredientes'] as List? ?? []).map((i) {
+          final m = i as Map<String, dynamic>;
+          return {
+            'ingrediente_id': m['ingrediente_id'] ?? '',
+            'nombre': m['nombre'] ?? '',
+            'cantidad': m['cantidad'] ?? 1,
+            'unidad': m['unidad'] ?? '',
+            'imagen': m['imagen'] ?? '',
+            'es_primordial': m['es_primordial'] ?? false,
+          };
+        }).toList(),
+        'pasos': receta['pasos'] ?? [],
+        'estado': 'copia',
+        'usuarioId': user.uid,
+        'usuarioEmail': user.email ?? '',
+        'fechaCreacion': DateTime.now().toIso8601String(),
+        'copiadaDe': doc.id,
+      };
+      final docRef = await FirebaseFirestore.instance
+          .collection('recetas_personales')
+          .add(payload);
+      if (!mounted) return;
+
+      final nav = Navigator.of(context, rootNavigator: true);
+      final recetaId = docRef.id;
+      final payloadCopia = Map<String, dynamic>.from(payload);
+
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Receta copiada. Encuéntrala en la pestaña Copias',
+          ),
+          backgroundColor: _verde,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    } catch (e) {
+      setState(() => _copiando = false);
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final nombre = widget.datosCompletos['nombre']?.toString() ?? 'Sin nombre';
-    final img = widget.datosCompletos['imagen']?.toString() ?? '';
-    final calorias =
-        (widget.datosCompletos['calorias'] ?? widget.datosCompletos['calorías'])
-            ?.toString() ??
-        '0';
-    final tiempo = widget.datosCompletos['tiempo']?.toString() ?? '0';
-    final categoria = widget.datosCompletos['categoria']?.toString() ?? '';
-
-    return Scaffold(
-      backgroundColor: _fondo,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 220,
-            pinned: true,
-            backgroundColor: _verde,
-            leading: IconButton(
-              icon: const Icon(
-                Icons.arrow_back_ios_new_rounded,
-                color: Colors.white,
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.5,
+      maxChildSize: 0.96,
+      builder: (_, scrollCtrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
               ),
-              onPressed: () => Navigator.pop(context),
             ),
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                nombre,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              background: img.isNotEmpty
-                  ? Image.network(
-                      img,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: _verde,
-                        child: const Icon(
-                          Icons.restaurant_rounded,
-                          color: Colors.white54,
-                          size: 60,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Copiar receta del catálogo',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Las copias son solo para uso personal',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F6FA),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.grey[200]!),
+                    ),
+                    child: TextField(
+                      controller: _searchCtrl,
+                      decoration: InputDecoration(
+                        hintText: 'Buscar receta...',
+                        prefixIcon: _buscando
+                            ? const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: _verde,
+                                  ),
+                                ),
+                              )
+                            : const Icon(Icons.search_rounded, color: _verde),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 14,
                         ),
                       ),
-                    )
-                  : Container(
-                      color: _verde,
-                      child: const Icon(
-                        Icons.restaurant_rounded,
-                        color: Colors.white54,
-                        size: 60,
-                      ),
                     ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: _cargando
+            const Divider(height: 1),
+            Expanded(
+              child: _copiando
                   ? const Center(
                       child: CircularProgressIndicator(color: _verde),
                     )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            if (categoria.isNotEmpty)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _verdeClaro,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  categoria,
-                                  style: const TextStyle(
-                                    color: _verde,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            const SizedBox(width: 10),
-                            const Icon(
-                              Icons.local_fire_department_rounded,
-                              color: Color(0xFFFF6B35),
-                              size: 15,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              '$calorias Cal',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            const Icon(
-                              Icons.access_time_rounded,
-                              color: Colors.grey,
-                              size: 15,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              '$tiempo min',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 22),
-                        if (_ingredientesResueltos.isNotEmpty) ...[
-                          const Text(
-                            'Ingredientes',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF1A1A2E),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          ..._ingredientesResueltos.map((map) {
-                            final ingNombre =
-                                map['nombre']?.toString() ??
-                                map['ingrediente_id']?.toString() ??
-                                'Ingrediente';
-                            final cantidad = _formatCantidad(map['cantidad']);
-                            final unidad = map['unidad']?.toString() ?? '';
-
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
+                  : _resultados.isEmpty && !_buscando
+                  ? Center(
+                      child: Text(
+                        'No se encontraron recetas',
+                        style: TextStyle(color: Colors.grey[500]),
+                      ),
+                    )
+                  : ListView.separated(
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
+                      itemCount: _resultados.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (ctx, i) {
+                        final doc = _resultados[i];
+                        final data = doc.data() as Map<String, dynamic>;
+                        return Material(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          elevation: 1,
+                          shadowColor: Colors.black12,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () => _copiarReceta(doc),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
                               child: Row(
                                 children: [
-                                  Container(
-                                    width: 6,
-                                    height: 6,
-                                    decoration: const BoxDecoration(
-                                      color: _verde,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  if (cantidad.isNotEmpty ||
-                                      unidad.isNotEmpty) ...[
-                                    Text(
-                                      '$cantidad $unidad'.trim(),
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey[500],
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                  ],
-                                  Expanded(
-                                    child: Text(
-                                      ingNombre,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Color(0xFF1A1A2E),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }),
-                          const SizedBox(height: 22),
-                        ],
-                        if (_pasos.isNotEmpty) ...[
-                          const Text(
-                            'Preparación',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF1A1A2E),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          ..._pasos.asMap().entries.map((entry) {
-                            final i = entry.key;
-                            final paso = entry.value;
-                            final instruccion =
-                                (paso is Map ? paso['instruccion'] : paso)
-                                    ?.toString() ??
-                                '';
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    width: 28,
-                                    height: 28,
-                                    decoration: const BoxDecoration(
-                                      color: _verde,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        '${i + 1}',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: SizedBox(
+                                      width: 56,
+                                      height: 56,
+                                      child:
+                                          (data['imagen'] ?? '').startsWith(
+                                            'http',
+                                          )
+                                          ? Image.network(
+                                              data['imagen'],
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) =>
+                                                  _IngPlaceholder(),
+                                            )
+                                          : _IngPlaceholder(),
                                     ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(top: 4),
-                                      child: Text(
-                                        instruccion,
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Color(0xFF1A1A2E),
-                                          height: 1.5,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if ((data['categoria'] ?? '')
+                                            .isNotEmpty)
+                                          Text(
+                                            data['categoria'],
+                                            style: const TextStyle(
+                                              color: _verde,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        Text(
+                                          data['nombre'] ?? '',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                      ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFE8F7F1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.copy_rounded,
+                                      color: _verde,
+                                      size: 16,
                                     ),
                                   ),
                                 ],
                               ),
-                            );
-                          }),
-                        ] else
-                          Center(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 20),
-                              child: Text(
-                                'Esta receta no tiene pasos aún.',
-                                style: TextStyle(
-                                  color: Colors.grey[400],
-                                  fontSize: 13,
-                                ),
-                              ),
                             ),
                           ),
-                        const SizedBox(height: 32),
-                      ],
+                        );
+                      },
                     ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

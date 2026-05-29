@@ -4,6 +4,9 @@ import 'login_page.dart';
 import 'admin_recetas_screen.dart';
 import 'admin_categorias_screen.dart';
 import 'reportes_screen.dart';
+import 'admin_recetas_pendientes_screen.dart';
+import 'components/notificacion_campana.dart';
+import 'gestionar_usuarios_screen.dart';
 
 class AdminScreen extends StatelessWidget {
   const AdminScreen({super.key});
@@ -30,6 +33,7 @@ class AdminScreen extends StatelessWidget {
           ),
         ),
         actions: [
+          const NotificacionCampana(esAdmin: true),
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: CircleAvatar(
@@ -52,7 +56,6 @@ class AdminScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header verde
             Container(
               width: double.infinity,
               decoration: const BoxDecoration(
@@ -147,21 +150,30 @@ class AdminScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                    _AdminCard(
+                  _AdminCard(
                     titulo: 'Categorías',
                     subtitulo: 'Organizar por tipo de comida',
                     icono: Icons.grid_view_rounded,
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) =>
-                            const AdminCategoriasScreen(),
+                        builder: (_) => const AdminCategoriasScreen(),
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 12),
-
+                  _AdminCard(
+                    titulo: 'Recetas por aprobar', // ✅ nueva tarjeta
+                    subtitulo: 'Revisa y publica recetas de usuarios',
+                    icono: Icons.pending_actions_rounded,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AdminRecetasPendientesScreen(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   _AdminCard(
                     titulo: 'Reportes',
                     subtitulo: 'Estadísticas y actividad',
@@ -170,13 +182,31 @@ class AdminScreen extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                              const ReportesScreen(),
+                          builder: (_) => const ReportesScreen(),
                         ),
                       );
                     },
                   ),
-                  ],
+                  const SizedBox(height: 12),
+
+                  _AdminCard(
+                    titulo: 'Gestionar usuarios',
+
+                    subtitulo: 'Administrar roles y permisos',
+
+                    icono: Icons.admin_panel_settings,
+
+                    onTap: () {
+                      Navigator.push(
+                        context,
+
+                        MaterialPageRoute(
+                          builder: (_) => const GestionarUsuariosScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
           ],

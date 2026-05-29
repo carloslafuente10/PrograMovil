@@ -8,7 +8,6 @@ import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FeedbackService {
-
   // ─── CONFIGURACIÓN ────────────────────────────────────────────────────────
 
   // TU API KEY de Google AI Studio (aistudio.google.com)
@@ -23,9 +22,8 @@ class FeedbackService {
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
   // Referencia a nuestra colección en Firestore (ya la tienes creada).
-  final CollectionReference _sugerenciasRef =
-      FirebaseFirestore.instance.collection('sugerencias');
-
+  final CollectionReference _sugerenciasRef = FirebaseFirestore.instance
+      .collection('sugerencias');
 
   // ─── FUNCIÓN PRINCIPAL ────────────────────────────────────────────────────
 
@@ -34,16 +32,16 @@ class FeedbackService {
   ///
   /// Retorna true si todo salió bien, false si algo falló.
   Future<bool> procesarYGuardarSugerencia(String textoOriginal) async {
-
     try {
       // PASO 1: Llamamos a Gemini y obtenemos el JSON estructurado.
-      final Map<String, dynamic> analisis = await _analizarConGemini(textoOriginal);
+      final Map<String, dynamic> analisis = await _analizarConGemini(
+        textoOriginal,
+      );
 
       // PASO 2: Con el resultado, guardamos todo en Firestore.
       await _guardarEnFirestore(textoOriginal, analisis);
 
       return true;
-
     } catch (e) {
       // Si algo falla (sin internet, API key inválida, etc.), lo mostramos
       // en consola para debug y retornamos false para que la UI lo maneje.
@@ -52,18 +50,15 @@ class FeedbackService {
     }
   }
 
-
   // ─── PASO 1: CONEXIÓN CON GEMINI ─────────────────────────────────────────
 
   /// Hace la petición HTTP a la API de Gemini y retorna un Map con
   /// los campos: categoria, prioridad, resumen_ia.
   Future<Map<String, dynamic>> _analizarConGemini(String textoOriginal) async {
-
     // Construimos el "body" de la petición.
     // Google espera un JSON con esta estructura específica:
     // { "system_instruction": {...}, "contents": [...], "generationConfig": {...} }
     final Map<String, dynamic> requestBody = {
-
       // ── SYSTEM PROMPT ──────────────────────────────────────────────────────
       // Le decimos a Gemini quién es y cuál es su trabajo.
       // "system_instruction" se aplica a toda la conversación, no es parte del
@@ -94,9 +89,9 @@ FORMATO OBLIGATORIO DE RESPUESTA (solo esto, nada más):
   "prioridad": "string",
   "resumen_ia": "string de máximo 80 caracteres en español"
 }
-"""
-          }
-        ]
+""",
+          },
+        ],
       },
 
       // ── MENSAJE DEL USUARIO ────────────────────────────────────────────────
@@ -106,9 +101,9 @@ FORMATO OBLIGATORIO DE RESPUESTA (solo esto, nada más):
         {
           "role": "user",
           "parts": [
-            {"text": textoOriginal}
-          ]
-        }
+            {"text": textoOriginal},
+          ],
+        },
       ],
 
       // ── CONFIGURACIÓN DE GENERACIÓN ────────────────────────────────────────
@@ -118,9 +113,11 @@ FORMATO OBLIGATORIO DE RESPUESTA (solo esto, nada más):
       // "Aquí está tu respuesta:" antes del JSON, y nuestro jsonDecode falla.
       "generationConfig": {
         "responseMimeType": "application/json",
-        "temperature": 0.1, // Temperatura baja = respuestas más determinísticas y consistentes.
-        "maxOutputTokens": 200, // El JSON que esperamos es pequeño, no necesitamos más.
-      }
+        "temperature":
+            0.1, // Temperatura baja = respuestas más determinísticas y consistentes.
+        "maxOutputTokens":
+            200, // El JSON que esperamos es pequeño, no necesitamos más.
+      },
     };
 
     // Hacemos el POST a la API.
@@ -139,7 +136,7 @@ FORMATO OBLIGATORIO DE RESPUESTA (solo esto, nada más):
     // Verificamos que la petición fue exitosa (código 200).
     if (response.statusCode != 200) {
       throw Exception(
-        'Gemini API respondió con error ${response.statusCode}: ${response.body}'
+        'Gemini API respondió con error ${response.statusCode}: ${response.body}',
       );
     }
 
@@ -156,11 +153,12 @@ FORMATO OBLIGATORIO DE RESPUESTA (solo esto, nada más):
 
     // Segundo jsonDecode: el "texto" que devuelve Gemini ES en sí mismo un JSON
     // (gracias al responseMimeType que configuramos). Lo convertimos a Map.
-    final Map<String, dynamic> analisisEstructurado = jsonDecode(textoRespuesta);
+    final Map<String, dynamic> analisisEstructurado = jsonDecode(
+      textoRespuesta,
+    );
 
     return analisisEstructurado;
   }
-
 
   // ─── PASO 2: GUARDADO EN FIREBASE ─────────────────────────────────────────
 
@@ -170,7 +168,6 @@ FORMATO OBLIGATORIO DE RESPUESTA (solo esto, nada más):
     String textoOriginal,
     Map<String, dynamic> analisis,
   ) async {
-
     // Creamos el documento que vamos a guardar.
     // Combinamos el texto del usuario con los campos que Gemini nos devolvió.
     await _sugerenciasRef.add({
@@ -180,13 +177,14 @@ FORMATO OBLIGATORIO DE RESPUESTA (solo esto, nada más):
       // Los campos que viene del análisis de Gemini.
       // Usamos ?? 'DESCONOCIDO' como fallback por si acaso Gemini no devuelve
       // algún campo (raro con el JSON mode, pero es buena práctica defensiva).
-      'categoria':  analisis['categoria']  ?? 'OTRO',
-      'prioridad':  analisis['prioridad']  ?? 'BAJA',
+      'categoria': analisis['categoria'] ?? 'OTRO',
+      'prioridad': analisis['prioridad'] ?? 'BAJA',
       'resumen_ia': analisis['resumen_ia'] ?? 'Sin resumen disponible.',
 
       // Metadatos útiles para el administrador.
-      'estado':     'PENDIENTE',
-      'timestamp':  FieldValue.serverTimestamp(), // Firestore pone la hora del servidor.
+      'estado': 'PENDIENTE',
+      'timestamp':
+          FieldValue.serverTimestamp(), // Firestore pone la hora del servidor.
     });
   }
 }

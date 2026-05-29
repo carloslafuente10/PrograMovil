@@ -38,38 +38,66 @@ class _CocinaPasosScreenState extends State<CocinaPasosScreen> {
 
   Future<void> _cargarPasos() async {
     try {
-      Map<String, dynamic>? data;
+      List<dynamic> pasosEncontrados = [];
 
-      // Intento 1: buscar por ID de documento (formato usado por editar_receta_screen)
+      // Intento 1: buscar por ID de documento en steps-recetas (recetas del catálogo)
       final docSnapshot = await FirebaseFirestore.instance
           .collection('steps-recetas')
           .doc(widget.recetaId)
           .get();
 
       if (docSnapshot.exists) {
-        data = docSnapshot.data();
-      } else {
-        // Intento 2: buscar por campo receta_id (formato de recetas personales)
+        final data = docSnapshot.data()!;
+        pasosEncontrados = List.from(data['pasos_ordenados'] ?? []);
+      }
+
+      // Intento 2: buscar por campo receta_id en steps-recetas
+      if (pasosEncontrados.isEmpty) {
         final querySnapshot = await FirebaseFirestore.instance
             .collection('steps-recetas')
             .where('receta_id', isEqualTo: widget.recetaId)
             .get();
-
         if (querySnapshot.docs.isNotEmpty) {
-          data = querySnapshot.docs.first.data();
+          final data = querySnapshot.docs.first.data();
+          pasosEncontrados = List.from(data['pasos_ordenados'] ?? []);
         }
       }
 
-      if (data != null) {
-        List<dynamic> pasosRaw = List.from(data['pasos_ordenados'] ?? []);
-        pasosRaw.sort((a, b) => (a['orden'] ?? 0).compareTo(b['orden'] ?? 0));
-        setState(() {
-          _pasos = pasosRaw;
-          _isLoading = false;
-        });
-      } else {
-        setState(() => _isLoading = false);
+      // Intento 3: buscar en recetas_personales (recetas copiadas/personales)
+      // Los pasos se guardan como campo 'pasos' dentro del documento
+      if (pasosEncontrados.isEmpty) {
+        final personalDoc = await FirebaseFirestore.instance
+            .collection('recetas_personales')
+            .doc(widget.recetaId)
+            .get();
+        if (personalDoc.exists) {
+          final data = personalDoc.data()!;
+          // Formato: [{orden: 1, instruccion: '...'}, ...]
+          final pasos = data['pasos'] as List? ?? [];
+          pasosEncontrados = pasos;
+        }
       }
+
+      // Intento 4: buscar pasos_ordenados dentro de app-recetas-completas
+      if (pasosEncontrados.isEmpty) {
+        final catalogoDoc = await FirebaseFirestore.instance
+            .collection('app-recetas-completas')
+            .doc(widget.recetaId)
+            .get();
+        if (catalogoDoc.exists) {
+          final data = catalogoDoc.data()!;
+          pasosEncontrados = List.from(data['pasos_ordenados'] ?? []);
+        }
+      }
+
+      pasosEncontrados.sort(
+        (a, b) => (a['orden'] ?? 0).compareTo(b['orden'] ?? 0),
+      );
+
+      setState(() {
+        _pasos = pasosEncontrados;
+        _isLoading = false;
+      });
     } catch (e) {
       debugPrint("Error cargando pasos: $e");
       setState(() => _isLoading = false);
