@@ -158,28 +158,43 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
     );
 
     if (d['ingredientes'] != null) {
-      for (final item in d['ingredientes'] as List) {
-        if (item is Map) {
-          _ingredientes.add(
-            _IngReceta(
-              ingredienteId: item['ingrediente_id']?.toString() ?? '',
-              nombre:
-                  item['nombre']?.toString() ??
-                  item['ingrediente_id']?.toString() ??
-                  '',
-              cantidad: item['cantidad']?.toString() ?? '',
-              unidad: item['unidad']?.toString() ?? '',
-              esPrimordial: item['es_primordial'] == true,
-              esMaestro:
-                  item['ingrediente_id'] != null &&
-                  item['ingrediente_id'].toString().isNotEmpty,
-            ),
-          );
-        }
-      }
+      _cargarIngredientes(d['ingredientes'] as List);
     }
     _cargarMaestros();
     _cargarPasos();
+  }
+
+  // Carga ingredientes resolviendo nombre desde ingredientes_maestros cuando es necesario
+  Future<void> _cargarIngredientes(List rawList) async {
+    final lista = <_IngReceta>[];
+    for (final item in rawList) {
+      if (item is! Map) continue;
+      final ingId = item['ingrediente_id']?.toString() ?? '';
+      String nombre = item['nombre']?.toString() ?? '';
+      // El modelo de Firestore solo guarda ingrediente_id sin nombre;
+      // hay que resolverlo desde ingredientes_maestros
+      if ((nombre.isEmpty || nombre == ingId) && ingId.isNotEmpty) {
+        try {
+          final doc = await FirebaseFirestore.instance
+              .collection('ingredientes_maestros')
+              .doc(ingId)
+              .get();
+          if (doc.exists) {
+            nombre = doc.data()!['nombre']?.toString() ?? '';
+          }
+        } catch (_) {}
+        if (nombre.isEmpty) nombre = ingId.replaceAll('-', ' ');
+      }
+      lista.add(_IngReceta(
+        ingredienteId: ingId,
+        nombre: nombre,
+        cantidad: item['cantidad']?.toString() ?? '',
+        unidad: item['unidad']?.toString() ?? '',
+        esPrimordial: item['es_primordial'] == true,
+        esMaestro: ingId.isNotEmpty,
+      ));
+    }
+    if (mounted) setState(() => _ingredientes = lista);
   }
 
   Future<void> _cargarMaestros() async {

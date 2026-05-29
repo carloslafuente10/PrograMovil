@@ -66,6 +66,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   final List<TextEditingController> _pasosCtrl = [];
 
   bool _guardando = false;
+  bool _cargando  = false;
   String? _recetaPersonalId;
 
   String _estadoOriginal = 'borrador';
@@ -80,7 +81,9 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
 
     if (widget.recetaExistente != null) {
       _estadoOriginal = widget.recetaExistente!['estado'] ?? 'borrador';
-      _cargarDatosExistentes(widget.recetaExistente!).then((_) => setState(() {}));
+      _cargando = true;
+      _cargarDatosExistentes(widget.recetaExistente!)
+          .then((_) { if (mounted) setState(() => _cargando = false); });
     } else {
       _pasosCtrl.add(TextEditingController());
     }
@@ -88,18 +91,30 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
 
   Future<void> _cargarDatosExistentes(Map<String, dynamic> data) async {
     _nombreCtrl.text       = data['nombre'] ?? '';
-    _caloriasCtrl.text     = data['calorias']?.toString() ?? '';
+    // El catálogo usa 'calorías' (con tilde); las recetas personales usan 'calorias'
+    final caloriasRaw = data['calorias'] ?? data['calorías'] ?? '';
+    _caloriasCtrl.text     = caloriasRaw.toString();
     _tiempoCtrl.text       = data['tiempo']?.toString() ?? '';
     _imagenCtrl.text       = data['imagen'] ?? '';
     _subcategoriaCtrl.text = data['subcategoria'] ?? '';
-    _porciones = data['porciones'] ?? 1;
+    // El catálogo usa 'porcion_base'; las recetas personales usan 'porciones'
+    final porcionRaw = data['porciones'] ?? data['porcion_base'] ?? 1;
+    _porciones = porcionRaw is int
+        ? porcionRaw
+        : int.tryParse(porcionRaw.toString()) ?? 1;
     _categoria = data['categoria'] ?? '';
 
     final ings = data['ingredientes'] as List? ?? [];
-    for (final i in ings) {
+
+    // Carga todos en PARALELO — evita N llamadas Firestore en cadena (era la causa del freeze)
+    final futures = ings.map((raw) async {
+      final i = Map<String, dynamic>.from(raw as Map);
       final ingId = i['ingrediente_id']?.toString() ?? '';
       String nombre = i['nombre']?.toString() ?? '';
-      String? imagen = i['imagen']?.toString();
+      // El catálogo usa 'foto'; las personales usan 'imagen'
+      String imagen = (i['imagen']?.toString() ?? '').isNotEmpty
+          ? i['imagen'].toString()
+          : (i['foto']?.toString() ?? '');
 
       if (nombre.isEmpty && ingId.isNotEmpty) {
         try {
@@ -109,29 +124,97 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
               .get();
           if (doc.exists) {
             final m = doc.data()!;
-            nombre = m['nombre']?.toString() ?? '';
-            if (imagen == null || imagen.isEmpty) {
-              imagen = m['foto']?.toString() ?? m['imagen']?.toString();
+            if (nombre.isEmpty) nombre = m['nombre']?.toString() ?? '';
+            if (imagen.isEmpty) {
+              imagen = m['foto']?.toString() ?? m['imagen']?.toString() ?? '';
             }
           }
         } catch (_) {}
         if (nombre.isEmpty) nombre = ingId.replaceAll('-', ' ');
       }
 
-      _ingredientes.add(_IngredienteSeleccionado(
-        id:       ingId,
-        nombre:   nombre,
-        imagen:   imagen,
-        cantidad: i['cantidad']?.toString() ?? '1',
-        unidad:   i['unidad'] ?? 'g',
-        esPrimordial: i['es_primordial'] == true,
-      ));
-    }
+      // Normalizar cantidad: Firestore envía double (ej: 120.0 → "120", 0.5 → "0.5")
+      final cantRaw = i['cantidad'];
+      final String cantidad;
+      if (cantRaw == null) {
+        cantidad = '1';
+      } else if (cantRaw is double) {
+        cantidad = cantRaw == cantRaw.truncateToDouble()
+            ? cantRaw.toInt().toString()
+            : cantRaw.toString();
+      } else {
+        cantidad = cantRaw.toString();
+      }
 
-    final pasos = data['pasos'] as List? ?? [];
-    for (final p in pasos) {
+      // Unidad: si viene vacía la dejamos vacía (el dropdown la maneja)
+      final unidad = (i['unidad']?.toString() ?? '').trim();
+
+      return _IngredienteSeleccionado(
+        id:          ingId,
+        nombre:      nombre,
+        imagen:      imagen.isNotEmpty ? imagen : null,
+        cantidad:    cantidad,
+        unidad:      unidad,
+        esPrimordial: i['es_primordial'] == true,
+      );
+    }).toList();
+
+    _ingredientes.addAll(await Future.wait(futures));
+
+    // El catálogo guarda 'pasos_ordenados'; las recetas personales usan 'pasos'
+    final pasosOrdenados = data['pasos_ordenados'] as List? ?? [];
+    final pasosLegacy    = data['pasos'] as List? ?? [];
+    final pasosSource    = pasosOrdenados.isNotEmpty ? pasosOrdenados : pasosLegacy;
+    for (final p in pasosSource) {
       _pasosCtrl.add(TextEditingController(text: p['instruccion'] ?? ''));
     }
+
+    // Si no hay pasos locales, intentar cargar desde steps-recetas
+    if (_pasosCtrl.isEmpty) {
+      final docId = widget.recetaPersonalId;
+      final copiadaDe = data['copiadaDe']?.toString();
+      final List<String> idsABuscar = [
+        if (copiadaDe != null) copiadaDe,
+        if (docId != null) docId,
+      ];
+      for (final id in idsABuscar) {
+        if (_pasosCtrl.isNotEmpty) break;
+        try {
+          // Por doc ID directo
+          final snap = await FirebaseFirestore.instance
+              .collection('steps-recetas')
+              .doc(id)
+              .get();
+          if (snap.exists) {
+            final lista = snap.data()!['pasos_ordenados'] as List? ?? [];
+            for (final p in lista) {
+              _pasosCtrl.add(TextEditingController(
+                  text: (p as Map)['instruccion']?.toString() ?? ''));
+            }
+          }
+          // Por campo recetas_id
+          if (_pasosCtrl.isEmpty) {
+            for (final campo in ['recetas_id', 'receta_id']) {
+              final q = await FirebaseFirestore.instance
+                  .collection('steps-recetas')
+                  .where(campo, isEqualTo: id)
+                  .limit(1)
+                  .get();
+              if (q.docs.isNotEmpty) {
+                final lista =
+                    q.docs.first.data()['pasos_ordenados'] as List? ?? [];
+                for (final p in lista) {
+                  _pasosCtrl.add(TextEditingController(
+                      text: (p as Map)['instruccion']?.toString() ?? ''));
+                }
+                break;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
     if (_pasosCtrl.isEmpty) _pasosCtrl.add(TextEditingController());
   }
 
@@ -361,7 +444,13 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     return Scaffold(
       backgroundColor: _fondo,
       appBar: _buildAppBar(),
-      body: Column(children: [
+      body: _cargando
+          ? const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              CircularProgressIndicator(color: Color(0xFF2D9E73)),
+              SizedBox(height: 16),
+              Text('Cargando receta...', style: TextStyle(color: Color(0xFF2D9E73), fontWeight: FontWeight.w500)),
+            ]))
+          : Column(children: [
         _StepIndicator(
           paso: _paginaActual,
           infoValida: _infoValida,
@@ -625,7 +714,25 @@ class _PaginaIngredientesState extends State<_PaginaIngredientes> {
   final _searchCtrl = TextEditingController();
   List<Map<String, dynamic>> _resultados = [];
   bool _buscando = false;
-  static const List<String> _unidades = ['g','kg','ml','l','taza','cdta','cda','unidad','pizca'];
+  static const List<String> _unidades = [
+    'g','kg','ml','l','L',
+    'taza','tazas',
+    'cda','cdas','cucharada','cucharadas',
+    'cdta','cdtas','cucharadita','cucharaditas',
+    'unidad','unidades',
+    'pizca','pizcas',
+    'puñado','puñados',
+    'ramita','ramitas',
+    'diente','dientes',
+    'trozo','trozos',
+    'rebanada','rebanadas',
+    'rodaja','rodajas',
+    'hoja','hojas',
+    'lata','latas',
+    'sobre','sobres',
+    'paquete','paquetes',
+    'al gusto','c/n',
+  ];
 
   @override
   void initState() { super.initState(); _searchCtrl.addListener(_buscar); }
@@ -767,8 +874,12 @@ class _PaginaIngredientesState extends State<_PaginaIngredientes> {
 
   void _agregarIngrediente(Map<String, dynamic> ing) {
     if (widget.ingredientes.any((i) => i.id == ing['id'])) return;
+    final imgUrl = (ing['imagen']?.toString() ?? '').isNotEmpty
+        ? ing['imagen'].toString()
+        : (ing['foto']?.toString() ?? '');
     widget.ingredientes.add(_IngredienteSeleccionado(
-        id: ing['id'] ?? '', nombre: ing['nombre'] ?? '', imagen: ing['imagen']));
+        id: ing['id'] ?? '', nombre: ing['nombre'] ?? '',
+        imagen: imgUrl.isNotEmpty ? imgUrl : null));
     _searchCtrl.clear(); setState(() => _resultados = []); widget.onChanged();
   }
 
@@ -864,7 +975,16 @@ class _IngredienteCardState extends State<_IngredienteCard> {
 
   void _abrirEditor() {
     final cantCtrl = TextEditingController(text: widget.ing.cantidad);
-    String unidadSel = widget.unidades.contains(widget.ing.unidad) ? widget.ing.unidad : widget.unidades.first;
+    // Si la unidad actual no está en la lista, la añadimos para que el dropdown
+    // no la sobreescriba silenciosamente con el primer valor de la lista
+    final unidadActual = widget.ing.unidad.trim();
+    // Garantizar que el valor seleccionado siempre esté en la lista (evita crash del Dropdown)
+    final listaUnidades = (unidadActual.isNotEmpty && !widget.unidades.contains(unidadActual))
+        ? [unidadActual, ...widget.unidades]
+        : widget.unidades;
+    String unidadSel = (unidadActual.isNotEmpty && listaUnidades.contains(unidadActual))
+        ? unidadActual
+        : listaUnidades.first;
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       contentPadding: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -898,7 +1018,7 @@ class _IngredienteCardState extends State<_IngredienteCard> {
                   border: Border.all(color: Colors.grey[200]!)),
               child: DropdownButtonHideUnderline(child: DropdownButton<String>(
                 value: unidadSel, isExpanded: true,
-                items: widget.unidades.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                items: listaUnidades.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
                 onChanged: (v) => setDlg(() => unidadSel = v ?? unidadSel)))),
           ])),
       ]),
@@ -944,9 +1064,14 @@ class _IngredienteCardState extends State<_IngredienteCard> {
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
             boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)]),
         child: Row(children: [
-          Container(width: 52, height: 52, margin: const EdgeInsets.only(left: 10),
+          Container(
+            width: 52, height: 52, margin: const EdgeInsets.only(left: 10),
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(color: const Color(0xFFE8F7F1), borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.restaurant_rounded, size: 24, color: _verde)),
+            child: (widget.ing.imagen ?? '').startsWith('http')
+                ? Image.network(widget.ing.imagen!, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.restaurant_rounded, size: 24, color: _verde))
+                : const Icon(Icons.restaurant_rounded, size: 24, color: _verde)),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Row(children: [
@@ -1111,6 +1236,7 @@ class _BottomBar extends StatelessWidget {
     final bool esBorrador  = estadoOriginal == 'borrador' || estadoOriginal == '';
     final bool puedeEnviar = estadoOriginal == 'guardada' || estadoOriginal == 'rechazada_editada';
     final bool btnEnviarActivo = puedeEnviar && todoValido;
+    final bottomPad = MediaQuery.of(context).padding.bottom;
 
     return Container(
       padding: EdgeInsets.fromLTRB(16, 10, 16, MediaQuery.of(context).padding.bottom + 12),

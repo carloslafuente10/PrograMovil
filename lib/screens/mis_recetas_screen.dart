@@ -265,7 +265,11 @@ class _RecetaPersonalCard extends StatelessWidget {
     final nombre = data['nombre'] ?? 'Sin título';
     final estado = data['estado'] ?? 'borrador';
     final img = data['imagen'] ?? '';
-    final calorias = data['calorias']?.toString() ?? '0';
+    // Normaliza calorías: puede venir como double, int o String desde Firestore
+    final caloriasRaw = data['calorias'] ?? data['calorías'] ?? 0;
+    final calorias = caloriasRaw is double
+        ? caloriasRaw.toInt().toString()
+        : caloriasRaw.toString();
     final categoria = data['categoria'] ?? '';
     final esCopia = data['copiadaDe'] != null;
 
@@ -391,9 +395,16 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
   Widget build(BuildContext context) {
     final nombre = widget.data['nombre'] ?? 'Sin título';
     final img = widget.data['imagen'] ?? '';
-    final calorias = widget.data['calorias']?.toString() ?? '0';
+    // Normaliza calorías: puede venir como double, int o String
+    final caloriasRaw = widget.data['calorias'] ?? widget.data['calorías'] ?? 0;
+    final calorias = caloriasRaw is double
+        ? caloriasRaw.toInt().toString()
+        : caloriasRaw.toString();
     final categoria = widget.data['categoria'] ?? '';
-    final tiempo = widget.data['tiempo']?.toString() ?? '0';
+    final tiempoRaw = widget.data['tiempo'] ?? 0;
+    final tiempo = tiempoRaw is double
+        ? tiempoRaw.toInt().toString()
+        : tiempoRaw.toString();
 
     final configKey = _esCopia ? 'copia' : _estado;
     final cfg = widget.estadosConfig[configKey] as (Color, Color, IconData, String)?;
@@ -1050,6 +1061,16 @@ class _DetalleRecetaPersonalSheetState extends State<_DetalleRecetaPersonalSheet
                     .map((p) => Map<String, dynamic>.from(p as Map)));
           }
         }
+        if (pasosEncontrados.isEmpty) {
+          final q = await FirebaseFirestore.instance
+              .collection('steps-recetas')
+              .where('receta_id', isEqualTo: widget.docId).limit(1).get();
+          if (q.docs.isNotEmpty) {
+            pasosEncontrados = List<Map<String, dynamic>>.from(
+                (q.docs.first.data()['pasos_ordenados'] as List? ?? [])
+                    .map((p) => Map<String, dynamic>.from(p as Map)));
+          }
+        }
       } catch (_) {}
     }
 
@@ -1062,8 +1083,15 @@ class _DetalleRecetaPersonalSheetState extends State<_DetalleRecetaPersonalSheet
   @override
   Widget build(BuildContext context) {
     final nombre = widget.data['nombre'] ?? 'Sin título';
-    final calorias = widget.data['calorias']?.toString() ?? '0';
-    final tiempo = widget.data['tiempo']?.toString() ?? '0';
+    // Normaliza calorías
+    final caloriasRaw = widget.data['calorias'] ?? widget.data['calorías'] ?? 0;
+    final calorias = caloriasRaw is double
+        ? caloriasRaw.toInt().toString()
+        : caloriasRaw.toString();
+    final tiempoRaw = widget.data['tiempo'] ?? 0;
+    final tiempo = tiempoRaw is double
+        ? tiempoRaw.toInt().toString()
+        : tiempoRaw.toString();
     final categoria = widget.data['categoria'] ?? '';
     final imgUrl = widget.data['imagen'] ?? '';
 
@@ -1270,26 +1298,60 @@ class _BuscadorRecetasDBSheetState extends State<_BuscadorRecetasDBSheet> {
     setState(() => _copiando = true);
     final receta = doc.data() as Map<String, dynamic>;
     try {
+      // Calorías: el catálogo usa 'calorías' (con tilde), las personales 'calorias'
+      final caloriasVal = receta['calorias'] ?? receta['calorías'] ?? 0;
+
+      // Ingredientes: el catálogo solo guarda ingrediente_id, sin campo 'nombre'.
+      // Hay que resolver el nombre desde ingredientes_maestros para que al editar
+      // la copia se muestren correctamente.
+      final rawIngs = receta['ingredientes'] as List? ?? [];
+      final ingsResueltos = <Map<String, dynamic>>[];
+      for (final i in rawIngs) {
+        final m = i as Map<String, dynamic>;
+        final ingId = m['ingrediente_id']?.toString() ?? '';
+        String nombre = m['nombre']?.toString() ?? '';
+        String imagen = m['imagen']?.toString() ?? '';
+        if (nombre.isEmpty && ingId.isNotEmpty) {
+          try {
+            final maestroDoc = await FirebaseFirestore.instance
+                .collection('ingredientes_maestros')
+                .doc(ingId)
+                .get();
+            if (maestroDoc.exists) {
+              nombre = maestroDoc.data()!['nombre']?.toString() ?? '';
+              if (imagen.isEmpty) {
+                imagen = maestroDoc.data()!['foto']?.toString() ??
+                    maestroDoc.data()!['imagen']?.toString() ?? '';
+              }
+            }
+          } catch (_) {}
+          if (nombre.isEmpty) nombre = ingId.replaceAll('-', ' ');
+        }
+        ingsResueltos.add({
+          'ingrediente_id': ingId,
+          'nombre': nombre,
+          'cantidad': m['cantidad'] ?? 1,
+          'unidad': m['unidad'] ?? '',
+          'imagen': imagen,
+          'es_primordial': m['es_primordial'] ?? false,
+        });
+      }
+
+      // Pasos: el catálogo puede guardarlos en el mismo doc como 'pasos_ordenados'
+      final pasosOrdenados = receta['pasos_ordenados'] as List? ?? [];
+      final pasosLegacy    = receta['pasos'] as List? ?? [];
+      final pasos = pasosOrdenados.isNotEmpty ? pasosOrdenados : pasosLegacy;
+
       final payload = {
         'nombre': '${receta['nombre'] ?? 'Receta'} (copia)',
-        'calorias': receta['calorias'] ?? 0,
+        'calorias': caloriasVal,
         'tiempo': receta['tiempo'] ?? 0,
         'imagen': receta['imagen'] ?? '',
         'porciones': int.tryParse(receta['porcion_base']?.toString() ?? '1') ?? 1,
         'categoria': receta['categoria'] ?? '',
         'subcategoria': receta['subcategoria'] ?? '',
-        'ingredientes': (receta['ingredientes'] as List? ?? []).map((i) {
-          final m = i as Map<String, dynamic>;
-          return {
-            'ingrediente_id': m['ingrediente_id'] ?? '',
-            'nombre': m['nombre'] ?? '',
-            'cantidad': m['cantidad'] ?? 1,
-            'unidad': m['unidad'] ?? '',
-            'imagen': m['imagen'] ?? '',
-            'es_primordial': m['es_primordial'] ?? false,
-          };
-        }).toList(),
-        'pasos': receta['pasos'] ?? [],
+        'ingredientes': ingsResueltos,
+        'pasos': pasos,
         'estado': 'copia',
         'usuarioId': user.uid,
         'usuarioEmail': user.email ?? '',
