@@ -66,26 +66,128 @@ class _VerRecetaAdminScreenState extends State<VerRecetaAdminScreen> {
     return cantidad.toStringAsFixed(1);
   }
 
+  // Unidades que nunca se pluralizan (abreviaciones y símbolos)
+  static const _unidadesInvariables = {'ml', 'g', 'kg', 'oz', 'lb', 'gr', 'l'};
+
+  // Unidades que son medidas (se muestra "de" antes del nombre)
+  static const _unidadesMedida = {
+    'cucharada',
+    'cucharadas',
+    'cucharadita',
+    'cucharaditas',
+    'cucharita',
+    'cucharitas',
+    'taza',
+    'tazas',
+    'vaso',
+    'vasos',
+    'copa',
+    'copas',
+    'litro',
+    'litros',
+    'l',
+    'mililitro',
+    'mililitros',
+    'ml',
+    'gramo',
+    'gramos',
+    'g',
+    'gr',
+    'kilogramo',
+    'kilogramos',
+    'kg',
+    'onza',
+    'onzas',
+    'oz',
+    'libra',
+    'libras',
+    'lb',
+    'pizca',
+    'pizcas',
+    'puñado',
+    'puñados',
+    'trozo',
+    'trozos',
+    'rodaja',
+    'rodajas',
+    'rebanada',
+    'rebanadas',
+    'porción',
+    'porciones',
+    'unidad',
+    'unidades',
+  };
+
+  String _pluralizarPalabra(String palabra, double cantidad) {
+    if (cantidad <= 1 || palabra.isEmpty) return palabra;
+    final String lower = palabra.toLowerCase();
+    if (_unidadesInvariables.contains(lower)) return palabra;
+    if (lower.endsWith('s') || lower.endsWith('x')) return palabra;
+    if (lower.endsWith('z'))
+      return '${palabra.substring(0, palabra.length - 1)}ces';
+    if (RegExp(r'[aeiouáéíóú]$').hasMatch(lower)) return '${palabra}s';
+    return '${palabra}es';
+  }
+
+  String _pluralizarSeguro(double cantidad, String texto) {
+    if (cantidad <= 1 || texto.trim().isEmpty) return texto.trim();
+    final String limpio = texto.trim();
+    if (_unidadesInvariables.contains(limpio.toLowerCase())) return limpio;
+    final List<String> partes = limpio.split(' ');
+    final int deIdx = partes.indexWhere((p) => p.toLowerCase() == 'de');
+    if (deIdx > 0) {
+      partes[0] = _pluralizarPalabra(partes[0], cantidad);
+      return partes.join(' ');
+    }
+    partes[0] = _pluralizarPalabra(partes[0], cantidad);
+    return partes.join(' ');
+  }
+
+  String _pluralizarNombre(double cantidad, String nombre) {
+    if (cantidad <= 1 || nombre.trim().isEmpty) return nombre.trim();
+    final String limpio = nombre.trim();
+    if (limpio.toLowerCase().contains(' de ')) return limpio;
+    final List<String> partes = limpio.split(' ');
+    partes[0] = _pluralizarPalabra(partes[0], cantidad);
+    return partes.join(' ');
+  }
+
   String _abreviarUnidad(String unidad, double cantidad) {
-    final Map<String, String> abrev = {
+    final String lower = unidad.toLowerCase();
+    // Abreviaciones fijas (invariables)
+    const Map<String, String> abrevFijas = {
       'gramo': 'g',
       'gramos': 'g',
       'kilogramo': 'kg',
       'kilogramos': 'kg',
       'mililitro': 'ml',
       'mililitros': 'ml',
-      'litro': 'L',
-      'litros': 'L',
-      'cucharada': cantidad <= 1 ? 'cda.' : 'cdas.',
-      'cucharadas': 'cdas.',
-      'cucharadita': cantidad <= 1 ? 'cdta.' : 'cdtas.',
-      'cucharaditas': 'cdtas.',
-      'cucharita': cantidad <= 1 ? 'cdta.' : 'cdtas.',
-      'cucharitas': 'cdtas.',
-      'taza': cantidad <= 1 ? 'taza' : 'tazas',
-      'tazas': 'tazas',
+      'litro': 'litro',
+      'litros': 'litro',
+      'libra': 'libra',
+      'libras': 'libra',
+      'onza': 'oz',
+      'onzas': 'oz',
     };
-    return abrev[unidad.toLowerCase()] ?? unidad;
+    if (abrevFijas.containsKey(lower)) {
+      final String base = abrevFijas[lower]!;
+      return _pluralizarSeguro(cantidad, base);
+    }
+    // Abreviaciones con plural especial
+    if (lower == 'cucharada' || lower == 'cucharadas') {
+      return cantidad <= 1 ? 'cda.' : 'cdas.';
+    }
+    if (lower == 'cucharadita' ||
+        lower == 'cucharaditas' ||
+        lower == 'cucharita' ||
+        lower == 'cucharitas') {
+      return cantidad <= 1 ? 'cdta.' : 'cdtas.';
+    }
+    if (lower == 'taza' || lower == 'tazas') {
+      return cantidad <= 1 ? 'taza' : 'tazas';
+    }
+    // Para el resto, pluralizar de forma segura
+    return _pluralizarSeguro(cantidad, unidad);
   }
 
   // ── Carga de datos ─────────────────────────────────────────────────────────
@@ -436,6 +538,8 @@ class _VerRecetaAdminScreenState extends State<VerRecetaAdminScreen> {
                                 ing: ings[i],
                                 calcNum: _calcularNumero,
                                 abrevU: _abreviarUnidad,
+                                esMedida: (u) => _unidadesMedida.contains(u),
+                                pluralizarNombre: _pluralizarNombre,
                               ),
                             ),
                         ],
@@ -575,11 +679,15 @@ class _IngRow extends StatelessWidget {
   final _IngAdmin ing;
   final String Function(double) calcNum;
   final String Function(String, double) abrevU;
+  final bool Function(String) esMedida;
+  final String Function(double, String) pluralizarNombre;
 
   const _IngRow({
     required this.ing,
     required this.calcNum,
     required this.abrevU,
+    required this.esMedida,
+    required this.pluralizarNombre,
   });
 
   static const Color _verde = Color(0xFF2D9E73);
@@ -587,12 +695,31 @@ class _IngRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String numero = calcNum(ing.cantidad);
-    final String unidadAbrev = ing.unidad.trim().isNotEmpty
-        ? abrevU(ing.unidad.trim(), ing.cantidad)
-        : '';
-    final String cantidadTexto = unidadAbrev.isNotEmpty
-        ? '$numero $unidadAbrev'
-        : numero;
+    final String unidadTrim = ing.unidad.trim();
+    final String unidadLower = unidadTrim.toLowerCase();
+
+    // "unidad" / "unidades" → ocultar, solo mostrar nombre pluralizado
+    final bool esUnidad = unidadLower == 'unidad' || unidadLower == 'unidades';
+
+    String cantidadTexto;
+    String nombreTexto;
+
+    if (esUnidad || unidadTrim.isEmpty) {
+      // Sin unidad: [número] [nombre pluralizado]
+      cantidadTexto = numero;
+      nombreTexto = pluralizarNombre(ing.cantidad, ing.nombre);
+    } else {
+      final String unidadAbrev = abrevU(unidadTrim, ing.cantidad);
+      cantidadTexto = '$numero $unidadAbrev';
+      // Si es medida → "de nombre"; si la unidad ya incluye "de" → nombre solo
+      if (unidadLower.contains(' de ')) {
+        nombreTexto = ing.nombre;
+      } else if (esMedida(unidadLower)) {
+        nombreTexto = 'de ${ing.nombre}';
+      } else {
+        nombreTexto = pluralizarNombre(ing.cantidad, ing.nombre);
+      }
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -626,7 +753,7 @@ class _IngRow extends StatelessWidget {
                     ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
 
           // 2. Cantidad + unidad abreviada
           Text(
@@ -637,7 +764,7 @@ class _IngRow extends StatelessWidget {
               color: _verde,
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
 
           // 3. Nombre del ingrediente
           Expanded(
@@ -645,7 +772,7 @@ class _IngRow extends StatelessWidget {
               children: [
                 Flexible(
                   child: Text(
-                    ing.nombre,
+                    nombreTexto,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(

@@ -494,6 +494,12 @@ class _LoginPageState extends State<LoginPage>
         backgroundColor: esError ? Colors.redAccent : _verde,
       ),
     );
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: esError ? Colors.redAccent : _verde,
+      ),
+    );
   }
 
   Widget _botonPrincipal({

@@ -145,10 +145,7 @@ class _RegistroScreenState extends State<RegistroScreen>
           .set({
             'nombre': _nombreController.text.trim(),
             'correo': _correoController.text.trim(),
-<<<<<<< Updated upstream
-=======
             'rol': 'user',
->>>>>>> Stashed changes
             'creadoEn': FieldValue.serverTimestamp(),
           });
 

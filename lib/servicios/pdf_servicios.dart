@@ -9,31 +9,29 @@ import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'package:excel/excel.dart';
 import 'package:csv/csv.dart';
+import 'package:printing/printing.dart'; // <-- IMPORTACIÓN CLAVE
 
 class PdfService {
+  // ==========================================
   // REPORTE USUARIOS
+  // ==========================================
 
   static Future<void> generarReporteUsuarios(String filtroEstado) async {
     final pdf = pw.Document();
-
     final snapshot = await FirebaseFirestore.instance
         .collection('app-usuarios')
         .get();
-
     final usuarios = snapshot.docs;
 
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-
         build: (context) => [
           pw.Text(
             'Reporte de Usuarios',
             style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
           ),
-
           pw.SizedBox(height: 20),
-
           pw.Table.fromTextArray(
             headers: [
               'Nombre',
@@ -43,60 +41,43 @@ class PdfService {
               'Último acceso',
               'Estado',
             ],
-
             data: usuarios
                 .map((doc) {
                   final data = doc.data();
                   final creadoEn = data['creadoEn'];
-
                   final ultimoAcceso = data['ultimoAcceso'];
-
                   String fechaRegistro = 'Sin registro';
-
                   String fechaUltimoAcceso = 'Sin acceso';
-
                   String estado = 'Inactivo';
 
-                  if (creadoEn != null) {
+                  if (creadoEn != null)
                     fechaRegistro = creadoEn
                         .toDate()
                         .toString()
                         .split('.')
                         .first;
-                  }
-
                   if (ultimoAcceso != null) {
                     final fecha = ultimoAcceso.toDate();
-
                     fechaUltimoAcceso = fecha.toString().split('.').first;
-
                     final diferencia = DateTime.now().difference(fecha).inDays;
-
-                    if (diferencia <= 30) {
+                    if (diferencia <= 30)
                       estado = 'Activo';
-                    } else if (diferencia <= 60) {
+                    else if (diferencia <= 60)
                       estado = 'Inactivo';
-                    } else {
+                    else
                       estado = 'Inhabilitado';
-                    }
                   }
-                  if (filtroEstado != 'Todos' && estado != filtroEstado) {
+                  if (filtroEstado != 'Todos' && estado != filtroEstado)
                     return null;
-                  }
 
                   return <String>[
                     (data['nombre'] ?? '').toString().isEmpty
                         ? 'Sin nombre'
                         : data['nombre'],
-
                     data['correo'] ?? data['email'] ?? '',
-
                     data['rol'] ?? 'user',
-
                     fechaRegistro,
-
                     fechaUltimoAcceso,
-
                     estado,
                   ];
                 })
@@ -107,42 +88,19 @@ class PdfService {
       ),
     );
 
-    final Uint8List bytes = await pdf.save();
-
-    if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', 'reporte_usuarios.pdf')
-        ..click();
-
-      html.Url.revokeObjectUrl(url);
-    }
-    // ANDROID
-    else {
-      final dir = await getApplicationDocumentsDirectory();
-
-      final file = File('${dir.path}/reporte_usuarios.pdf');
-
-      await file.writeAsBytes(bytes);
-
-      await OpenFile.open(file.path);
-    }
+    // SOLUCIÓN NATIVA PARA PDF
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
+      name: 'Reporte_Usuarios.pdf',
+    );
   }
 
   static Future<void> generarExcelUsuarios(String filtroEstado) async {
     final snapshot = await FirebaseFirestore.instance
         .collection('app-usuarios')
         .get();
-
-    final usuarios = snapshot.docs;
-
     final excel = Excel.createExcel();
-
     final sheet = excel['Usuarios'];
-
     sheet.appendRow([
       'Nombre',
       'Correo',
@@ -152,79 +110,47 @@ class PdfService {
       'Estado',
     ]);
 
-    for (final doc in usuarios) {
+    for (final doc in snapshot.docs) {
       final data = doc.data();
-      final creadoEn = data['creadoEn'];
-
-      final ultimoAcceso = data['ultimoAcceso'];
-
-      String fechaRegistro = 'Sin registro';
-
-      String fechaUltimoAcceso = 'Sin acceso';
-
       String estado = 'Inactivo';
-
-      if (creadoEn != null) {
-        fechaRegistro = creadoEn.toDate().toString().split('.').first;
+      if (data['ultimoAcceso'] != null) {
+        final diferencia = DateTime.now()
+            .difference(data['ultimoAcceso'].toDate())
+            .inDays;
+        estado = diferencia <= 30
+            ? 'Activo'
+            : (diferencia <= 60 ? 'Inactivo' : 'Inhabilitado');
       }
-
-      if (ultimoAcceso != null) {
-        final fecha = ultimoAcceso.toDate();
-
-        fechaUltimoAcceso = fecha.toString().split('.').first;
-
-        final diferencia = DateTime.now().difference(fecha).inDays;
-
-        if (diferencia <= 30) {
-          estado = 'Activo';
-        } else if (diferencia <= 60) {
-          estado = 'Inactivo';
-        } else {
-          estado = 'Inhabilitado';
-        }
-      }
-      if (filtroEstado != 'Todos' && estado != filtroEstado) {
-        continue;
-      }
+      if (filtroEstado != 'Todos' && estado != filtroEstado) continue;
 
       sheet.appendRow([
         (data['nombre'] ?? '').toString().isEmpty
             ? 'Sin nombre'
             : data['nombre'],
-
         data['correo'] ?? data['email'] ?? '',
-
         data['rol'] ?? 'user',
-
-        fechaRegistro,
-
-        fechaUltimoAcceso,
-
+        data['creadoEn'] != null
+            ? data['creadoEn'].toDate().toString().split('.').first
+            : 'Sin registro',
+        data['ultimoAcceso'] != null
+            ? data['ultimoAcceso'].toDate().toString().split('.').first
+            : 'Sin acceso',
         estado,
       ]);
     }
 
     final bytes = excel.encode();
-
     if (bytes == null) return;
-
     if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
+      final url = html.Url.createObjectUrlFromBlob(html.Blob([bytes]));
       html.AnchorElement(href: url)
         ..setAttribute('download', 'usuarios.xlsx')
         ..click();
-
       html.Url.revokeObjectUrl(url);
     } else {
       final dir = await getApplicationDocumentsDirectory();
-
       final file = File('${dir.path}/usuarios.xlsx');
-
       await file.writeAsBytes(bytes);
-
       await OpenFile.open(file.path);
     }
   }
@@ -233,120 +159,77 @@ class PdfService {
     final snapshot = await FirebaseFirestore.instance
         .collection('app-usuarios')
         .get();
+    List<List<dynamic>> rows = [
+      ['Nombre', 'Correo', 'Rol', 'Registro', 'Último acceso', 'Estado'],
+    ];
 
-    final usuarios = snapshot.docs;
-
-    List<List<dynamic>> rows = [];
-
-    rows.add([
-      'Nombre',
-      'Correo',
-      'Rol',
-      'Registro',
-      'Último acceso',
-      'Estado',
-    ]);
-    for (final doc in usuarios) {
+    for (final doc in snapshot.docs) {
       final data = doc.data();
-      final creadoEn = data['creadoEn'];
-
-      final ultimoAcceso = data['ultimoAcceso'];
-
-      String fechaRegistro = 'Sin registro';
-
-      String fechaUltimoAcceso = 'Sin acceso';
-
       String estado = 'Inactivo';
-
-      if (creadoEn != null) {
-        fechaRegistro = creadoEn.toDate().toString().split('.').first;
+      if (data['ultimoAcceso'] != null) {
+        final diferencia = DateTime.now()
+            .difference(data['ultimoAcceso'].toDate())
+            .inDays;
+        estado = diferencia <= 30
+            ? 'Activo'
+            : (diferencia <= 60 ? 'Inactivo' : 'Inhabilitado');
       }
+      if (filtroEstado != 'Todos' && estado != filtroEstado) continue;
 
-      if (ultimoAcceso != null) {
-        final fecha = ultimoAcceso.toDate();
-
-        fechaUltimoAcceso = fecha.toString().split('.').first;
-
-        final diferencia = DateTime.now().difference(fecha).inDays;
-
-        if (diferencia <= 30) {
-          estado = 'Activo';
-        } else if (diferencia <= 60) {
-          estado = 'Inactivo';
-        } else {
-          estado = 'Inhabilitado';
-        }
-      }
-      if (filtroEstado != 'Todos' && estado != filtroEstado) {
-        continue;
-      }
       rows.add([
         (data['nombre'] ?? '').toString().isEmpty
             ? 'Sin nombre'
             : data['nombre'],
-
         data['correo'] ?? data['email'] ?? '',
-
         data['rol'] ?? 'user',
-
-        fechaRegistro,
-
-        fechaUltimoAcceso,
-
+        data['creadoEn'] != null
+            ? data['creadoEn'].toDate().toString().split('.').first
+            : 'Sin registro',
+        data['ultimoAcceso'] != null
+            ? data['ultimoAcceso'].toDate().toString().split('.').first
+            : 'Sin acceso',
         estado,
       ]);
     }
 
-    String csvData = const ListToCsvConverter().convert(rows);
-
-    final bytes = Uint8List.fromList(csvData.codeUnits);
-
+    final bytes = Uint8List.fromList(
+      const ListToCsvConverter().convert(rows).codeUnits,
+    );
     if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
+      final url = html.Url.createObjectUrlFromBlob(html.Blob([bytes]));
       html.AnchorElement(href: url)
         ..setAttribute('download', 'usuarios.csv')
         ..click();
-
       html.Url.revokeObjectUrl(url);
     } else {
       final dir = await getApplicationDocumentsDirectory();
-
       final file = File('${dir.path}/usuarios.csv');
-
       await file.writeAsBytes(bytes);
-
       await OpenFile.open(file.path);
     }
   }
 
+  // ==========================================
+  // REPORTE FAVORITOS
+  // ==========================================
+
   static Future<void> generarReporteFavoritos() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-usuarios')
-        .get();
-
-    final usuarios = snapshot.docs;
-
+    final usuarios =
+        (await FirebaseFirestore.instance.collection('app-usuarios').get())
+            .docs;
     final pdf = pw.Document();
-
-    List<List<String>> rows = [];
-
-    rows.add(['Usuario', 'Cantidad favoritos']);
+    List<List<String>> rows = [
+      ['Usuario', 'Cantidad favoritos'],
+    ];
 
     for (final userDoc in usuarios) {
-      final userData = userDoc.data();
-
       final favoritos = await FirebaseFirestore.instance
           .collection('app-usuarios')
           .doc(userDoc.id)
           .collection('favoritos')
           .get();
-
       rows.add([
-        userData['nombre'] ?? 'Sin nombre',
-
+        userDoc.data()['nombre'] ?? 'Sin nombre',
         favoritos.docs.length.toString(),
       ]);
     }
@@ -354,41 +237,21 @@ class PdfService {
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-
         build: (context) => [
           pw.Text(
             'Reporte Favoritos',
             style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
           ),
-
           pw.SizedBox(height: 20),
-
           pw.Table.fromTextArray(headers: rows.first, data: rows.sublist(1)),
         ],
       ),
     );
 
-    final bytes = await pdf.save();
-
-    if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
-      html.AnchorElement(href: url)
-        ..setAttribute('download', 'favoritos.pdf')
-        ..click();
-
-      html.Url.revokeObjectUrl(url);
-    } else {
-      final dir = await getApplicationDocumentsDirectory();
-
-      final file = File('${dir.path}/favoritos.pdf');
-
-      await file.writeAsBytes(bytes);
-
-      await OpenFile.open(file.path);
-    }
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
+      name: 'Reporte_Favoritos.pdf',
+    );
   }
 
   static Future<void> generarReporteFavoritosUsuario(
@@ -397,338 +260,229 @@ class PdfService {
     List<QueryDocumentSnapshot> favoritos,
   ) async {
     final pdf = pw.Document();
-
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-
         build: (context) => [
           pw.Text(
             'Favoritos de $nombreUsuario',
-
             style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
           ),
-
           pw.SizedBox(height: 20),
-
           pw.Text('Correo: $correo'),
-
           pw.SizedBox(height: 20),
-
           ...favoritos.map((favDoc) {
             final fav = favDoc.data() as Map<String, dynamic>;
-
             return pw.Container(
               margin: const pw.EdgeInsets.only(bottom: 10),
-
               child: pw.Row(
                 children: [
                   pw.Text('- '),
-
                   pw.Expanded(child: pw.Text(fav['nombre'] ?? '')),
                 ],
               ),
             );
           }),
-
           pw.SizedBox(height: 20),
-
           pw.Text('Total favoritos: ${favoritos.length}'),
         ],
       ),
     );
 
-    final bytes = await pdf.save();
-
-    if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
-      html.AnchorElement(href: url)
-        ..setAttribute('download', 'favoritos_$nombreUsuario.pdf')
-        ..click();
-
-      html.Url.revokeObjectUrl(url);
-    } else {
-      final dir = await getApplicationDocumentsDirectory();
-
-      final file = File('${dir.path}/favoritos_$nombreUsuario.pdf');
-
-      await file.writeAsBytes(bytes);
-
-      await OpenFile.open(file.path);
-    }
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
+      name: 'Favoritos_$nombreUsuario.pdf',
+    );
   }
 
   static Future<void> generarExcelFavoritos() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-usuarios')
-        .get();
-
-    final usuarios = snapshot.docs;
-
+    final usuarios =
+        (await FirebaseFirestore.instance.collection('app-usuarios').get())
+            .docs;
     final excel = Excel.createExcel();
-
     final sheet = excel['Favoritos'];
-
     sheet.appendRow(['Usuario', 'Cantidad favoritos']);
 
     for (final userDoc in usuarios) {
-      final userData = userDoc.data();
-
       final favoritos = await FirebaseFirestore.instance
           .collection('app-usuarios')
           .doc(userDoc.id)
           .collection('favoritos')
           .get();
-
       sheet.appendRow([
-        userData['nombre'] ?? 'Sin nombre',
-
+        userDoc.data()['nombre'] ?? 'Sin nombre',
         favoritos.docs.length.toString(),
       ]);
     }
 
     final bytes = excel.encode();
-
     if (bytes == null) return;
-
     if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
+      final url = html.Url.createObjectUrlFromBlob(html.Blob([bytes]));
       html.AnchorElement(href: url)
         ..setAttribute('download', 'favoritos.xlsx')
         ..click();
-
       html.Url.revokeObjectUrl(url);
     } else {
       final dir = await getApplicationDocumentsDirectory();
-
       final file = File('${dir.path}/favoritos.xlsx');
-
       await file.writeAsBytes(bytes);
-
       await OpenFile.open(file.path);
     }
   }
 
   static Future<void> generarCsvFavoritos() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-usuarios')
-        .get();
-
-    final usuarios = snapshot.docs;
-
-    List<List<dynamic>> rows = [];
-
-    rows.add(['Usuario', 'Cantidad favoritos']);
+    final usuarios =
+        (await FirebaseFirestore.instance.collection('app-usuarios').get())
+            .docs;
+    List<List<dynamic>> rows = [
+      ['Usuario', 'Cantidad favoritos'],
+    ];
 
     for (final userDoc in usuarios) {
-      final userData = userDoc.data();
-
       final favoritos = await FirebaseFirestore.instance
           .collection('app-usuarios')
           .doc(userDoc.id)
           .collection('favoritos')
           .get();
-
       rows.add([
-        userData['nombre'] ?? 'Sin nombre',
-
+        userDoc.data()['nombre'] ?? 'Sin nombre',
         favoritos.docs.length.toString(),
       ]);
     }
 
-    String csvData = const ListToCsvConverter().convert(rows);
-
-    final bytes = Uint8List.fromList(csvData.codeUnits);
-
+    final bytes = Uint8List.fromList(
+      const ListToCsvConverter().convert(rows).codeUnits,
+    );
     if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
+      final url = html.Url.createObjectUrlFromBlob(html.Blob([bytes]));
       html.AnchorElement(href: url)
         ..setAttribute('download', 'favoritos.csv')
         ..click();
-
       html.Url.revokeObjectUrl(url);
     } else {
       final dir = await getApplicationDocumentsDirectory();
-
       final file = File('${dir.path}/favoritos.csv');
-
       await file.writeAsBytes(bytes);
-
       await OpenFile.open(file.path);
     }
   }
 
+  // ==========================================
+  // REPORTE RECETAS
+  // ==========================================
+
   static Future<void> generarReporteRecetas() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-recetas-completas')
-        .get();
-
-    final recetas = snapshot.docs;
-
+    final recetas =
+        (await FirebaseFirestore.instance
+                .collection('app-recetas-completas')
+                .get())
+            .docs;
     final pdf = pw.Document();
 
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-
         build: (context) => [
           pw.Text(
             'Reporte Recetas',
             style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
           ),
-
           pw.SizedBox(height: 20),
-
           pw.Table.fromTextArray(
             headers: ['Nombre', 'Categoría', 'Calorías'],
-
-            data: recetas.map((doc) {
-              final data = doc.data();
-
-              return [
-                data['nombre'] ?? '',
-
-                data['categoria'] ?? '',
-
-                '${data['calorias'] ?? 0}',
-              ];
-            }).toList(),
+            data: recetas
+                .map(
+                  (doc) => [
+                    doc['nombre'] ?? '',
+                    doc['categoria'] ?? '',
+                    '${doc['calorias'] ?? 0}',
+                  ],
+                )
+                .toList(),
           ),
         ],
       ),
     );
 
-    final bytes = await pdf.save();
-
-    if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
-      html.AnchorElement(href: url)
-        ..setAttribute('download', 'recetas.pdf')
-        ..click();
-
-      html.Url.revokeObjectUrl(url);
-    } else {
-      final dir = await getApplicationDocumentsDirectory();
-
-      final file = File('${dir.path}/recetas.pdf');
-
-      await file.writeAsBytes(bytes);
-
-      await OpenFile.open(file.path);
-    }
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
+      name: 'Reporte_Recetas.pdf',
+    );
   }
 
   static Future<void> generarExcelRecetas() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-recetas-completas')
-        .get();
-
-    final recetas = snapshot.docs;
-
+    final recetas =
+        (await FirebaseFirestore.instance
+                .collection('app-recetas-completas')
+                .get())
+            .docs;
     final excel = Excel.createExcel();
-
     final sheet = excel['Recetas'];
-
     sheet.appendRow(['Nombre', 'Categoría', 'Calorías']);
 
     for (final doc in recetas) {
-      final data = doc.data();
-
       sheet.appendRow([
-        data['nombre'] ?? '',
-
-        data['categoria'] ?? '',
-
-        '${data['calorias'] ?? 0}',
+        doc['nombre'] ?? '',
+        doc['categoria'] ?? '',
+        '${doc['calorias'] ?? 0}',
       ]);
     }
 
     final bytes = excel.encode();
-
     if (bytes == null) return;
-
     if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
+      final url = html.Url.createObjectUrlFromBlob(html.Blob([bytes]));
       html.AnchorElement(href: url)
         ..setAttribute('download', 'recetas.xlsx')
         ..click();
-
       html.Url.revokeObjectUrl(url);
     } else {
       final dir = await getApplicationDocumentsDirectory();
-
       final file = File('${dir.path}/recetas.xlsx');
-
       await file.writeAsBytes(bytes);
-
       await OpenFile.open(file.path);
     }
   }
 
   static Future<void> generarCsvRecetas() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-recetas-completas')
-        .get();
-
-    final recetas = snapshot.docs;
-
-    List<List<dynamic>> rows = [];
-
-    rows.add(['Nombre', 'Categoría', 'Calorías']);
+    final recetas =
+        (await FirebaseFirestore.instance
+                .collection('app-recetas-completas')
+                .get())
+            .docs;
+    List<List<dynamic>> rows = [
+      ['Nombre', 'Categoría', 'Calorías'],
+    ];
 
     for (final doc in recetas) {
-      final data = doc.data();
-
       rows.add([
-        data['nombre'] ?? '',
-
-        data['categoria'] ?? '',
-
-        '${data['calorias'] ?? 0}',
+        doc['nombre'] ?? '',
+        doc['categoria'] ?? '',
+        '${doc['calorias'] ?? 0}',
       ]);
     }
 
-    String csvData = const ListToCsvConverter().convert(rows);
-
-    final bytes = Uint8List.fromList(csvData.codeUnits);
-
+    final bytes = Uint8List.fromList(
+      const ListToCsvConverter().convert(rows).codeUnits,
+    );
     if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
+      final url = html.Url.createObjectUrlFromBlob(html.Blob([bytes]));
       html.AnchorElement(href: url)
         ..setAttribute('download', 'recetas.csv')
         ..click();
-
       html.Url.revokeObjectUrl(url);
     } else {
       final dir = await getApplicationDocumentsDirectory();
-
       final file = File('${dir.path}/recetas.csv');
-
       await file.writeAsBytes(bytes);
-
       await OpenFile.open(file.path);
     }
   }
 
+  // ==========================================
   // REPORTE GENERAL
+  // ==========================================
 
   static Future<void> generarReporteGeneral() async {
     await generarReporteUsuarios('Todos');
@@ -736,92 +490,50 @@ class PdfService {
 
   static Future<void> generarReporteUsuario(Map<String, dynamic> data) async {
     final creadoEn = data['creadoEn'];
-
     final ultimoAcceso = data['ultimoAcceso'];
-
-    String fechaRegistro = 'Sin registro';
-
-    String fechaUltimoAcceso = 'Sin acceso';
-
-    if (creadoEn != null) {
-      fechaRegistro = creadoEn.toDate().toString();
-    }
-
-    if (ultimoAcceso != null) {
-      fechaUltimoAcceso = ultimoAcceso.toDate().toString();
-    }
+    String fechaRegistro = creadoEn != null
+        ? creadoEn.toDate().toString()
+        : 'Sin registro';
+    String fechaUltimoAcceso = ultimoAcceso != null
+        ? ultimoAcceso.toDate().toString()
+        : 'Sin acceso';
 
     final pdf = pw.Document();
-
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
-
-        build: (context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-
-            children: [
-              pw.Text(
-                'Reporte Usuario',
-                style: pw.TextStyle(
-                  fontSize: 24,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-
-              pw.SizedBox(height: 20),
-
-              pw.Text('Nombre: ${data['nombre'] ?? ''}'),
-
-              pw.SizedBox(height: 10),
-
-              pw.Text('Correo: ${data['correo'] ?? data['email'] ?? ''}'),
-
-              pw.SizedBox(height: 10),
-
-              pw.Text('Rol: ${data['rol'] ?? 'user'}'),
-
-              pw.SizedBox(height: 10),
-
-              pw.Text('Estado: Activo'),
-              pw.SizedBox(height: 10),
-
-              pw.Text('Fecha registro: $fechaRegistro'),
-
-              pw.SizedBox(height: 10),
-
-              pw.Text('Último acceso: $fechaUltimoAcceso'),
-            ],
-          );
-        },
+        build: (context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              'Reporte Usuario',
+              style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 20),
+            pw.Text('Nombre: ${data['nombre'] ?? ''}'),
+            pw.SizedBox(height: 10),
+            pw.Text('Correo: ${data['correo'] ?? data['email'] ?? ''}'),
+            pw.SizedBox(height: 10),
+            pw.Text('Rol: ${data['rol'] ?? 'user'}'),
+            pw.SizedBox(height: 10),
+            pw.Text('Estado: Activo'),
+            pw.SizedBox(height: 10),
+            pw.Text('Fecha registro: $fechaRegistro'),
+            pw.SizedBox(height: 10),
+            pw.Text('Último acceso: $fechaUltimoAcceso'),
+          ],
+        ),
       ),
     );
 
-    final Uint8List bytes = await pdf.save();
-
-    if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', 'usuario_${data['nombre']}.pdf')
-        ..click();
-
-      html.Url.revokeObjectUrl(url);
-    } else {
-      final dir = await getApplicationDocumentsDirectory();
-
-      final file = File('${dir.path}/usuario_${data['nombre']}.pdf');
-
-      await file.writeAsBytes(bytes);
-
-      await OpenFile.open(file.path);
-    }
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
+      name: 'Usuario_${data['nombre']}.pdf',
+    );
   }
+
   // ==========================================
-  // REPORTES PLANIFICADORES (Añadido por Hans)
+  // REPORTES PLANIFICADORES
   // ==========================================
 
   static Future<String> _obtenerNombreRecetaPlanes(String? id) async {
@@ -839,28 +551,22 @@ class PdfService {
   static Future<List<List<dynamic>>> _prepararDatosPlanificadores(
     DateTime fecha,
   ) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-usuarios')
-        .get();
-    final usuarios = snapshot.docs;
-
-    List<List<dynamic>> rows = [];
-    rows.add(['Usuario', 'Desayuno', 'Almuerzo', 'Cena']);
-
+    final usuarios =
+        (await FirebaseFirestore.instance.collection('app-usuarios').get())
+            .docs;
+    List<List<dynamic>> rows = [
+      ['Usuario', 'Desayuno', 'Almuerzo', 'Cena'],
+    ];
     final mes = fecha.month.toString().padLeft(2, '0');
     final dia = fecha.day.toString().padLeft(2, '0');
     final fechaStr = '${fecha.year}-$mes-$dia';
 
     for (final userDoc in usuarios) {
-      final userData = userDoc.data();
-      final uid = userDoc.id;
-      final docId = '${uid}_$fechaStr';
-
+      final docId = '${userDoc.id}_$fechaStr';
       final planSnap = await FirebaseFirestore.instance
           .collection('app-planes')
           .doc(docId)
           .get();
-
       String desayuno = 'No planificado';
       String almuerzo = 'No planificado';
       String cena = 'No planificado';
@@ -875,9 +581,8 @@ class PdfService {
         );
         cena = await _obtenerNombreRecetaPlanes(planData['cena']?.toString());
       }
-
       rows.add([
-        userData['nombre']?.toString() ?? 'Sin nombre',
+        userDoc.data()['nombre']?.toString() ?? 'Sin nombre',
         desayuno,
         almuerzo,
         cena,
@@ -889,10 +594,8 @@ class PdfService {
   static Future<void> generarReportePlanificadoresPdf(DateTime fecha) async {
     final rows = await _prepararDatosPlanificadores(fecha);
     final pdf = pw.Document();
-
     final mes = fecha.month.toString().padLeft(2, '0');
     final dia = fecha.day.toString().padLeft(2, '0');
-    final fechaStr = '${fecha.year}-$mes-$dia';
 
     pdf.addPage(
       pw.MultiPage(
@@ -911,20 +614,11 @@ class PdfService {
       ),
     );
 
-    final bytes = await pdf.save();
-    if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      html.AnchorElement(href: url)
-        ..setAttribute('download', 'planificadores_$fechaStr.pdf')
-        ..click();
-      html.Url.revokeObjectUrl(url);
-    } else {
-      final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/planificadores_$fechaStr.pdf');
-      await file.writeAsBytes(bytes);
-      await OpenFile.open(file.path);
-    }
+    // SOLUCIÓN NATIVA PARA PDF
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
+      name: 'Planificadores_${fecha.year}_$mes\_$dia.pdf',
+    );
   }
 
   static Future<void> generarExcelPlanificadores(DateTime fecha) async {
@@ -938,13 +632,11 @@ class PdfService {
 
     final bytes = excel.encode();
     if (bytes == null) return;
-
     final fechaStr =
         '${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}';
 
     if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-      final url = html.Url.createObjectUrlFromBlob(blob);
+      final url = html.Url.createObjectUrlFromBlob(html.Blob([bytes]));
       html.AnchorElement(href: url)
         ..setAttribute('download', 'planificadores_$fechaStr.xlsx')
         ..click();
@@ -959,15 +651,14 @@ class PdfService {
 
   static Future<void> generarCsvPlanificadores(DateTime fecha) async {
     final rows = await _prepararDatosPlanificadores(fecha);
-    String csvData = const ListToCsvConverter().convert(rows);
-    final bytes = Uint8List.fromList(csvData.codeUnits);
-
+    final bytes = Uint8List.fromList(
+      const ListToCsvConverter().convert(rows).codeUnits,
+    );
     final fechaStr =
         '${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}';
 
     if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-      final url = html.Url.createObjectUrlFromBlob(blob);
+      final url = html.Url.createObjectUrlFromBlob(html.Blob([bytes]));
       html.AnchorElement(href: url)
         ..setAttribute('download', 'planificadores_$fechaStr.csv')
         ..click();
@@ -978,5 +669,69 @@ class PdfService {
       await file.writeAsBytes(bytes);
       await OpenFile.open(file.path);
     }
+  }
+
+  // ==========================================
+  // REPORTE INDIVIDUAL (La implementación que pediste)
+  // ==========================================
+
+  static Future<void> generarReporteIndividual(
+    String uid,
+    String nombreUsuario,
+    Map<String, dynamic> plan,
+    DateTime fecha,
+  ) async {
+    final pdf = pw.Document();
+    final mes = fecha.month.toString().padLeft(2, '0');
+    final dia = fecha.day.toString().padLeft(2, '0');
+    final fechaStr = '${fecha.year}-$mes-$dia';
+
+    // Obtener nombres reales de las recetas
+    String desayuno = await _obtenerNombreRecetaPlanes(
+      plan['desayuno']?.toString(),
+    );
+    String almuerzo = await _obtenerNombreRecetaPlanes(
+      plan['almuerzo']?.toString(),
+    );
+    String cena = await _obtenerNombreRecetaPlanes(plan['cena']?.toString());
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              'Planificación Individual',
+              style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 20),
+            pw.Text(
+              'Usuario: $nombreUsuario',
+              style: pw.TextStyle(fontSize: 18),
+            ),
+            pw.Text(
+              'Fecha: $dia/$mes/${fecha.year}',
+              style: pw.TextStyle(fontSize: 14),
+            ),
+            pw.SizedBox(height: 30),
+            pw.Table.fromTextArray(
+              headers: ['Comida', 'Receta Planificada'],
+              data: [
+                ['Desayuno', desayuno],
+                ['Almuerzo', almuerzo],
+                ['Cena', cena],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // SOLUCIÓN NATIVA PARA PDF
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
+      name: 'Planificacion_${nombreUsuario}_$fechaStr.pdf',
+    );
   }
 }

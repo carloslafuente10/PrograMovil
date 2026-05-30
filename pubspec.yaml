@@ -34,11 +34,11 @@ dependencies:
   
   excel: ^2.1.0
   csv: ^5.0.2
+  speech_to_text: ^7.4.0
+  flutter_tts: ^4.2.5
 
   # --- LIBRERÍAS MULTIMEDIA (CORREGIDAS) ---
   video_player: ^2.8.1
-  speech_to_text: ^7.0.0
-  flutter_tts: ^4.0.2
 
 dev_dependencies:
   flutter_test:
@@ -54,4 +54,5 @@ flutter:
     - assets/images/ingredientes/
     - assets/animations/
     - assets/videos/
+    - assets/images/fondo.webp
     - .env

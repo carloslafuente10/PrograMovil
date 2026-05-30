@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,21 +8,23 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// VoiceCallScreen
+// VoiceCallScreen — Asistente de voz NID
 //
-// Pantalla de "videollamada" con el asistente virtual T'anta-Wawa.
-// Flujo completo:
-//   1. Al abrir → carga el catálogo de Firestore (RAG).
-//   2. Usuario pulsa el micrófono → speech_to_text transcribe su voz.
-//   3. La pregunta + el catálogo se envían a Groq con un System Prompt
-//      restrictivo que solo permite responder con los datos de la BD.
-//   4. La respuesta se muestra en pantalla y se reproduce con flutter_tts.
+// FLUJO COMPLETO:
+//   1. Al abrir → carga catálogo Firestore (RAG) en segundo plano.
+//   2. Saludo inicial automático: NID se presenta con la frase exacta.
+//   3. Usuario pulsa micrófono → STT transcribe su voz.
+//   4. IntentRouter detecta la intención local (siguiente paso, repetir,
+//      listar ingredientes, etc.) antes de gastar tokens en Groq.
+//   5. Si la intención requiere IA → Groq + historial + catálogo.
+//   6. Respuesta limpia (sin markdown) → flutter_tts la reproduce.
 //
-// Dependencias requeridas en pubspec.yaml:
+// DEPENDENCIAS (pubspec.yaml):
 //   speech_to_text: ^6.6.0
-//   flutter_tts: ^4.0.2
-//   (cloud_firestore, http y flutter_dotenv ya están en el proyecto)
+//   flutter_tts:    ^4.0.2
+//   cloud_firestore, http, flutter_dotenv  ← ya están en el proyecto
 // ═══════════════════════════════════════════════════════════════════════════
+
 class VoiceCallScreen extends StatefulWidget {
   const VoiceCallScreen({super.key});
 
@@ -32,7 +35,7 @@ class VoiceCallScreen extends StatefulWidget {
 class _VoiceCallScreenState extends State<VoiceCallScreen>
     with SingleTickerProviderStateMixin {
   // ─────────────────────────────────────────────
-  // COLORES DEL TEMA CIBERPUNK ANDINO
+  // PALETA CIBERPUNK ANDINO
   // ─────────────────────────────────────────────
   static const Color _negro = Color(0xFF0A0A0F);
   static const Color _moradoNeon = Color(0xFF7B2FBE);
@@ -41,115 +44,155 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   static const Color _verdeApp = Color(0xFF2D9E73);
 
   // ─────────────────────────────────────────────
-  // SERVICIOS
+  // SERVICIOS EXTERNOS
   // ─────────────────────────────────────────────
-
-  /// Motor de reconocimiento de voz (speech_to_text)
   final stt.SpeechToText _speech = stt.SpeechToText();
-
-  /// Motor de síntesis de voz (flutter_tts)
   final FlutterTts _tts = FlutterTts();
-
-  /// Clave de API Groq tomada del .env
   final String _apiKey = dotenv.env['GROQ_API_KEY'] ?? '';
 
   // ─────────────────────────────────────────────
-  // ESTADO INTERNO
+  // ESTADO DE AUDIO / UI
   // ─────────────────────────────────────────────
-
-  /// Texto transcrito en tiempo real mientras el usuario habla
   String _textoEscuchado = "";
-
-  /// Último texto confirmado (se envía a la IA)
   String _preguntaFinal = "";
-
-  /// Respuesta final de T'anta-Wawa lista para mostrar y reproducir
-  String _respuestaTA = "";
-
-  /// true = el micrófono está activo y escuchando
+  String _respuestaNID = ""; // Última respuesta visible y en caché para TTS
   bool _escuchando = false;
-
-  /// true = se está consultando Groq o cargando Firestore
   bool _procesando = false;
-
-  /// true = el catálogo de Firestore ya fue cargado
-  bool _catalogoCargado = false;
-
-  /// true = flutter_tts está hablando en este momento
   bool _hablando = false;
 
-  /// Contexto RAG: catálogo completo de recetas serializado como String.
-  /// Se construye una sola vez al abrir la pantalla.
+  // ─────────────────────────────────────────────
+  // CATÁLOGO RAG (Firestore)
+  // _catalogoContexto  → String plano para inyectar en el prompt
+  // _recetasData       → datos estructurados para el IntentRouter local
+  // _catalogoCargado   → semáforo UI
+  // ─────────────────────────────────────────────
+  /// Índice slim: solo "ID | Nombre | Categoría | Calorías | Tiempo"
+  /// Se inyecta en Groq cuando NO hay receta activa (~500 tokens máx.)
   String _catalogoContexto = "";
 
-  /// Animación del pulso del avatar cuando T'anta-Wawa está hablando
+  /// Texto completo de la receta que el usuario eligió en esta sesión.
+  /// Se inyecta en Groq EN LUGAR del catálogo una vez que el usuario
+  /// menciona una receta concreta. Reduce el contexto de ~5 000 → ~300 tokens.
+  String _recetaActivaContexto = "";
+
+  bool _catalogoCargado = false;
+
+  /// Cada entrada: { 'nombre', 'categoria', 'calorias', 'tiempo',
+  ///                 'ingredientes': List<String>, 'pasos': List<String> }
+  final List<Map<String, dynamic>> _recetasData = [];
+
+  // ─────────────────────────────────────────────
+  // ESTADO DE RECETA ACTIVA (control paso a paso)
+  // ─────────────────────────────────────────────
+
+  /// Nombre de la receta que el usuario eligió en esta sesión
+  String? _recetaActivaNombre;
+
+  /// Pasos de la receta activa (lista limpia de Strings)
+  List<String> _pasosActivos = [];
+
+  /// Ingredientes de la receta activa (lista limpia de Strings)
+  List<String> _ingredientesActivos = [];
+
+  /// Índice del paso que NID está dictando actualmente (0-based)
+  int _pasoActualIndex = -1; // -1 = no se ha iniciado el dictado
+
+  // ─────────────────────────────────────────────
+  // HISTORIAL PARA GROQ (memoria a corto plazo)
+  // Formato: [{"role": "user"/"assistant", "content": "..."}]
+  // Se envía completo en cada llamada para mantener el hilo.
+  // ─────────────────────────────────────────────
+  final List<Map<String, String>> _historial = [];
+
+  // ─────────────────────────────────────────────
+  // ANIMACIÓN DE PULSO DEL AVATAR
+  // ─────────────────────────────────────────────
   late AnimationController _pulsoController;
   late Animation<double> _pulsoAnimation;
 
   // ─────────────────────────────────────────────
-  // HISTORIAL DE CONVERSACIÓN (Problema 2 — Memoria)
-  // Cada turno del usuario y de T'anta-Wawa se
-  // acumula aquí en el formato que acepta la API
-  // de Groq: {"role": "user"/"assistant", "content": "..."}.
-  // Se envía completo en cada llamada al LLM para
-  // que el modelo recuerde el hilo de la conversación.
+  // VARIABLES DEL TEMPORIZADOR NATIVO
   // ─────────────────────────────────────────────
-  final List<Map<String, String>> _historialTantaWawa = [];
+  Timer? _countdownTimer;
+  Duration _timerDuration = Duration.zero;
+  bool _timerActivo = false;
 
-  // ─────────────────────────────────────────────
-  // SYSTEM PROMPT BLINDADO — POLÍTICA ZERO-KNOWLEDGE
-  // (Problema 1 — Alucinación)
+  // ═══════════════════════════════════════════════════════════════════════
+  // SYSTEM PROMPT — POLÍTICA ZERO-KNOWLEDGE + FORMATO TTS LIMPIO
   //
-  // Estructura de capas para máxima efectividad:
-  //   CAPA A: Identidad y propósito único.
-  //   CAPA B: Inyección del catálogo real ({{CATALOGO}}).
-  //   CAPA C: Protocolo de verificación obligatorio
-  //           antes de cada respuesta.
-  //   CAPA D: Reglas de rechazo explícitas y la frase
-  //           de rechazo exacta que debe usar.
-  //   CAPA E: Recordatorio de tono y brevedad.
-  //
-  // El marcador {{CATALOGO}} se reemplaza en tiempo
-  // de ejecución con el catálogo real de Firestore.
-  // ─────────────────────────────────────────────
+  // ESTRUCTURA:
+  //   [A] Identidad de NID
+  //   [B] Catálogo oficial inyectado en {{CATALOGO}}
+  //   [C] Protocolo de verificación obligatorio (checklist mental)
+  //   [D] Protocolo de rechazo absoluto + frase exacta
+  //   [E] Reglas de formato para TTS (sin markdown, sin listas)
+  //   [F] Reglas de brevedad y dosificación del contenido
+  // ═══════════════════════════════════════════════════════════════════════
   static const String _systemPromptTemplate = """
-[CAPA A — IDENTIDAD]
-Eres T'anta-Wawa, el guardián digital de las recetas de PrograMovil.
-Tu esencia es la de un espíritu culinario andino con estética ciberpunk: sabio, místico y absolutamente preciso.
-Tu ÚNICO propósito es guiar a los usuarios usando el CATÁLOGO OFICIAL que se te entrega a continuación.
+[A — IDENTIDAD]
+Eres NID, el asistente culinario de voz de la cordillera del fogon humeante.
+Tu esencia es la de un guía gastronómico andino preciso y solemne.
+Tu ÚNICO propósito es asistir al usuario usando el CATÁLOGO OFICIAL que se te entrega.
 
-[CAPA B — CATÁLOGO OFICIAL Y FUENTE ÚNICA DE VERDAD]
-El siguiente catálogo es la ÚNICA fuente de información que puedes usar.
-Nada más existe para ti. Tu conocimiento previo sobre cocina, recetas o ingredientes NO EXISTE en este contexto.
-═══════════════════════════════════════════════
-CATÁLOGO OFICIAL DE RECETAS DE PROGRA-MOVIL:
+[B — CATÁLOGO OFICIAL — FUENTE ÚNICA DE VERDAD]
+El siguiente bloque es la ÚNICA fuente de información que puedes usar.
+Tu conocimiento previo sobre cocina NO EXISTE en este contexto.
+════════════════════════════════════════
+CATÁLOGO OFICIAL DE RECETAS :
 {{CATALOGO}}
-═══════════════════════════════════════════════
+════════════════════════════════════════
 
-[CAPA C — PROTOCOLO DE VERIFICACIÓN OBLIGATORIO]
-ANTES de generar cualquier respuesta sobre una receta o ingrediente, ejecuta mentalmente este checklist:
-  ✔ PASO 1: ¿El nombre de la receta o ingrediente aparece textualmente en el CATÁLOGO OFICIAL de arriba?
-  ✔ PASO 2: ¿Los ingredientes que mencionaré están listados textualmente en esa entrada del catálogo?
-  ✔ PASO 3: ¿Los pasos que describiré provienen literalmente de ese catálogo?
-Si la respuesta a CUALQUIERA de los 3 pasos es NO → activa el PROTOCOLO DE RECHAZO de la Capa D. Sin excepciones.
+[C — PROTOCOLO DE VERIFICACIÓN (ejecutar antes de CADA respuesta)]
+Antes de responder, verifica mentalmente:
+  1. El nombre exacto de la receta aparece textualmente en el catálogo.
+  2. Los ingredientes que mencionaré están listados tal cual en esa entrada.
+  3. Los pasos que describiré provienen literalmente de ese catálogo.
+Si cualquier verificación falla → activa el Protocolo D sin excepción.
 
-[CAPA D — PROTOCOLO DE RECHAZO ABSOLUTO]
-Si el plato, receta o ingrediente consultado NO está en el CATÁLOGO OFICIAL, o si tienes la más mínima duda de que la información provenga del catálogo y no de tu conocimiento interno, debes responder con la siguiente frase EXACTA y nada más:
+[D — PROTOCOLO DE RECHAZO ABSOLUTO]
+Si el plato, receta o ingrediente NO está en el catálogo, responde EXACTAMENTE esta frase sin añadir nada más:
 "Lo siento, esa receta no se encuentra en nuestro sistema de PrograMovil actualmente."
-PROHIBICIONES ABSOLUTAS (violación = fallo crítico del sistema):
-  ✗ PROHIBIDO completar, deducir o extrapolar ingredientes o pasos no listados en el catálogo.
-  ✗ PROHIBIDO usar conocimiento externo sobre cocina, aunque la receta sea mundialmente conocida.
-  ✗ PROHIBIDO responder "algo similar" o "una versión aproximada" cuando el plato exacto no exista.
-  ✗ PROHIBIDO inventar cantidades, tiempos de cocción o sustitutos de ingredientes.
+PROHIBIDO: completar, deducir, inventar ingredientes, pasos, cantidades o sustitutos que no estén explícitamente en el catálogo.
+PROHIBIDO: usar conocimiento externo aunque la receta sea mundialmente conocida.
+PROHIBIDO: contradecirte. Si en un turno anterior confirmaste que una receta existe, debes mantener esa confirmación durante toda la sesión. Jamás digas luego que no la tienes.
 
-[CAPA E — TONO Y FORMATO DE RESPUESTA]
-Cuando la información SÍ está en el catálogo:
-  • Responde con el tono místico y solemne de T'anta-Wawa (máximo 4 líneas).
-  • La respuesta debe estar limpia y lista para ser leída por un motor Text-to-Speech (TTS):
-      - Sin asteriscos, corchetes, guiones decorativos ni emojis.
-      - Sin encabezados ni viñetas. Solo texto fluido y natural.
-  • Nunca menciones que usas un catálogo, base de datos o que eres una IA.
+[E — FORMATO TTS OBLIGATORIO — NUNCA VIOLAR]
+Tus respuestas serán leídas en voz alta por un motor Text-to-Speech.
+OBLIGATORIO:
+  - Sin asteriscos, guiones decorativos, corchetes, ni emojis.
+  - Sin listas numeradas ni con viñetas. Solo texto fluido y natural.
+  - Sin encabezados ni negritas. Solo prosa conversacional.
+  - Sin símbolos especiales de ningún tipo.
+
+[F — CALORÍAS Y TIEMPOS — SIEMPRE EN MODO ESTIMACIÓN]
+NUNCA declares valores absolutos de calorías ni tiempos de preparación.
+OBLIGATORIO usar lenguaje de aproximación:
+  - Correcto: "Aproximadamente 350 calorías", "Alrededor de 20 minutos".
+  - Prohibido: "Tiene 350 kcal", "Toma 20 minutos exactos".
+  - Sugerencia de Temporizador: Siempre que un paso dictado contenga un tiempo estimado (ej. "alrededor de 10 minutos", "unos 20 minutos"), incluye al final del enunciado una breve pregunta conversacional (texto fluido, sin listas) sugiriendo si desea que iniciemos un temporizador.
+  - Comando de Temporizador: Si el usuario acepta iniciar el temporizador (responde "sí", "claro", "dale", "perfecto", "inicia" o similar), añade al FINAL de tu respuesta el comando oculto [TIMER:X] donde X es el número entero de minutos. Este comando NUNCA debe ser pronunciado por el TTS ni mostrado al usuario; es exclusivamente una instrucción interna para la aplicación. El resto de tu respuesta debe permanecer limpio y natural.
+  - Sugerencia de Temporizador: Siempre que un paso dictado o mención contenga un tiempo estimado (ej. 10 minutos, 20 minutos), incluye al final del enunciado una breve pregunta conversacional (sin listas, texto fluido) sugiriendo si desea que iniciemos un temporizador.
+
+[G — BREVEDAD Y DOSIFICACIÓN — REGLA DE ORO]
+NUNCA listes ingredientes ni pasos de forma automática al confirmar una receta.
+Cuando el usuario mencione un plato: confirma el nombre, menciona calorías y tiempo usando lenguaje de estimación, y pregunta: "¿Te parece si empezamos por el primer paso?" Detente ahí.
+Solo avanza al siguiente paso cuando el usuario confirme explícitamente que está listo o terminó el anterior.
+Máximo 3 oraciones por respuesta.
+
+[H — PORCIONES DINÁMICAS]
+Si el usuario solicita adaptar la receta para N personas, realiza tú mismo la operación matemática de multiplicar o dividir cada cantidad de ingrediente y devuelve la lista ya calculada en texto fluido.
+PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "triplique" por su cuenta.
 """;
+
+  // ─────────────────────────────────────────────
+  // SALUDO INICIAL EXACTO DE NID
+  // Se pronuncia automáticamente al terminar de
+  // cargar el catálogo. No gasta tokens de API.
+  // ─────────────────────────────────────────────
+  static const String _saludoInicial =
+      "Bienvenido cocinero, mi nombre es NID. "
+      "Espero que mi ayuda pueda satisfacer las dudas que tengas "
+      "para preparar nuestra próxima obra gastronómica.";
 
   // ─────────────────────────────────────────────
   // initState / dispose
@@ -158,7 +201,6 @@ Cuando la información SÍ está en el catálogo:
   void initState() {
     super.initState();
 
-    // Animación de pulso para el avatar cuando está hablando
     _pulsoController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -168,15 +210,13 @@ Cuando la información SÍ está en el catálogo:
       CurvedAnimation(parent: _pulsoController, curve: Curves.easeInOut),
     );
 
-    // Configuración de flutter_tts
     _configurarTts();
-
-    // Carga el catálogo de Firestore al abrir la pantalla (RAG)
-    _cargarCatalogoFirestore();
+    _cargarCatalogoYSaludar(); // Carga Firestore y luego pronuncia el saludo
   }
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     _pulsoController.dispose();
     _speech.stop();
     _tts.stop();
@@ -185,8 +225,7 @@ Cuando la información SÍ está en el catálogo:
 
   // ─────────────────────────────────────────────
   // _configurarTts
-  // Ajusta idioma, velocidad y tono del motor TTS
-  // para que T'anta-Wawa suene apropiado.
+  // Voz pausada y levemente grave para NID.
   // ─────────────────────────────────────────────
   Future<void> _configurarTts() async {
     await _tts.setLanguage("es-US");
@@ -199,13 +238,160 @@ Cuando la información SÍ está en el catálogo:
     });
   }
 
+  // ─────────────────────────────────────────────
+  // _iniciarTemporizador / _cancelarTemporizador
+  // Motor nativo del temporizador. Se activa cuando
+  // la IA responde con el comando oculto [TIMER:X].
+  // La detección ocurre ANTES de limpiar para TTS,
+  // por lo que el tag nunca es pronunciado.
+  // ─────────────────────────────────────────────
+  void _iniciarTemporizador(int minutos) {
+    _cancelarTemporizador(); // Limpia uno previo si existe
+    setState(() {
+      _timerDuration = Duration(minutes: minutos);
+      _timerActivo = true;
+    });
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_timerDuration.inSeconds > 0) {
+          _timerDuration -= const Duration(seconds: 1);
+        } else {
+          _cancelarTemporizador();
+          // Notificación sonora de finalización vía TTS
+          _hablar(
+            "El temporizador ha terminado. ¡Tu preparación está lista!",
+            guardarEnHistorial: false,
+          );
+        }
+      });
+    });
+  }
+
+  void _cancelarTemporizador() {
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
+    if (mounted) setState(() => _timerActivo = false);
+  }
+
   // ═══════════════════════════════════════════════════════
-  // PASO 1 — CARGA DEL CATÁLOGO (RAG)
-  // Consulta la colección 'app-recetas-completas' de Firestore
-  // y serializa nombre + ingredientes + pasos en un String plano
-  // que se inyectará en el System Prompt de la IA.
+  // _sanitizarRecetaFirestore  — HELPER DE SANITIZACIÓN
+  //
+  // Intercepta el mapa crudo de un documento Firestore y
+  // unifica semánticamente ingredientes + cantidades + pasos
+  // en Strings legibles antes de enviarlos a Groq.
+  //
+  // Problema que resuelve: Firestore puede almacenar las
+  // cantidades y nombres en campos separados, produciendo
+  // ráfagas de números sin contexto como "1 1 1 4 1 6" si
+  // se concatenan sin lógica. Este helper los une en frases
+  // naturales: "1 unidad de pechuga de pollo".
+  //
+  // Devuelve Map con:
+  //   'ingredientes': List<String> unificados y legibles
+  //   'pasos':        List<String> limpios
+  //   'contextoTexto': String listo para inyectar en el prompt
   // ═══════════════════════════════════════════════════════
-  Future<void> _cargarCatalogoFirestore() async {
+  Map<String, dynamic> _sanitizarRecetaFirestore(
+    Map<String, dynamic> data,
+    String docId,
+  ) {
+    final String nombre = (data['nombre'] ?? 'Sin nombre').toString().trim();
+    final String categoria = (data['categoria'] ?? '').toString().trim();
+    final String calorias = (data['calorias'] ?? '').toString().trim();
+    final String tiempo = (data['tiempo'] ?? '').toString().trim();
+
+    // ── INGREDIENTES — unificación semántica ──────────────
+    // Soporta 4 estructuras de Firestore:
+    //   A) String simple:             "pechuga de pollo"
+    //   B) Map {nombre, cantidad}:    {nombre: "pollo", cantidad: "1"}
+    //   C) Map {nombre, cantidad, unidad}: {nombre:"harina", cantidad:"2", unidad:"tazas"}
+    //   D) Map con campos separados   {ingrediente:"papa", gramos:"200"}
+    final List rawIngredientes = data['ingredientes'] ?? [];
+    final List<String> ingredientesLimpios = rawIngredientes
+        .map<String>((ing) {
+          if (ing is Map) {
+            final String nom =
+                (ing['nombre'] ?? ing['name'] ?? ing['ingrediente'] ?? '')
+                    .toString()
+                    .trim();
+            final String can =
+                (ing['cantidad'] ??
+                        ing['amount'] ??
+                        ing['gramos'] ??
+                        ing['unidades'] ??
+                        '')
+                    .toString()
+                    .trim();
+            final String uni = (ing['unidad'] ?? ing['unit'] ?? '')
+                .toString()
+                .trim();
+
+            if (nom.isEmpty) return '';
+
+            // Construir frase natural: "2 tazas de harina", "1 unidad de pechuga"
+            if (can.isNotEmpty && uni.isNotEmpty) return "$can $uni de $nom";
+            if (can.isNotEmpty) return "$can de $nom";
+            return nom;
+          }
+          return ing.toString().trim();
+        })
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    // ── PASOS — tolerante a String y Map con claves variables ──
+    final List rawPasos = data['pasos'] ?? [];
+    final List<String> pasosLimpios = rawPasos
+        .map<String>((paso) {
+          if (paso is Map) {
+            return (paso['descripcion'] ??
+                    paso['texto'] ??
+                    paso['detalle'] ??
+                    paso['step'] ??
+                    paso.toString())
+                .toString()
+                .trim();
+          }
+          return paso.toString().trim();
+        })
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    // ── Texto de contexto completo para Groq (~300 tokens) ──
+    final StringBuffer ctx = StringBuffer();
+    ctx.writeln("RECETA: $nombre");
+    if (categoria.isNotEmpty) ctx.writeln("  Categoría: $categoria");
+    if (calorias.isNotEmpty) ctx.writeln("  Calorías aproximadas: $calorias");
+    if (tiempo.isNotEmpty) ctx.writeln("  Tiempo aproximado: $tiempo");
+    if (ingredientesLimpios.isNotEmpty) {
+      ctx.writeln("  Ingredientes: ${ingredientesLimpios.join(', ')}");
+    }
+    for (int i = 0; i < pasosLimpios.length; i++) {
+      ctx.writeln("  Paso ${i + 1}: ${pasosLimpios[i]}");
+    }
+
+    return {
+      'id': docId,
+      'nombre': nombre,
+      'categoria': categoria,
+      'calorias': calorias,
+      'tiempo': tiempo,
+      'ingredientes': ingredientesLimpios,
+      'pasos': pasosLimpios,
+      'contextoTexto': ctx.toString(),
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // CARGA DE CATÁLOGO FIRESTORE (RAG)
+  //
+  // Fase 1 — Índice slim (solo nombre + meta, sin ingredientes/pasos).
+  //           Se inyecta en Groq cuando NO hay receta activa.
+  //           Mantiene el contexto inicial < 500 tokens.
+  // Fase 2 — Estructura completa sanitizada almacenada en _recetasData
+  //           lista para activarse cuando el usuario elija una receta.
+  // ═══════════════════════════════════════════════════════
+  Future<void> _cargarCatalogoYSaludar() async {
     setState(() => _procesando = true);
 
     try {
@@ -216,48 +402,30 @@ Cuando la información SÍ está en el catálogo:
       final StringBuffer buffer = StringBuffer();
 
       for (final doc in snapshot.docs) {
-        final data = doc.data();
+        // ── Sanitizar datos crudos con el helper ──
+        final Map<String, dynamic> sanitizado = _sanitizarRecetaFirestore(
+          doc.data(),
+          doc.id,
+        );
 
-        // ── Nombre de la receta ──
-        final String nombre = data['nombre'] ?? 'Sin nombre';
-        buffer.writeln("• RECETA: $nombre");
-
-        // ── Categoría (si existe) ──
-        if (data['categoria'] != null) {
-          buffer.writeln("  Categoría: ${data['categoria']}");
+        // ── Línea slim para el índice (solo metadatos, sin ingredientes/pasos) ──
+        final List<String> meta = [
+          "ID:${doc.id}",
+          "RECETA:${sanitizado['nombre']}",
+        ];
+        if ((sanitizado['categoria'] as String).isNotEmpty) {
+          meta.add("Categoría:${sanitizado['categoria']}");
         }
-
-        // ── Ingredientes ──
-        final List ingredientes = data['ingredientes'] ?? [];
-        if (ingredientes.isNotEmpty) {
-          final ingTexto = ingredientes
-              .map((ing) {
-                // Soporta tanto String simple como Map con 'nombre' y 'cantidad'
-                if (ing is Map) {
-                  final nombre = ing['nombre'] ?? '';
-                  final cantidad = ing['cantidad'] ?? '';
-                  return cantidad.isNotEmpty ? "$nombre ($cantidad)" : nombre;
-                }
-                return ing.toString();
-              })
-              .join(", ");
-          buffer.writeln("  Ingredientes: $ingTexto");
+        if ((sanitizado['calorias'] as String).isNotEmpty) {
+          meta.add("Calorías aprox.:${sanitizado['calorias']}");
         }
-
-        // ── Pasos de preparación ──
-        final List pasos = data['pasos'] ?? [];
-        if (pasos.isNotEmpty) {
-          buffer.writeln("  Preparación:");
-          for (int i = 0; i < pasos.length; i++) {
-            final paso = pasos[i];
-            final textoPaso = paso is Map
-                ? (paso['descripcion'] ?? paso['texto'] ?? paso.toString())
-                : paso.toString();
-            buffer.writeln("    Paso ${i + 1}: $textoPaso");
-          }
+        if ((sanitizado['tiempo'] as String).isNotEmpty) {
+          meta.add("Tiempo aprox.:${sanitizado['tiempo']}");
         }
+        buffer.writeln(meta.join(" | "));
 
-        buffer.writeln(); // Espacio entre recetas
+        // ── Guardar estructura completa sanitizada para el IntentRouter ──
+        _recetasData.add(sanitizado);
       }
 
       setState(() {
@@ -268,44 +436,223 @@ Cuando la información SÍ está en el catálogo:
     } catch (e) {
       debugPrint("Error al cargar catálogo Firestore: $e");
       setState(() {
-        // En caso de error, el catálogo queda vacío y el prompt lo detecta
         _catalogoContexto = "(Sin datos disponibles)";
         _catalogoCargado = true;
         _procesando = false;
       });
     }
+
+    await _hablar(_saludoInicial, guardarEnHistorial: false);
   }
 
   // ═══════════════════════════════════════════════════════
-  // PASO 2 — RECONOCIMIENTO DE VOZ
-  // Inicia o detiene el micrófono usando speech_to_text.
-  // Actualiza _textoEscuchado en tiempo real mientras escucha.
-  // Al detener, _preguntaFinal recibe el texto confirmado.
+  // INTENT ROUTER — Detección local de intenciones
+  //
+  // Procesa el texto del usuario ANTES de llamar a Groq.
+  // Si detecta una intención manejable localmente (siguiente
+  // paso, repetir, listar ingredientes, etc.) la resuelve
+  // sin gastar tokens. Solo delega a Groq lo que requiere
+  // comprensión semántica real.
+  //
+  // Devuelve true si manejó la intención; false si debe
+  // continuar hacia _consultarNID().
+  // ═══════════════════════════════════════════════════════
+  Future<bool> _intentRouter(String texto) async {
+    final String t = texto.toLowerCase().trim();
+
+    // ── 1. REPETIR ÚLTIMA RESPUESTA ──────────────────────
+    // "qué dijiste", "repite eso", "no te entendí"
+    if (_respuestaNID.isNotEmpty &&
+        (t.contains("qué dijiste") ||
+            t.contains("que dijiste") ||
+            t.contains("repite eso") ||
+            t.contains("repítelo") ||
+            t.contains("no te entendí") ||
+            t.contains("no te entendi"))) {
+      await _hablar(_respuestaNID, guardarEnHistorial: false);
+      return true;
+    }
+
+    // ── 2. SIGUIENTE PASO ────────────────────────────────
+    // "siguiente", "siguiente paso", "continúa", "adelante"
+    if (_recetaActivaNombre != null &&
+        _pasosActivos.isNotEmpty &&
+        (t == "siguiente" ||
+            t.contains("siguiente paso") ||
+            t.contains("continúa") ||
+            t.contains("continua") ||
+            t.contains("adelante") ||
+            t.contains("el siguiente"))) {
+      _pasoActualIndex++;
+      if (_pasoActualIndex < _pasosActivos.length) {
+        final String msg =
+            "Paso ${_pasoActualIndex + 1}: ${_pasosActivos[_pasoActualIndex]}";
+        await _hablar(msg, guardarEnHistorial: true);
+      } else {
+        await _hablar(
+          "Has completado todos los pasos de $_recetaActivaNombre. ¡Buen provecho!",
+          guardarEnHistorial: true,
+        );
+        _pasoActualIndex = _pasosActivos.length - 1; // No salir del array
+      }
+      return true;
+    }
+
+    // ── 3. PASO ANTERIOR ─────────────────────────────────
+    // "paso anterior", "regresa", "vuelve"
+    if (_recetaActivaNombre != null &&
+        _pasosActivos.isNotEmpty &&
+        (t.contains("paso anterior") ||
+            t.contains("regresa") ||
+            t.contains("vuelve") ||
+            t.contains("atrás") ||
+            t.contains("atras"))) {
+      if (_pasoActualIndex > 0) {
+        _pasoActualIndex--;
+        final String msg =
+            "Volviendo al paso ${_pasoActualIndex + 1}: ${_pasosActivos[_pasoActualIndex]}";
+        await _hablar(msg, guardarEnHistorial: true);
+      } else {
+        await _hablar(
+          "Ya estás en el primer paso de $_recetaActivaNombre.",
+          guardarEnHistorial: true,
+        );
+      }
+      return true;
+    }
+
+    // ── 4. REPETIR PASO ACTUAL ───────────────────────────
+    // "repite el paso", "repite eso", "de nuevo"
+    if (_recetaActivaNombre != null &&
+        _pasoActualIndex >= 0 &&
+        _pasosActivos.isNotEmpty &&
+        (t.contains("repite el paso") ||
+            t.contains("repite ese") ||
+            t.contains("de nuevo") ||
+            t.contains("otra vez"))) {
+      final String msg =
+          "Repitiendo el paso ${_pasoActualIndex + 1}: ${_pasosActivos[_pasoActualIndex]}";
+      await _hablar(msg, guardarEnHistorial: false);
+      return true;
+    }
+
+    // ── 5. INICIAR PASOS / EMPEZAR A COCINAR ─────────────
+    // Solo dicta el paso 1 cuando el usuario confirma explícitamente.
+    // Si aún no ha confirmado, NID pregunta primero.
+    if (_recetaActivaNombre != null &&
+        _pasosActivos.isNotEmpty &&
+        (t.contains("empezar a cocinar") ||
+            t.contains("dime los pasos") ||
+            t.contains("quiero cocinar") ||
+            t.contains("empecemos") ||
+            t.contains("ir a los pasos") ||
+            t.contains("sí, empieza") ||
+            t.contains("si, empieza") ||
+            t.contains("dale") ||
+            t.contains("preparación") ||
+            t.contains("preparacion"))) {
+      // Si aún no se ha iniciado el dictado → confirmar antes de lanzar el paso 1
+      if (_pasoActualIndex == -1) {
+        _pasoActualIndex = 0;
+        final String msg =
+            "Perfecto, comenzamos con $_recetaActivaNombre. "
+            "Paso 1: ${_pasosActivos[0]}. "
+            "Cuando estés listo, dime 'siguiente'.";
+        await _hablar(msg, guardarEnHistorial: true);
+      } else {
+        // Ya estaba en marcha → avanzar normalmente
+        _pasoActualIndex++;
+        if (_pasoActualIndex < _pasosActivos.length) {
+          await _hablar(
+            "Paso ${_pasoActualIndex + 1}: ${_pasosActivos[_pasoActualIndex]}",
+            guardarEnHistorial: true,
+          );
+        } else {
+          await _hablar(
+            "Has completado todos los pasos de $_recetaActivaNombre. ¡Buen provecho!",
+            guardarEnHistorial: true,
+          );
+          _pasoActualIndex = _pasosActivos.length - 1;
+        }
+      }
+      return true;
+    }
+
+    // ── 6. LISTAR INGREDIENTES DE LA RECETA ACTIVA ───────
+    // "dime los ingredientes", "qué necesito", "muéstrame los ingredientes"
+    if (_recetaActivaNombre != null &&
+        _ingredientesActivos.isNotEmpty &&
+        (t.contains("ingredientes") ||
+            t.contains("qué necesito") ||
+            t.contains("que necesito") ||
+            t.contains("qué lleva") ||
+            t.contains("que lleva"))) {
+      final String lista = _ingredientesActivos.join(", ");
+      final String msg =
+          "Para preparar $_recetaActivaNombre necesitas: $lista.";
+      await _hablar(msg, guardarEnHistorial: true);
+      return true;
+    }
+
+    // ── 7. LISTAR RECETAS POR CATEGORÍA ──────────────────
+    // "qué recetas de desayuno hay", "recetas de cena"
+    final List<String> categorias = [
+      "desayuno",
+      "almuerzo",
+      "cena",
+      "refrescos",
+      "snack",
+    ];
+    for (final cat in categorias) {
+      if (t.contains(cat)) {
+        final List<String> encontradas = _recetasData
+            .where((r) => r['categoria'].toString().toLowerCase().contains(cat))
+            .map<String>((r) => r['nombre'].toString())
+            .toList();
+        if (encontradas.isNotEmpty) {
+          final String msg =
+              "En la categoría $cat tenemos: ${encontradas.join(', ')}.";
+          await _hablar(msg, guardarEnHistorial: true);
+        } else {
+          await _hablar(
+            "No encontré recetas de $cat en nuestro sistema actualmente.",
+            guardarEnHistorial: true,
+          );
+        }
+        return true;
+      }
+    }
+
+    // ── Ninguna intención local detectada → delegar a Groq ──
+    return false;
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // TOGGLE MICRÓFONO
+  // Inicia o detiene el STT. Al confirmar texto, primero
+  // pasa por el IntentRouter; si no lo resuelve, va a Groq.
   // ═══════════════════════════════════════════════════════
   Future<void> _toggleMicrofono() async {
-    if (!_catalogoCargado || _procesando) return;
+    if (!_catalogoCargado || _procesando || _hablando) return;
 
     if (_escuchando) {
-      // ── Detener: confirmar la pregunta y enviarla a la IA ──
       await _speech.stop();
       setState(() {
         _escuchando = false;
         _preguntaFinal = _textoEscuchado;
       });
       if (_preguntaFinal.trim().isNotEmpty) {
-        await _consultarTantaWawa(_preguntaFinal);
+        await _procesarTextoUsuario(_preguntaFinal.trim());
       }
     } else {
-      // ── Iniciar nuevo turno: limpiar solo la UI visible,
-      //    pero mantener _historialTantaWawa intacto ──
       setState(() {
         _textoEscuchado = "";
-        _respuestaTA = "";
+        _respuestaNID = "";
       });
 
       final disponible = await _speech.initialize(
-        onError: (error) {
-          debugPrint("STT Error: ${error.errorMsg}");
+        onError: (err) {
+          debugPrint("STT Error: ${err.errorMsg}");
           setState(() => _escuchando = false);
         },
       );
@@ -325,7 +672,7 @@ Cuando la información SÍ está en el catálogo:
               }
             });
             if (result.finalResult && _preguntaFinal.trim().isNotEmpty) {
-              _consultarTantaWawa(_preguntaFinal);
+              _procesarTextoUsuario(_preguntaFinal.trim());
             }
           },
         );
@@ -334,41 +681,57 @@ Cuando la información SÍ está en el catálogo:
   }
 
   // ═══════════════════════════════════════════════════════
-  // PASO 3 — CONSULTA AL LLM (GROQ + RAG + HISTORIAL)
-  //
-  // Flujo corregido:
-  //   A. Agrega el turno del USUARIO al historial acumulado.
-  //   B. Construye el array de mensajes:
-  //      [system_prompt_blindado] + [historial_completo]
-  //   C. Envía a Groq con temperatura 0.1 (máxima fidelidad).
-  //   D. Agrega la respuesta del ASISTENTE al historial.
-  //   E. Reproduce vía TTS.
-  //
-  // El historial persiste durante toda la sesión de pantalla,
-  // dándole a T'anta-Wawa memoria a corto plazo completa.
+  // PROCESADOR CENTRAL
+  // Punto único de entrada para todo texto del usuario.
+  // 1. Pasa primero por IntentRouter (lógica local, sin API).
+  // 2. Si IntentRouter devuelve false → consulta Groq.
   // ═══════════════════════════════════════════════════════
-  Future<void> _consultarTantaWawa(String pregunta) async {
+  Future<void> _procesarTextoUsuario(String texto) async {
+    // Intentar resolver localmente
+    final bool resueltaLocalmente = await _intentRouter(texto);
+    if (resueltaLocalmente) return;
+
+    // No resuelta → delegar a Groq
+    await _consultarNID(texto);
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // CONSULTA AL LLM (GROQ + RAG + HISTORIAL)
+  //
+  // Flujo:
+  //   A. Agrega el turno del usuario al historial.
+  //   B. Construye [system + historial completo] y llama a Groq.
+  //   C. Limpia la respuesta de caracteres no aptos para TTS.
+  //   D. Si la respuesta confirma una receta → activa la receta.
+  //   E. Agrega la respuesta al historial.
+  //   F. Reproduce vía TTS.
+  // ═══════════════════════════════════════════════════════
+  Future<void> _consultarNID(String pregunta) async {
     setState(() {
       _procesando = true;
-      _respuestaTA = "";
+      _respuestaNID = "";
     });
 
-    // ── A. Registrar el turno del usuario en el historial ──
-    _historialTantaWawa.add({"role": "user", "content": pregunta});
+    // ── A. Registrar turno del usuario ──
+    _historial.add({"role": "user", "content": pregunta});
 
-    // ── B. Construir el System Prompt inyectando el catálogo real ──
-    final String systemPromptFinal = _systemPromptTemplate.replaceFirst(
+    // ── B. Construir payload ──
+    // Si ya hay una receta activa → inyectar SOLO su texto completo (~300 tokens).
+    // Si aún no → inyectar el índice slim con todos los nombres/meta (~<500 tokens).
+    final String catalogoParaApi = _recetaActivaContexto.isNotEmpty
+        ? _recetaActivaContexto
+        : _catalogoContexto;
+
+    final String systemFinal = _systemPromptTemplate.replaceFirst(
       "{{CATALOGO}}",
-      _catalogoContexto.isNotEmpty
-          ? _catalogoContexto
+      catalogoParaApi.isNotEmpty
+          ? catalogoParaApi
           : "(Catálogo vacío — rechazar toda consulta de recetas)",
     );
 
-    // ── B2. Ensamblar el array completo de mensajes:
-    //        [system] + [todos los turnos del historial] ──
     final List<Map<String, String>> mensajesApi = [
-      {"role": "system", "content": systemPromptFinal},
-      ..._historialTantaWawa, // Historial completo: el LLM recuerda el hilo
+      {"role": "system", "content": systemFinal},
+      ..._historial,
     ];
 
     final url = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
@@ -382,9 +745,8 @@ Cuando la información SÍ está en el catálogo:
         },
         body: jsonEncode({
           "model": "llama-3.1-8b-instant",
-          // Temperatura 0.1: mínima creatividad = máxima fidelidad al catálogo.
-          // Valores altos (0.7+) favorecen la "inventiva" del modelo.
-          "temperature": 0.1,
+          "temperature":
+              0.1, // Mínima creatividad = máxima fidelidad al catálogo
           "max_tokens": 300,
           "messages": mensajesApi,
         }),
@@ -392,66 +754,171 @@ Cuando la información SÍ está en el catálogo:
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
-        final String respuesta = data['choices'][0]['message']['content'] ?? "";
+        String respuesta = data['choices'][0]['message']['content'] ?? "";
 
-        // ── D. Guardar la respuesta del asistente en el historial ──
-        _historialTantaWawa.add({"role": "assistant", "content": respuesta});
+        // ── Detección de [TIMER:X] ANTES de limpiar para TTS ──
+        // _limpiarParaTts ya elimina [.*?], por eso interceptamos aquí.
+        final timerMatch = RegExp(r'\[TIMER:(\d+)\]').firstMatch(respuesta);
+        if (timerMatch != null) {
+          _iniciarTemporizador(int.parse(timerMatch.group(1)!));
+          respuesta = respuesta.replaceAll(RegExp(r'\[TIMER:\d+\]'), '').trim();
+        }
 
-        // ── Límite de seguridad: mantener máximo 20 turnos (10 intercambios)
-        //    para no exceder el contexto del modelo ni inflar el payload ──
-        if (_historialTantaWawa.length > 20) {
-          _historialTantaWawa.removeRange(
-            0,
-            2,
-          ); // Eliminar el turno más antiguo
+        // ── C. Limpiar caracteres no aptos para TTS ──
+        respuesta = _limpiarParaTts(respuesta);
+
+        // ── D. Si Groq confirmó una receta → activarla localmente ──
+        _intentarActivarReceta(pregunta, respuesta);
+
+        // ── E. Guardar respuesta en historial ──
+        _historial.add({"role": "assistant", "content": respuesta});
+
+        // Límite de 20 turnos para no inflar el contexto
+        if (_historial.length > 20) {
+          _historial.removeRange(0, 2);
         }
 
         setState(() {
-          _respuestaTA = respuesta;
           _procesando = false;
         });
 
-        // ── E. Reproducir la respuesta con TTS ──
-        await _reproducirRespuesta(respuesta);
+        // ── F. Reproducir ──
+        await _hablar(
+          respuesta,
+          guardarEnHistorial: false,
+        ); // Ya está en historial
       } else {
         debugPrint("Groq error: ${response.statusCode} ${response.body}");
-        // No agregar el error al historial para no contaminar el contexto
-        _historialTantaWawa
-            .removeLast(); // Revertir el turno del usuario fallido
-        setState(() {
-          _respuestaTA =
-              "El portal ancestral está inestable. Intenta de nuevo.";
-          _procesando = false;
-        });
+        _historial.removeLast(); // Revertir turno fallido
+        setState(() => _procesando = false);
+        await _hablar(
+          "El portal está inestable. Intenta de nuevo.",
+          guardarEnHistorial: false,
+        );
       }
     } catch (e) {
-      debugPrint("Excepción al consultar Groq: $e");
-      _historialTantaWawa.removeLast(); // Revertir el turno del usuario fallido
-      setState(() {
-        _respuestaTA =
-            "No pude conectarme al mundo espiritual. Revisa tu conexión.";
-        _procesando = false;
-      });
+      debugPrint("Excepción Groq: $e");
+      _historial.removeLast();
+      setState(() => _procesando = false);
+      await _hablar(
+        "No pude conectarme. Revisa tu conexión.",
+        guardarEnHistorial: false,
+      );
     }
   }
 
-  // ═══════════════════════════════════════════════════════
-  // PASO 4 — SÍNTESIS DE VOZ (flutter_tts)
-  // Reproduce el texto de la respuesta de T'anta-Wawa.
-  // Activa _hablando para animar el avatar mientras habla.
-  // ═══════════════════════════════════════════════════════
-  Future<void> _reproducirRespuesta(String texto) async {
-    setState(() => _hablando = true);
-    await _tts.speak(texto);
+  // ─────────────────────────────────────────────
+  // _limpiarParaTts
+  // Elimina todo caracter que cause errores de
+  // lectura en el motor de voz de Chrome/Flutter:
+  // asteriscos, guiones decorativos, corchetes,
+  // listas numeradas, etc.
+  // ─────────────────────────────────────────────
+  String _limpiarParaTts(String texto) {
+    return texto
+        .replaceAll(RegExp(r'\*+'), '') // Asteriscos simples y dobles
+        .replaceAll(RegExp(r'\[.*?\]'), '') // [texto entre corchetes]
+        .replaceAll(RegExp(r'^\s*[-•–—]\s', multiLine: true), '') // Viñetas
+        .replaceAll(RegExp(r'^\s*\d+\.\s', multiLine: true), '') // "1. " listas
+        .replaceAll(RegExp(r'#+\s'), '') // Encabezados markdown
+        .replaceAll('_', '') // Cursivas markdown
+        .replaceAll('`', '') // Code markdown
+        .replaceAll(RegExp(r'\n{2,}'), '\n') // Saltos dobles → simple
+        .trim();
   }
 
   // ─────────────────────────────────────────────
-  // BUILD PRINCIPAL
+  // _intentarActivarReceta
+  // Heurística: si el usuario mencionó un plato
+  // y Groq lo confirmó (no rechazó), lo buscamos
+  // en _recetasData y lo activamos para el control
+  // paso a paso local.
+  //
+  // Fix 5 — Persistencia: una vez activada una receta,
+  // _recetaActivaContexto queda fijo durante toda la sesión.
+  // Groq siempre recibirá el contexto de ESA receta y nunca
+  // podrá contradecir que existe.
   // ─────────────────────────────────────────────
+  void _intentarActivarReceta(String pregunta, String respuestaNid) {
+    // Si ya hay una receta activa → respetar la sesión en curso (Fix 5)
+    if (_recetaActivaNombre != null) return;
+
+    // Si Groq rechazó → no activar
+    if (respuestaNid.contains("no se encuentra en nuestro sistema")) return;
+
+    final String p = pregunta.toLowerCase();
+    for (final receta in _recetasData) {
+      final String nombre = receta['nombre'].toString().toLowerCase();
+      if (p.contains(nombre) ||
+          nombre.split(' ').any((w) => w.length > 3 && p.contains(w))) {
+        setState(() {
+          // Fix 2 — usar el contextoTexto ya sanitizado por el helper
+          _recetaActivaContexto = receta['contextoTexto'] as String;
+          _recetaActivaNombre = receta['nombre'].toString();
+          _pasosActivos = List<String>.from(receta['pasos'] as List);
+          _ingredientesActivos = List<String>.from(
+            receta['ingredientes'] as List,
+          );
+          _pasoActualIndex = -1;
+        });
+        debugPrint("Receta activada: $_recetaActivaNombre");
+        debugPrint(
+          "Tokens aprox. contexto: ${_recetaActivaContexto.length ~/ 4}",
+        );
+        return;
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // _hablar
+  // Punto único de reproducción TTS.
+  // Actualiza _respuestaNID (caché para "repite eso")
+  // y opcionalmente agrega al historial de Groq.
+  // ─────────────────────────────────────────────
+  Future<void> _hablar(String texto, {required bool guardarEnHistorial}) async {
+    final String limpio = _limpiarParaTts(texto);
+    setState(() {
+      _respuestaNID = limpio;
+      _hablando = true;
+    });
+    if (guardarEnHistorial) {
+      _historial.add({"role": "assistant", "content": limpio});
+    }
+    await _tts.speak(limpio);
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  BUILD PRINCIPAL  — REDISEÑO FONDO COMPLETO
+  //
+  //  Arquitectura del Stack (de abajo hacia arriba):
+  //
+  //  Capa 0 — Fondo animado a pantalla completa:
+  //    IndexedStack con ambos .webp pre-cargados para evitar
+  //    parpadeo (flicker) al alternar. Ocupa toda la pantalla
+  //    mediante Positioned.fill + BoxFit.cover.
+  //
+  //  Capa 1 — Gradiente oscuro inferior:
+  //    Un overlay de gradiente de abajo hacia arriba garantiza
+  //    legibilidad del panel de texto y del botón del micrófono
+  //    sin importar el contenido de la ilustración.
+  //
+  //  Capa 2 — Elementos flotantes:
+  //    • AppBar transparente con título NID + indicador RAG.
+  //    • Temporizador flotante (Positioned, solo si activo).
+  //    • Panel de texto translúcido (BackdropFilter + opacidad).
+  //    • Botón de micrófono con glow neon.
+  //
+  //  Toda la lógica de backend (TTS/STT handlers, temporizador,
+  //  Firestore, Groq, IntentRouter) permanece sin cambios.
+  // ═══════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _negro,
+      // AppBar completamente transparente para que el fondo
+      // animado se extienda debajo de él.
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -464,31 +931,37 @@ Cuando la información SÍ está en el catálogo:
           },
         ),
         title: const Text(
-          "T'anta-Wawa",
+          "N I D",
           style: TextStyle(
             color: _cianNeon,
             fontWeight: FontWeight.w800,
-            letterSpacing: 2,
+            letterSpacing: 4,
           ),
         ),
         actions: [
-          // Botón para limpiar el historial de la conversación
-          if (_historialTantaWawa.isNotEmpty && !_procesando && !_escuchando)
+          // Botón de reinicio de conversación
+          if (_historial.isNotEmpty && !_procesando && !_escuchando)
             IconButton(
-              tooltip: "Limpiar conversación",
+              tooltip: "Nueva conversación",
               icon: const Icon(Icons.refresh, color: _cianNeon, size: 20),
               onPressed: () {
                 setState(() {
-                  _historialTantaWawa.clear();
+                  _historial.clear();
                   _preguntaFinal = "";
-                  _respuestaTA = "";
+                  _respuestaNID = "";
                   _textoEscuchado = "";
+                  _recetaActivaNombre = null;
+                  _recetaActivaContexto = "";
+                  _pasosActivos = [];
+                  _ingredientesActivos = [];
+                  _pasoActualIndex = -1;
                 });
+                _cancelarTemporizador();
               },
             ),
-          // Indicador de estado del catálogo RAG en la barra superior
+          // Indicador RAG
           Padding(
-            padding: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.only(right: 14),
             child: Row(
               children: [
                 Icon(
@@ -510,19 +983,203 @@ Cuando la información SÍ está en el catálogo:
           ),
         ],
       ),
-      body: SafeArea(
-        child: Column(
+
+      // ── body: Stack raíz ──────────────────────────────────
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // ════════════════════════════════════════════════
+          // CAPA 0 — FONDO ANIMADO (pantalla completa)
+          //
+          // IndexedStack mantiene AMBOS assets siempre montados
+          // en el árbol de widgets. Solo se hace visible el que
+          // corresponde al estado actual, eliminando el flash
+          // negro/blanco que ocurriría si se usara un if/else.
+          //
+          //   index 0 → nid_speaking.webp  (_hablando == true)
+          //   index 1 → nid_idle.webp      (_hablando == false)
+          // ════════════════════════════════════════════════
+          Positioned.fill(
+            child: IndexedStack(
+              index: _hablando ? 0 : 1,
+              sizing: StackFit.expand,
+              children: [
+                Image.asset(
+                  'assets/images/nid_speaking.webp',
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                ),
+                Image.asset(
+                  'assets/images/nid_idle.webp',
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                ),
+              ],
+            ),
+          ),
+
+          // ════════════════════════════════════════════════
+          // CAPA 1 — GRADIENTE OSCURO INFERIOR
+          //
+          // Crea una zona oscura en el tercio inferior de la
+          // pantalla para que el panel de texto y el micrófono
+          // sean siempre legibles sobre la ilustración.
+          // ════════════════════════════════════════════════
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: const [0.0, 0.45, 1.0],
+                  colors: [
+                    Colors.transparent,
+                    Colors.transparent,
+                    _negro.withOpacity(0.85),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // ════════════════════════════════════════════════
+          // CAPA 2 — ELEMENTOS FLOTANTES
+          //
+          // SafeArea garantiza que los elementos no queden
+          // debajo del notch ni de la barra de navegación.
+          // ════════════════════════════════════════════════
+          SafeArea(
+            child: Column(
+              children: [
+                // Espacio superior libre para el fondo animado
+                // (el avatar ocupa el área visual principal).
+                const Spacer(flex: 5),
+
+                // ── Panel de texto con fondo translúcido ──
+                // BackdropFilter aplica un desenfoque suave
+                // al contenido de las capas inferiores visible
+                // a través del panel, mejorando la legibilidad.
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: BackdropFilter(
+                      filter: ColorFilter.mode(
+                        Colors.black.withOpacity(0.0),
+                        BlendMode.multiply,
+                      ),
+                      child: _buildPanelTexto(),
+                    ),
+                  ),
+                ),
+
+                // ── Controles (micrófono) ──
+                _buildControles(),
+
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+
+          // ── Temporizador flotante (visible solo cuando está activo) ──
+          _buildTimerWidget(),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // _buildTimerWidget
+  // Tarjeta flotante ciberpunk del temporizador.
+  // Se superpone sobre el avatar usando Positioned.
+  // Respeta el diseño dark/neon de NID.
+  // Se oculta automáticamente cuando _timerActivo=false.
+  // ─────────────────────────────────────────────
+  Widget _buildTimerWidget() {
+    if (!_timerActivo) return const SizedBox.shrink();
+
+    final int min = _timerDuration.inMinutes;
+    final int seg = _timerDuration.inSeconds % 60;
+    final String display =
+        "${min.toString().padLeft(2, '0')}:${seg.toString().padLeft(2, '0')}";
+
+    return Positioned(
+      // kToolbarHeight (56) + padding de status bar (~24) = ~80px de espacio seguro
+      top: kToolbarHeight + 24 + 8,
+      left: 20,
+      right: 20,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0D0D1E),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: _cianNeon, width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: _cianNeon.withOpacity(0.3),
+              blurRadius: 16,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Row(
           children: [
-            // ── Avatar de T'anta-Wawa ──
-            Expanded(flex: 5, child: _buildAvatar()),
-
-            // ── Panel de transcripción y respuesta ──
-            Expanded(flex: 4, child: _buildPanelTexto()),
-
-            // ── Controles de voz ──
-            _buildControles(),
-
-            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: _cianNeon.withOpacity(0.08),
+                shape: BoxShape.circle,
+                border: Border.all(color: _cianNeon.withOpacity(0.4)),
+              ),
+              child: const Icon(
+                Icons.timer_rounded,
+                color: _cianNeon,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "TEMPORIZADOR",
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: _cianNeon.withOpacity(0.65),
+                      letterSpacing: 2.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    display,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      color: _cianNeon,
+                      letterSpacing: 4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: _cancelarTemporizador,
+              child: Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.redAccent, width: 1),
+                  color: Colors.redAccent.withOpacity(0.08),
+                ),
+                child: const Icon(
+                  Icons.close,
+                  color: Colors.redAccent,
+                  size: 17,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -531,21 +1188,22 @@ Cuando la información SÍ está en el catálogo:
 
   // ─────────────────────────────────────────────
   // _buildAvatar
-  // Zona del avatar ciberpunk andino de T'anta-Wawa.
-  // Pulsa cuando está hablando. Tiene un anillo de
-  // color neon que cambia según el estado.
+  // Círculo animado con patrón andino geométrico.
+  // Pulsa al ritmo de _pulsoAnimation cuando habla.
+  // El anillo cambia de color según el estado.
   // ─────────────────────────────────────────────
   Widget _buildAvatar() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Anillo de estado animado
           AnimatedBuilder(
             animation: _pulsoAnimation,
             builder: (context, child) {
-              final double escala = _hablando ? _pulsoAnimation.value : 1.0;
-              return Transform.scale(scale: escala, child: child);
+              return Transform.scale(
+                scale: _hablando ? _pulsoAnimation.value : 1.0,
+                child: child,
+              );
             },
             child: Container(
               width: 160,
@@ -577,35 +1235,72 @@ Cuando la información SÍ está en el catálogo:
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Fondo geométrico andino (placeholder hasta colocar imagen real)
+                    // ── Capa 1: Patrón andino de fondo (se mantiene intacto) ──
                     CustomPaint(
                       size: const Size(160, 160),
                       painter: _AndeanPatternPainter(),
                     ),
-                    // Icono principal — reemplazar con Image.asset al tener el asset
-                    Icon(
-                      Icons.auto_awesome,
-                      size: 64,
-                      color: _doradoInca.withOpacity(0.9),
+                    // ── Capa 2: Avatar WebP animado ──
+                    // IndexedStack mantiene ambos assets pre-cargados en el árbol
+                    // de widgets para evitar parpadeo (flicker) al alternar estados.
+                    // index 0 = hablando  → nid_hablando.webp (animación en loop)
+                    // index 1 = idle/escuchando → nid_idle.webp (reposo)
+                    // La bandera _hablando ya es el semáforo correcto:
+                    //   true  → TTS reproduciendo audio (setter en _hablar)
+                    //   false → CompletionHandler de FlutterTts lo apaga
+                    SizedBox(
+                      width: 160,
+                      height: 160,
+                      child: IndexedStack(
+                        index: _hablando ? 0 : 1,
+                        sizing: StackFit.expand,
+                        children: [
+                          Image.asset(
+                            'assets/images/nid_hablando.webp',
+                            fit: BoxFit.cover,
+                            gaplessPlayback:
+                                true, // evita flash blanco entre frames
+                          ),
+                          Image.asset(
+                            'assets/images/nid_idle.webp',
+                            fit: BoxFit.cover,
+                            gaplessPlayback: true,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
           ),
-
           const SizedBox(height: 14),
-
-          // Nombre y estado
           const Text(
-            "T'ANTA-WAWA",
+            "N I D",
             style: TextStyle(
               color: _doradoInca,
               fontSize: 18,
               fontWeight: FontWeight.w900,
-              letterSpacing: 4,
+              letterSpacing: 6,
             ),
           ),
+          const SizedBox(height: 4),
+          // Indicador de receta activa y paso actual
+          if (_recetaActivaNombre != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                _pasoActualIndex >= 0
+                    ? "${_recetaActivaNombre!.toUpperCase()}  •  PASO ${_pasoActualIndex + 1}/${_pasosActivos.length}"
+                    : _recetaActivaNombre!.toUpperCase(),
+                style: TextStyle(
+                  color: _verdeApp.withOpacity(0.85),
+                  fontSize: 10,
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           const SizedBox(height: 4),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
@@ -624,27 +1319,28 @@ Cuando la información SÍ está en el catálogo:
     );
   }
 
-  /// Texto de estado visible debajo del avatar
+  /// Texto de estado dinámico debajo del nombre
   String get _estadoActual {
     if (_procesando && !_catalogoCargado) return "CARGANDO CATÁLOGO...";
-    if (_procesando) return "CONSULTANDO AL ESPÍRITU...";
+    if (_procesando) return "NID ESTÁ PENSANDO...";
     if (_escuchando) return "ESCUCHANDO...";
-    if (_hablando) return "TRANSMITIENDO SABIDURÍA...";
+    if (_hablando) return "NID ESTÁ HABLANDO...";
     return "LISTO PARA ESCUCHARTE";
   }
 
   // ─────────────────────────────────────────────
   // _buildPanelTexto
-  // Muestra la transcripción de voz en tiempo real
-  // (lo que el usuario está diciendo) y la respuesta
-  // de T'anta-Wawa una vez procesada.
+  // Muestra: transcripción en tiempo real,
+  // indicador de procesamiento y respuesta de NID.
+  // Incluye chips de acciones rápidas contextuales.
   // ─────────────────────────────────────────────
   Widget _buildPanelTexto() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
+      // Sin margin horizontal: el padding ya viene del Padding externo en build()
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F0F1A),
+        // Fondo oscuro translúcido: legible sobre la ilustración de fondo
+        color: Colors.black.withOpacity(0.62),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _moradoNeon.withOpacity(0.4), width: 1),
         boxShadow: [
@@ -655,10 +1351,10 @@ Cuando la información SÍ está en el catálogo:
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Indicador de turnos de memoria activos ──
-            if (_historialTantaWawa.length >= 2)
+            // ── Indicador de turnos en memoria ──
+            if (_historial.length >= 2)
               Padding(
-                padding: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
                     Icon(
@@ -668,7 +1364,7 @@ Cuando la información SÍ está en el catálogo:
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      "MEMORIA: ${(_historialTantaWawa.length ~/ 2)} turno${_historialTantaWawa.length ~/ 2 != 1 ? 's' : ''} en contexto",
+                      "MEMORIA: ${_historial.length ~/ 2} turnos",
                       style: TextStyle(
                         color: _moradoNeon.withOpacity(0.6),
                         fontSize: 9,
@@ -679,6 +1375,8 @@ Cuando la información SÍ está en el catálogo:
                   ],
                 ),
               ),
+
+            // ── Texto del usuario ──
             if (_textoEscuchado.isNotEmpty || _preguntaFinal.isNotEmpty) ...[
               Row(
                 children: [
@@ -711,7 +1409,7 @@ Cuando la información SÍ está en el catálogo:
               const SizedBox(height: 12),
             ],
 
-            // Respuesta de T'anta-Wawa
+            // ── Respuesta de NID o estados intermedios ──
             if (_procesando && _catalogoCargado) ...[
               Row(
                 children: [
@@ -725,7 +1423,7 @@ Cuando la información SÍ está en el catálogo:
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    "T'ANTA-WAWA ESTÁ PENSANDO...",
+                    "NID ESTÁ PENSANDO...",
                     style: TextStyle(
                       color: _doradoInca.withOpacity(0.7),
                       fontSize: 11,
@@ -734,7 +1432,7 @@ Cuando la información SÍ está en el catálogo:
                   ),
                 ],
               ),
-            ] else if (_respuestaTA.isNotEmpty) ...[
+            ] else if (_respuestaNID.isNotEmpty) ...[
               Row(
                 children: [
                   Icon(
@@ -744,7 +1442,7 @@ Cuando la información SÍ está en el catálogo:
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    "T'ANTA-WAWA",
+                    "NID",
                     style: TextStyle(
                       color: _doradoInca.withOpacity(0.8),
                       fontSize: 10,
@@ -756,19 +1454,24 @@ Cuando la información SÍ está en el catálogo:
               ),
               const SizedBox(height: 4),
               Text(
-                _respuestaTA,
+                _respuestaNID,
                 style: const TextStyle(
                   color: Color(0xFFE8E0FF),
                   fontSize: 14,
                   height: 1.5,
                 ),
               ),
+
+              // ── Chips de acciones rápidas (si hay receta activa) ──
+              if (_recetaActivaNombre != null) ...[
+                const SizedBox(height: 12),
+                _buildAccionesRapidas(),
+              ],
             ] else if (!_procesando) ...[
-              // Estado inicial — instrucción al usuario
               Center(
                 child: Text(
                   _catalogoCargado
-                      ? "Pulsa el micrófono y pregunta sobre\nlas recetas de PrograMovil 🎙️"
+                      ? "Pulsa el micrófono y habla con NID"
                       : "Cargando el catálogo de recetas...",
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -786,9 +1489,54 @@ Cuando la información SÍ está en el catálogo:
   }
 
   // ─────────────────────────────────────────────
+  // _buildAccionesRapidas
+  // Chips contextuales que aparecen cuando hay
+  // una receta activa. Permiten acciones comunes
+  // sin hablar, ideal para manos ocupadas en cocina.
+  // ─────────────────────────────────────────────
+  Widget _buildAccionesRapidas() {
+    final List<Map<String, dynamic>> acciones = [
+      if (_pasoActualIndex == -1)
+        {"label": "Empezar a cocinar", "cmd": "empezar a cocinar"},
+      if (_pasoActualIndex >= 0 && _pasoActualIndex < _pasosActivos.length - 1)
+        {"label": "Siguiente paso", "cmd": "siguiente paso"},
+      if (_pasoActualIndex > 0)
+        {"label": "Paso anterior", "cmd": "paso anterior"},
+      if (_pasoActualIndex >= 0) {"label": "Repetir", "cmd": "repite el paso"},
+      {"label": "Ingredientes", "cmd": "dime los ingredientes"},
+    ];
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: acciones.map((a) {
+        return GestureDetector(
+          onTap: () => _procesarTextoUsuario(a["cmd"] as String),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: _moradoNeon.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _moradoNeon.withOpacity(0.5)),
+            ),
+            child: Text(
+              a["label"] as String,
+              style: const TextStyle(
+                color: Color(0xFFD0BBFF),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ─────────────────────────────────────────────
   // _buildControles
-  // Botón central del micrófono + botón de detener
-  // TTS si T'anta-Wawa está hablando.
+  // Botón principal del micrófono.
+  // Botón rojo para interrumpir TTS si NID habla.
   // ─────────────────────────────────────────────
   Widget _buildControles() {
     return Padding(
@@ -796,7 +1544,6 @@ Cuando la información SÍ está en el catálogo:
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Botón para detener TTS manualmente
           if (_hablando)
             Padding(
               padding: const EdgeInsets.only(right: 20),
@@ -861,26 +1608,23 @@ Cuando la información SÍ está en el catálogo:
 
 // ═══════════════════════════════════════════════════════════════════════════
 // _AndeanPatternPainter
-// CustomPainter que dibuja un patrón geométrico andino (wiphala simplificada)
-// como fondo del avatar de T'anta-Wawa.
-// Puedes reemplazarlo con Image.asset('assets/images/tantawawa_avatar.png')
-// cuando tengas el asset listo.
+// Patrón geométrico andino (rombos tipo wiphala) para el fondo del avatar.
+// Reemplazar con Image.asset('assets/images/nid_avatar.png') cuando
+// tengas el asset listo.
 // ═══════════════════════════════════════════════════════════════════════════
 class _AndeanPatternPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..style = PaintingStyle.fill;
 
-    // Fondo base oscuro
     paint.color = const Color(0xFF0A0A1A);
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
 
-    // Grid de rombos estilo textil andino
     const colors = [
-      Color(0xFF7B2FBE), // morado
-      Color(0xFF00F5FF), // cian
-      Color(0xFFFFD700), // dorado
-      Color(0xFF2D9E73), // verde
+      Color(0xFF7B2FBE),
+      Color(0xFF00F5FF),
+      Color(0xFFFFD700),
+      Color(0xFF2D9E73),
     ];
 
     const step = 20.0;
@@ -902,5 +1646,5 @@ class _AndeanPatternPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_AndeanPatternPainter oldDelegate) => false;
+  bool shouldRepaint(_AndeanPatternPainter old) => false;
 }

@@ -4,7 +4,6 @@ import '../servicios/pdf_servicios.dart'; // Importación de los servicios
 
 class ReportesPlanificadoresScreen extends StatefulWidget {
   const ReportesPlanificadoresScreen({super.key});
-
   @override
   State<ReportesPlanificadoresScreen> createState() =>
       _ReportesPlanificadoresScreenState();
@@ -40,8 +39,22 @@ class _ReportesPlanificadoresScreenState
   }
 
   void _cambiarFecha(int dias) {
+    // Bloqueo para evitar avanzar a días futuros mediante las flechas
+    DateTime nuevaFecha = _fechaSeleccionada.add(Duration(days: dias));
+    DateTime hoy = DateTime.now();
+    DateTime hoyLimpio = DateTime(hoy.year, hoy.month, hoy.day);
+    DateTime nuevaLimpia = DateTime(
+      nuevaFecha.year,
+      nuevaFecha.month,
+      nuevaFecha.day,
+    );
+
+    if (nuevaLimpia.isAfter(hoyLimpio)) {
+      return; // No hace nada si intenta ir al futuro
+    }
+
     setState(() {
-      _fechaSeleccionada = _fechaSeleccionada.add(Duration(days: dias));
+      _fechaSeleccionada = nuevaFecha;
     });
   }
 
@@ -50,7 +63,10 @@ class _ReportesPlanificadoresScreenState
       context: context,
       initialDate: _fechaSeleccionada,
       firstDate: DateTime(2025),
-      lastDate: DateTime(2027),
+      // ─────────────────────────────────────────────
+      // REGLA ESTRICTA: BLOQUEO DE FECHAS FUTURAS
+      // ─────────────────────────────────────────────
+      lastDate: DateTime.now(),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
           colorScheme: const ColorScheme.light(primary: Color(0xFF2FA36B)),
@@ -61,6 +77,73 @@ class _ReportesPlanificadoresScreenState
     if (picked != null) {
       setState(() => _fechaSeleccionada = picked);
     }
+  }
+
+  // ─────────────────────────────────────────────
+  // NUEVO: DIÁLOGO DE REPORTE INDIVIDUAL (CONECTADO)
+  // ─────────────────────────────────────────────
+  void _mostrarDialogoReporteUsuario(
+    BuildContext context,
+    String uid,
+    String nombreUsuario,
+    Map<String, dynamic> userData,
+    Map<String, dynamic> plan,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+            SizedBox(width: 10),
+            Text("Reporte de Usuario", style: TextStyle(fontSize: 18)),
+          ],
+        ),
+        content: Text(
+          "¿Quieres sacar el reporte de planificación de $nombreUsuario para la fecha seleccionada?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2FA36B),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Generando reporte para $nombreUsuario...'),
+                ),
+              );
+
+              // ─────────────────────────────────────────────
+              // ENLACE EN VIVO: Invocación directa al servicio
+              // ─────────────────────────────────────────────
+              await PdfService.generarReporteIndividual(
+                uid,
+                nombreUsuario,
+                plan,
+                _fechaSeleccionada,
+              );
+            },
+            child: const Text(
+              "Sí, generar",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -135,7 +218,7 @@ class _ReportesPlanificadoresScreenState
             ),
           ),
 
-          // Controles de Exportación (NUEVO)
+          // Controles de Exportación Generales
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -172,7 +255,6 @@ class _ReportesPlanificadoresScreenState
                     ),
                   ),
                   onPressed: () async {
-                    // Muestra indicador de carga
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Generando reporte...')),
                     );
@@ -207,8 +289,9 @@ class _ReportesPlanificadoresScreenState
                   .collection('app-usuarios')
                   .snapshots(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData)
+                if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
+                }
                 final usuarios = snapshot.data!.docs;
 
                 return ListView.builder(
@@ -233,8 +316,9 @@ class _ReportesPlanificadoresScreenState
                         Map<String, dynamic> plan = {};
                         if (planSnapshot.hasData && planSnapshot.data!.exists) {
                           final data = planSnapshot.data!.data();
-                          if (data != null)
+                          if (data != null) {
                             plan = Map<String, dynamic>.from(data as Map);
+                          }
                         }
 
                         return Card(
@@ -257,11 +341,40 @@ class _ReportesPlanificadoresScreenState
                                 ),
                               ),
                             ),
-                            title: Text(
-                              nombreUsuario,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
+                            // ─────────────────────────────────────────────
+                            // INYECCIÓN DEL BOTÓN DE PDF INDIVIDUAL
+                            // ─────────────────────────────────────────────
+                            title: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    nombreUsuario,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.picture_as_pdf,
+                                    color: Colors.redAccent,
+                                    size: 22,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  tooltip: "Reporte de usuario",
+                                  onPressed: () =>
+                                      _mostrarDialogoReporteUsuario(
+                                        context,
+                                        uid,
+                                        nombreUsuario,
+                                        userData,
+                                        plan,
+                                      ),
+                                ),
+                              ],
                             ),
                             subtitle: Text(
                               plan.isEmpty
@@ -354,8 +467,9 @@ class _RecetaMiniCard extends StatelessWidget {
           .doc(recetaId)
           .get(),
       builder: (context, snap) {
-        if (!snap.hasData || !snap.data!.exists)
+        if (!snap.hasData || !snap.data!.exists) {
           return const Text('No disponible');
+        }
 
         final data = snap.data!.data() as Map<String, dynamic>?;
         if (data == null) return const Text('Error datos');

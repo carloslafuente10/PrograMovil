@@ -130,7 +130,6 @@ class _MisRecetasScreenState extends State<MisRecetasScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          // Guardadas: todas las recetas propias (no copias, no borradores)
           _TabRecetas(
             uid: uid,
             estadosConfig: _estadosConfig,
@@ -138,7 +137,6 @@ class _MisRecetasScreenState extends State<MisRecetasScreen>
             emptyMsg: 'No tienes recetas guardadas',
             emptySubMsg: 'Crea y guarda tus propias recetas',
           ),
-          // Borradores
           _TabRecetas(
             uid: uid,
             estadosConfig: _estadosConfig,
@@ -146,7 +144,6 @@ class _MisRecetasScreenState extends State<MisRecetasScreen>
             emptyMsg: 'No tienes borradores',
             emptySubMsg: 'Los borradores son recetas en proceso',
           ),
-          // Copias
           _TabRecetas(
             uid: uid,
             estadosConfig: _estadosConfig,
@@ -154,7 +151,6 @@ class _MisRecetasScreenState extends State<MisRecetasScreen>
             emptyMsg: 'No tienes copias',
             emptySubMsg: 'Copia recetas del catálogo para editarlas',
           ),
-          // Publicadas
           _TabRecetas(
             uid: uid,
             estadosConfig: _estadosConfig,
@@ -162,7 +158,6 @@ class _MisRecetasScreenState extends State<MisRecetasScreen>
             emptyMsg: 'No tienes recetas publicadas',
             emptySubMsg: 'Envía tus recetas para que el admin las apruebe',
           ),
-          // Revisión
           _TabRecetas(
             uid: uid,
             estadosConfig: _estadosConfig,
@@ -170,7 +165,6 @@ class _MisRecetasScreenState extends State<MisRecetasScreen>
             emptyMsg: 'Ninguna receta en revisión',
             emptySubMsg: 'Aquí aparecen las que enviaste al admin',
           ),
-          // Rechazadas
           _TabRecetas(
             uid: uid,
             estadosConfig: _estadosConfig,
@@ -494,18 +488,14 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
 
   bool get _puedeEnviar =>
       !_esCopia && _estado == 'guardada' && _estadoRevision != 'pendiente';
-
   bool get _puedeReenviar => !_esCopia && _estado == 'rechazada_editada';
-
   bool get _estaRechazadaSinEditar => !_esCopia && _estado == 'rechazada';
-
   bool get _puedeEditar =>
       _estado == 'borrador' ||
       _estado == 'guardada' ||
       _estado == 'rechazada' ||
       _estado == 'rechazada_editada' ||
       _esCopia;
-
   bool get _enRevisionActiva => _estadoRevision == 'pendiente';
 
   @override
@@ -524,335 +514,351 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
     final iconEstado = cfg?.$3 ?? Icons.circle;
     final label = cfg?.$4 ?? _estado;
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
+    // ✅ FIX: SafeArea + padding bottom dinámico para no taparse con botones del celular
+    return SafeArea(
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          16,
+          20,
+          MediaQuery.of(context).padding.bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
 
-          Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: 64,
-                  height: 64,
-                  child: img.startsWith('http')
-                      ? Image.network(
-                          img,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _ImgPlaceholder(),
-                        )
-                      : _ImgPlaceholder(),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (categoria.isNotEmpty)
-                      Text(
-                        categoria,
-                        style: const TextStyle(
-                          color: _verde,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    Text(
-                      nombre,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.local_fire_department_rounded,
-                          color: Color(0xFFFF6B35),
-                          size: 12,
-                        ),
-                        const SizedBox(width: 2),
-                        Text(
-                          '$calorias Cal',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Icon(
-                          Icons.timer_outlined,
-                          color: Colors.grey[500],
-                          size: 12,
-                        ),
-                        const SizedBox(width: 2),
-                        Text(
-                          '$tiempo min',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: bgColor,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(iconEstado, color: txtColor, size: 11),
-                        const SizedBox(width: 4),
-                        Text(
-                          label,
-                          style: TextStyle(
-                            color: txtColor,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
+            Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    width: 64,
+                    height: 64,
+                    child: img.startsWith('http')
+                        ? Image.network(
+                            img,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _ImgPlaceholder(),
+                          )
+                        : _ImgPlaceholder(),
                   ),
-                  if (_enRevisionActiva) ...[
-                    const SizedBox(height: 4),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (categoria.isNotEmpty)
+                        Text(
+                          categoria,
+                          style: const TextStyle(
+                            color: _verde,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      Text(
+                        nombre,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.local_fire_department_rounded,
+                            color: Color(0xFFFF6B35),
+                            size: 12,
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            '$calorias Cal',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Icon(
+                            Icons.timer_outlined,
+                            color: Colors.grey[500],
+                            size: 12,
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            '$tiempo min',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 3,
+                        horizontal: 8,
+                        vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0D6EFD),
-                        borderRadius: BorderRadius.circular(8),
+                        color: bgColor,
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Text(
-                        'En revisión',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(iconEstado, color: txtColor, size: 11),
+                          const SizedBox(width: 4),
+                          Text(
+                            label,
+                            style: TextStyle(
+                              color: txtColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_enRevisionActiva) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0D6EFD),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'En revisión',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+            const Divider(height: 1),
+            const SizedBox(height: 16),
+
+            if (_esCopia)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F4FD),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      color: Color(0xFF0D6EFD),
+                      size: 14,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Las copias son solo para uso personal y no se pueden publicar.',
                         style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
+                          color: Color(0xFF0D6EFD),
                         ),
                       ),
                     ),
                   ],
-                ],
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-          const Divider(height: 1),
-          const SizedBox(height: 16),
-
-          if (_esCopia)
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F4FD),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.info_outline_rounded,
-                    color: Color(0xFF0D6EFD),
-                    size: 14,
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Las copias son solo para uso personal y no se pueden publicar.',
-                      style: TextStyle(fontSize: 11, color: Color(0xFF0D6EFD)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          if (_enRevisionActiva)
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F4FD),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.hourglass_top_rounded,
-                    color: Color(0xFF0D6EFD),
-                    size: 14,
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Esta receta está en revisión. Espera la respuesta del administrador.',
-                      style: TextStyle(fontSize: 11, color: Color(0xFF0D6EFD)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          if (_estaRechazadaSinEditar)
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFEBEE),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: const Color(0xFFE53935).withOpacity(0.3),
                 ),
               ),
-              child: const Row(
-                children: [
-                  Icon(
-                    Icons.edit_notifications_rounded,
-                    color: Color(0xFFE53935),
-                    size: 16,
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Esta receta fue rechazada. Debes editarla y corregir los errores señalados antes de poder reenviarla.',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFFE53935),
-                        height: 1.4,
+
+            if (_enRevisionActiva)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F4FD),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.hourglass_top_rounded,
+                      color: Color(0xFF0D6EFD),
+                      size: 14,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Esta receta está en revisión. Espera la respuesta del administrador.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF0D6EFD),
+                        ),
                       ),
                     ),
+                  ],
+                ),
+              ),
+
+            if (_estaRechazadaSinEditar)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFEBEE),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFFE53935).withOpacity(0.3),
                   ),
-                ],
-              ),
-            ),
-
-          Row(
-            children: [
-              Expanded(
-                child: _OpcionBtn(
-                  icon: Icons.play_circle_fill_rounded,
-                  label: 'Ver receta',
-                  sublabel: 'Ingredientes y pasos',
-                  color: _verde,
-                  bgColor: const Color(0xFFE8F7F1),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _verReceta(context);
-                  },
+                ),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.edit_notifications_rounded,
+                      color: Color(0xFFE53935),
+                      size: 16,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Esta receta ha sido rechazada. Por favor, revísala y edítala antes de volver a enviarla.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFFE53935),
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _OpcionBtn(
-                  icon: Icons.edit_rounded,
-                  label: 'Editar',
-                  sublabel: 'Modificar campos',
-                  color: _puedeEditar
-                      ? const Color(0xFF1A1A2E)
-                      : Colors.grey[400]!,
-                  bgColor: _puedeEditar
-                      ? const Color(0xFFF5F6FA)
-                      : Colors.grey[100]!,
-                  onTap: _puedeEditar
-                      ? () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => CrearRecetaUsuarioScreen(
-                                recetaExistente: widget.data,
-                                recetaPersonalId: widget.docId,
-                              ),
-                            ),
-                          );
-                        }
-                      : null,
-                ),
-              ),
-            ],
-          ),
 
-          const SizedBox(height: 12),
-
-          Row(
-            children: [
-              if (_puedeEnviar) ...[
+            Row(
+              children: [
                 Expanded(
                   child: _OpcionBtn(
-                    icon: _enviando
-                        ? Icons.hourglass_top_rounded
-                        : Icons.send_rounded,
-                    label: _enviando ? 'Enviando...' : 'Publicar',
-                    sublabel: 'Enviar al admin',
+                    icon: Icons.play_circle_fill_rounded,
+                    label: 'Ver receta',
+                    sublabel: 'Ingredientes y pasos',
                     color: _verde,
                     bgColor: const Color(0xFFE8F7F1),
-                    onTap: _enviando ? null : () => _confirmarEnvio(context),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _verReceta(context);
+                    },
                   ),
                 ),
                 const SizedBox(width: 12),
-              ],
-              if (_puedeReenviar) ...[
                 Expanded(
                   child: _OpcionBtn(
-                    icon: Icons.send_rounded,
-                    label: 'Reenviar',
-                    sublabel: 'A revisión',
-                    color: const Color(0xFF3B82F6),
-                    bgColor: const Color(0xFFE8F4FD),
-                    onTap: () => _confirmarReenvio(context),
+                    icon: Icons.edit_rounded,
+                    label: 'Editar',
+                    sublabel: 'Modificar campos',
+                    color: _puedeEditar
+                        ? const Color(0xFF1A1A2E)
+                        : Colors.grey[400]!,
+                    bgColor: _puedeEditar
+                        ? const Color(0xFFF5F6FA)
+                        : Colors.grey[100]!,
+                    onTap: _puedeEditar
+                        ? () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => CrearRecetaUsuarioScreen(
+                                  recetaExistente: widget.data,
+                                  recetaPersonalId: widget.docId,
+                                ),
+                              ),
+                            );
+                          }
+                        : null,
                   ),
                 ),
-                const SizedBox(width: 12),
               ],
-              Expanded(
-                child: _OpcionBtn(
-                  icon: Icons.delete_outline_rounded,
-                  label: _eliminando ? 'Eliminando...' : 'Eliminar',
-                  sublabel: 'Borrar esta receta',
-                  color: const Color(0xFFE53935),
-                  bgColor: const Color(0xFFFFEBEE),
-                  onTap: _eliminando ? null : () => _confirmarEliminar(context),
+            ),
+
+            const SizedBox(height: 12),
+
+            Row(
+              children: [
+                if (_puedeEnviar) ...[
+                  Expanded(
+                    child: _OpcionBtn(
+                      icon: _enviando
+                          ? Icons.hourglass_top_rounded
+                          : Icons.send_rounded,
+                      label: _enviando ? 'Enviando...' : 'Publicar',
+                      sublabel: 'Enviar al admin',
+                      color: _verde,
+                      bgColor: const Color(0xFFE8F7F1),
+                      onTap: _enviando ? null : () => _confirmarEnvio(context),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                if (_puedeReenviar) ...[
+                  Expanded(
+                    child: _OpcionBtn(
+                      icon: Icons.send_rounded,
+                      label: 'Reenviar',
+                      sublabel: 'A revisión',
+                      color: const Color(0xFF3B82F6),
+                      bgColor: const Color(0xFFE8F4FD),
+                      onTap: () => _confirmarReenvio(context),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                Expanded(
+                  child: _OpcionBtn(
+                    icon: Icons.delete_outline_rounded,
+                    label: _eliminando ? 'Eliminando...' : 'Eliminar',
+                    sublabel: 'Borrar esta receta',
+                    color: const Color(0xFFE53935),
+                    bgColor: const Color(0xFFFFEBEE),
+                    onTap: _eliminando
+                        ? null
+                        : () => _confirmarEliminar(context),
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -862,7 +868,11 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _DetalleRecetaPersonalSheet(data: widget.data),
+      builder: (_) => _DetalleRecetaPersonalSheet(
+        data: widget.data,
+        docId: widget.docId,
+        copiadaDe: widget.data['copiadaDe']?.toString(),
+      ),
     );
   }
 
@@ -1142,7 +1152,6 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
     try {
       if (enRevision) {
         final batch = FirebaseFirestore.instance.batch();
-
         final pendientesSnap = await FirebaseFirestore.instance
             .collection('recetas-pendientes')
             .where('origenPersonalDocId', isEqualTo: widget.docId)
@@ -1163,7 +1172,6 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
           );
           if (esDePendiente) batch.delete(doc.reference);
         }
-
         await batch.commit();
       }
 
@@ -1243,7 +1251,13 @@ class _OpcionBtn extends StatelessWidget {
 
 class _DetalleRecetaPersonalSheet extends StatefulWidget {
   final Map<String, dynamic> data;
-  const _DetalleRecetaPersonalSheet({required this.data});
+  final String docId;
+  final String? copiadaDe;
+  const _DetalleRecetaPersonalSheet({
+    required this.data,
+    required this.docId,
+    this.copiadaDe,
+  });
   @override
   State<_DetalleRecetaPersonalSheet> createState() =>
       _DetalleRecetaPersonalSheetState();
@@ -1253,12 +1267,180 @@ class _DetalleRecetaPersonalSheetState
     extends State<_DetalleRecetaPersonalSheet> {
   static const Color _verde = Color(0xFF2D9E73);
   List<Map<String, dynamic>> _ings = [];
+  List<Map<String, dynamic>> _pasos = [];
   bool _cargando = true;
+
+  static const _unidadesInvariables = {'ml', 'g', 'kg', 'oz', 'lb', 'gr', 'l'};
+  static const _unidadesMedida = {
+    'cucharada',
+    'cucharadas',
+    'cucharadita',
+    'cucharaditas',
+    'cucharita',
+    'cucharitas',
+    'taza',
+    'tazas',
+    'vaso',
+    'vasos',
+    'copa',
+    'copas',
+    'litro',
+    'litros',
+    'l',
+    'mililitro',
+    'mililitros',
+    'ml',
+    'gramo',
+    'gramos',
+    'g',
+    'gr',
+    'kilogramo',
+    'kilogramos',
+    'kg',
+    'onza',
+    'onzas',
+    'oz',
+    'libra',
+    'libras',
+    'lb',
+    'pizca',
+    'pizcas',
+    'puñado',
+    'puñados',
+    'trozo',
+    'trozos',
+    'rodaja',
+    'rodajas',
+    'rebanada',
+    'rebanadas',
+    'porción',
+    'porciones',
+  };
+
+  String _calcularNumero(double cantidad) {
+    final int parteEntera = cantidad.floor();
+    final double decimal = cantidad - parteEntera;
+    final Map<double, String> fracciones = {
+      0.25: '¼',
+      0.33: '⅓',
+      0.5: '½',
+      0.67: '⅔',
+      0.75: '¾',
+    };
+    for (final e in fracciones.entries) {
+      if ((decimal - e.key).abs() < 0.05) {
+        return parteEntera == 0 ? e.value : '$parteEntera${e.value}';
+      }
+    }
+    if (decimal < 0.05) return '$parteEntera';
+    return cantidad.toStringAsFixed(1);
+  }
+
+  String _pluralizarPalabra(String palabra, double cantidad) {
+    if (cantidad <= 1 || palabra.isEmpty) return palabra;
+    final String lower = palabra.toLowerCase();
+    if (_unidadesInvariables.contains(lower)) return palabra;
+    if (lower.endsWith('s') || lower.endsWith('x')) return palabra;
+    if (lower.endsWith('z'))
+      return '${palabra.substring(0, palabra.length - 1)}ces';
+    if (RegExp(r'[aeiouáéíóú]$').hasMatch(lower)) return '${palabra}s';
+    return '${palabra}es';
+  }
+
+  String _pluralizarSeguro(double cantidad, String texto) {
+    if (cantidad <= 1 || texto.trim().isEmpty) return texto.trim();
+    final String limpio = texto.trim();
+    if (_unidadesInvariables.contains(limpio.toLowerCase())) return limpio;
+    final parts = limpio.split(' ');
+    final int deIdx = parts.indexWhere((p) => p.toLowerCase() == 'de');
+    if (deIdx > 0) {
+      parts[0] = _pluralizarPalabra(parts[0], cantidad);
+      return parts.join(' ');
+    }
+    parts[0] = _pluralizarPalabra(parts[0], cantidad);
+    return parts.join(' ');
+  }
+
+  String _pluralizarNombre(double cantidad, String nombre) {
+    if (cantidad <= 1 || nombre.trim().isEmpty) return nombre.trim();
+    final String limpio = nombre.trim();
+    if (limpio.toLowerCase().contains(' de ')) return limpio;
+    final parts = limpio.split(' ');
+    parts[0] = _pluralizarPalabra(parts[0], cantidad);
+    return parts.join(' ');
+  }
+
+  String _abreviarUnidad(String unidad, double cantidad) {
+    final String lower = unidad.toLowerCase();
+    const Map<String, String> abrevFijas = {
+      'gramo': 'g',
+      'gramos': 'g',
+      'kilogramo': 'kg',
+      'kilogramos': 'kg',
+      'mililitro': 'ml',
+      'mililitros': 'ml',
+      'litro': 'litro',
+      'litros': 'litro',
+      'libra': 'libra',
+      'libras': 'libra',
+      'onza': 'oz',
+      'onzas': 'oz',
+    };
+    if (abrevFijas.containsKey(lower))
+      return _pluralizarSeguro(cantidad, abrevFijas[lower]!);
+    if (lower == 'cucharada' || lower == 'cucharadas')
+      return cantidad <= 1 ? 'cda.' : 'cdas.';
+    if (lower == 'cucharadita' ||
+        lower == 'cucharaditas' ||
+        lower == 'cucharita' ||
+        lower == 'cucharitas')
+      return cantidad <= 1 ? 'cdta.' : 'cdtas.';
+    if (lower == 'taza' || lower == 'tazas')
+      return cantidad <= 1 ? 'taza' : 'tazas';
+    return _pluralizarSeguro(cantidad, unidad);
+  }
+
+  Map<String, String> _textoIngrediente(Map<String, dynamic> ing) {
+    final double cantidad = (ing['cantidad'] is num)
+        ? (ing['cantidad'] as num).toDouble()
+        : double.tryParse(ing['cantidad']?.toString() ?? '0') ?? 0;
+    final String nombre = ing['nombre']?.toString().trim() ?? '';
+    final String unidadRaw = ing['unidad']?.toString().trim() ?? '';
+    final String unidadLower = unidadRaw.toLowerCase();
+    final String numero = _calcularNumero(cantidad);
+    final bool esUnidad = unidadLower == 'unidad' || unidadLower == 'unidades';
+
+    if (esUnidad || unidadRaw.isEmpty) {
+      return {
+        'cantidad': numero,
+        'nombre': _pluralizarNombre(cantidad, nombre),
+      };
+    }
+
+    final String unidadAbrev = _abreviarUnidad(unidadRaw, cantidad);
+    String nombreFinal;
+    if (unidadLower.contains(' de ')) {
+      nombreFinal = nombre;
+    } else if (_unidadesMedida.contains(unidadLower)) {
+      nombreFinal = 'de $nombre';
+    } else {
+      nombreFinal = _pluralizarNombre(cantidad, nombre);
+    }
+    return {'cantidad': '$numero $unidadAbrev', 'nombre': nombreFinal};
+  }
 
   @override
   void initState() {
     super.initState();
     _cargar();
+  }
+
+  String _slugANombre(String slug) {
+    if (slug.isEmpty) return slug;
+    return slug
+        .split('-')
+        .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+        .join(' ');
   }
 
   Future<void> _cargar() async {
@@ -1267,16 +1449,19 @@ class _DetalleRecetaPersonalSheetState
     for (final item in rawIngs) {
       final m = item as Map<String, dynamic>;
       final ingId = m['ingrediente_id']?.toString() ?? '';
-      String nombre = m['nombre']?.toString() ?? ingId;
+      String nombre = m['nombre']?.toString() ?? '';
+      if (nombre.isEmpty || nombre == ingId) nombre = _slugANombre(ingId);
       String foto = m['imagen']?.toString() ?? '';
-      if (ingId.isNotEmpty && (foto.isEmpty || nombre == ingId)) {
+      if (ingId.isNotEmpty &&
+          (foto.isEmpty || nombre == ingId || nombre == _slugANombre(ingId))) {
         try {
           final doc = await FirebaseFirestore.instance
               .collection('ingredientes_maestros')
               .doc(ingId)
               .get();
           if (doc.exists) {
-            nombre = doc.data()!['nombre']?.toString() ?? nombre;
+            final n = doc.data()!['nombre']?.toString() ?? '';
+            if (n.isNotEmpty) nombre = n;
             foto =
                 doc.data()!['foto']?.toString() ??
                 doc.data()!['imagen']?.toString() ??
@@ -1286,9 +1471,83 @@ class _DetalleRecetaPersonalSheetState
       }
       result.add({...m, 'nombre': nombre, 'foto': foto});
     }
+
+    List<Map<String, dynamic>> pasosEncontrados = [];
+    final pasosLocal = widget.data['pasos'] as List? ?? [];
+    if (pasosLocal.isNotEmpty) {
+      pasosEncontrados = pasosLocal
+          .map((p) => Map<String, dynamic>.from(p as Map))
+          .toList();
+    }
+
+    if (pasosEncontrados.isEmpty && widget.copiadaDe != null) {
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('steps-recetas')
+            .doc(widget.copiadaDe)
+            .get();
+        if (snap.exists) {
+          pasosEncontrados = List<Map<String, dynamic>>.from(
+            (snap.data()!['pasos_ordenados'] as List? ?? []).map(
+              (p) => Map<String, dynamic>.from(p as Map),
+            ),
+          );
+        }
+        if (pasosEncontrados.isEmpty) {
+          final q = await FirebaseFirestore.instance
+              .collection('steps-recetas')
+              .where('receta_id', isEqualTo: widget.copiadaDe)
+              .limit(1)
+              .get();
+          if (q.docs.isNotEmpty) {
+            pasosEncontrados = List<Map<String, dynamic>>.from(
+              (q.docs.first.data()['pasos_ordenados'] as List? ?? []).map(
+                (p) => Map<String, dynamic>.from(p as Map),
+              ),
+            );
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (pasosEncontrados.isEmpty) {
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('steps-recetas')
+            .doc(widget.docId)
+            .get();
+        if (snap.exists) {
+          pasosEncontrados = List<Map<String, dynamic>>.from(
+            (snap.data()!['pasos_ordenados'] as List? ?? []).map(
+              (p) => Map<String, dynamic>.from(p as Map),
+            ),
+          );
+        }
+        if (pasosEncontrados.isEmpty) {
+          final q = await FirebaseFirestore.instance
+              .collection('steps-recetas')
+              .where('receta_id', isEqualTo: widget.docId)
+              .limit(1)
+              .get();
+          if (q.docs.isNotEmpty) {
+            pasosEncontrados = List<Map<String, dynamic>>.from(
+              (q.docs.first.data()['pasos_ordenados'] as List? ?? []).map(
+                (p) => Map<String, dynamic>.from(p as Map),
+              ),
+            );
+          }
+        }
+      } catch (_) {}
+    }
+
+    pasosEncontrados.sort(
+      (a, b) => ((a['orden'] ?? 0) as num).compareTo((b['orden'] ?? 0) as num),
+    );
+
     if (mounted)
       setState(() {
         _ings = result;
+        _pasos = pasosEncontrados;
         _cargando = false;
       });
   }
@@ -1300,7 +1559,6 @@ class _DetalleRecetaPersonalSheetState
     final tiempo = widget.data['tiempo']?.toString() ?? '0';
     final categoria = widget.data['categoria'] ?? '';
     final imgUrl = widget.data['imagen'] ?? '';
-    final pasos = widget.data['pasos'] as List? ?? [];
 
     return DraggableScrollableSheet(
       initialChildSize: 0.92,
@@ -1400,21 +1658,22 @@ class _DetalleRecetaPersonalSheetState
                           ),
                         )
                       else
-                        ..._ings.map(
-                          (ing) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 5),
+                        ..._ings.map((ing) {
+                          final partes = _textoIngrediente(ing);
+                          final fotoUrl = ing['foto']?.toString() ?? '';
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
                             child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
                                   child: SizedBox(
-                                    width: 36,
-                                    height: 36,
-                                    child:
-                                        (ing['foto']?.toString() ?? '')
-                                            .startsWith('http')
+                                    width: 40,
+                                    height: 40,
+                                    child: fotoUrl.startsWith('http')
                                         ? Image.network(
-                                            ing['foto'],
+                                            fotoUrl,
                                             fit: BoxFit.cover,
                                             errorBuilder: (_, __, ___) =>
                                                 _IngPlaceholder(),
@@ -1423,37 +1682,79 @@ class _DetalleRecetaPersonalSheetState
                                   ),
                                 ),
                                 const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    ing['nombre']?.toString() ?? '',
-                                    style: const TextStyle(fontSize: 13),
+                                Text(
+                                  partes['cantidad']!,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: _verde,
                                   ),
                                 ),
-                                Text(
-                                  '${ing['cantidad']} ${ing['unidad']}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                    fontWeight: FontWeight.w500,
+                                const SizedBox(width: 7),
+                                Expanded(
+                                  child: Text(
+                                    partes['nombre']!,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w400,
+                                      color: Color(0xFF1A1A1A),
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
+                          );
+                        }),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Preparación',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
-                      if (pasos.isNotEmpty) ...[
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Preparación',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                      ),
+                      const SizedBox(height: 8),
+                      if (_cargando)
+                        const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: CircularProgressIndicator(
+                              color: _verde,
+                              strokeWidth: 2,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        ...pasos.asMap().entries.map(
-                          (e) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 6),
+                        )
+                      else if (_pasos.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline_rounded,
+                                size: 16,
+                                color: Colors.grey[400],
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'No hay pasos de preparación disponibles.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        ..._pasos.asMap().entries.map((e) {
+                          final paso = e.value;
+                          final instruccion =
+                              paso['instruccion']?.toString() ?? '';
+                          final imgPaso = paso['img']?.toString() ?? '';
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -1477,25 +1778,40 @@ class _DetalleRecetaPersonalSheetState
                                 ),
                                 const SizedBox(width: 10),
                                 Expanded(
-                                  child: Text(
-                                    (e.value
-                                                as Map<
-                                                  String,
-                                                  dynamic
-                                                >)['instruccion']
-                                            ?.toString() ??
-                                        '',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      height: 1.5,
-                                    ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (imgPaso.startsWith('http')) ...[
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          child: Image.network(
+                                            imgPaso,
+                                            height: 120,
+                                            width: double.infinity,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) =>
+                                                const SizedBox.shrink(),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                      ],
+                                      Text(
+                                        instruccion,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          height: 1.5,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                        ),
-                      ],
+                          );
+                        }),
                     ],
                   ),
                 ),
@@ -1660,15 +1976,10 @@ class _BuscadorRecetasDBSheetState extends State<_BuscadorRecetasDBSheet> {
         'fechaCreacion': DateTime.now().toIso8601String(),
         'copiadaDe': doc.id,
       };
-      final docRef = await FirebaseFirestore.instance
+      await FirebaseFirestore.instance
           .collection('recetas_personales')
           .add(payload);
       if (!mounted) return;
-
-      final nav = Navigator.of(context, rootNavigator: true);
-      final recetaId = docRef.id;
-      final payloadCopia = Map<String, dynamic>.from(payload);
-
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
