@@ -53,3 +53,5 @@ flutter:
     - assets/videos/
     - assets/images/fondo.webp
     - .env
+    - assets/images/jaguar_cocinero.png
+    - assets/images/vegetables_botton.png

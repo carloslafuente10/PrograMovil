@@ -276,6 +276,7 @@ class _DetallePendienteSheetState extends State<_DetallePendienteSheet> {
             Expanded(
               child: SingleChildScrollView(
                 controller: scrollCtrl,
+                padding: const EdgeInsets.only(bottom: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -355,8 +356,10 @@ class _DetallePendienteSheetState extends State<_DetallePendienteSheet> {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            SafeArea(
+              top: false,
+              child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: Row(
                 children: [
                   Expanded(
@@ -391,6 +394,7 @@ class _DetallePendienteSheetState extends State<_DetallePendienteSheet> {
                   ),
                 ],
               ),
+            ),
             ),
           ],
         ),

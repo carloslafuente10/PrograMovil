@@ -715,13 +715,13 @@ class _CrearRecetaAdminScreenState extends State<CrearRecetaAdminScreen>
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          left: 20,
-          right: 20,
-          top: 20,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: SingleChildScrollView(
+          child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               index == null ? 'Nuevo paso' : 'Editar paso ${index + 1}',
@@ -824,6 +824,8 @@ class _CrearRecetaAdminScreenState extends State<CrearRecetaAdminScreen>
             ),
             const SizedBox(height: 20),
           ],
+        ),
+        ),
         ),
       ),
     );
