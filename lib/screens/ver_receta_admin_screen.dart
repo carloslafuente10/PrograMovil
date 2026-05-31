@@ -542,7 +542,9 @@ class _VerRecetaAdminScreenState extends State<VerRecetaAdminScreen> {
                       ),
                     ],
 
-                    const SizedBox(height: 100),
+                    SizedBox(
+                      height: MediaQuery.of(context).padding.bottom + 80,
+                    ),
                   ],
                 ),
               ),

@@ -161,7 +161,7 @@ class AdminRecetasScreen extends StatelessWidget {
                     crossAxisCount: 2,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
-                    mainAxisExtent: 220,
+                    mainAxisExtent: 242,
                   ),
                   itemCount: docs.length,
                   itemBuilder: (context, i) {
@@ -240,7 +240,7 @@ class _RecetaCard extends StatelessWidget {
                     top: Radius.circular(16),
                   ),
                   child: SizedBox(
-                    height: 110,
+                    height: 105,
                     width: double.infinity,
                     child: img.isNotEmpty
                         ? Image.network(
