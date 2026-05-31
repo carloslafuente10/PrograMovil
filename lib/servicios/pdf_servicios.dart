@@ -629,6 +629,150 @@ class PdfService {
       await OpenFile.open(file.path);
     }
   }
+  static Future<void> generarReporteRecetaIndividual(
+  String recetaId,
+  ) async {
+
+  final recetaDoc =
+      await FirebaseFirestore.instance
+          .collection('app-recetas-completas')
+          .doc(recetaId)
+          .get();
+
+  if (!recetaDoc.exists) return;
+
+  final receta = recetaDoc.data()!;
+
+  List<dynamic> pasos = [];
+
+  final stepsDoc =
+      await FirebaseFirestore.instance
+          .collection('steps-recetas')
+          .doc(recetaId)
+          .get();
+
+  if (stepsDoc.exists) {
+    pasos =
+        List.from(
+          stepsDoc.data()?['pasos_ordenados'] ?? [],
+        );
+  }
+
+  final pdf = pw.Document();
+
+  pdf.addPage(
+    pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+
+      build: (context) => [
+
+        pw.Text(
+          receta['nombre'] ?? '',
+          style: pw.TextStyle(
+            fontSize: 24,
+            fontWeight: pw.FontWeight.bold,
+          ),
+        ),
+
+        pw.SizedBox(height: 15),
+
+        pw.Text(
+          'Categoría: ${receta['categoria'] ?? ''}',
+        ),
+
+        pw.Text(
+          'Calorías: ${receta['calorias'] ?? 0}',
+        ),
+
+        pw.SizedBox(height: 20),
+
+        pw.Text(
+          'INGREDIENTES',
+          style: pw.TextStyle(
+            fontSize: 18,
+            fontWeight: pw.FontWeight.bold,
+          ),
+        ),
+
+        pw.SizedBox(height: 10),
+
+        ...((receta['ingredientes'] ?? [])
+            as List)
+            .map((ing) {
+
+          return pw.Bullet(
+            text:
+                '${ing['cantidad']} '
+                '${ing['unidad']} '
+                '${ing['ingrediente_id']}',
+          );
+
+        }),
+
+        pw.SizedBox(height: 20),
+
+        pw.Text(
+          'PASOS',
+          style: pw.TextStyle(
+            fontSize: 18,
+            fontWeight: pw.FontWeight.bold,
+          ),
+        ),
+
+        pw.SizedBox(height: 10),
+
+        ...pasos.asMap().entries.map((e) {
+
+          final paso = e.value;
+
+          return pw.Padding(
+            padding:
+                const pw.EdgeInsets.only(
+              bottom: 8,
+            ),
+            child: pw.Text(
+  '${e.key + 1}. ${paso.toString()}',
+),
+          );
+        }),
+      ],
+    ),
+  );
+
+  final bytes = await pdf.save();
+
+  if (kIsWeb) {
+
+    final blob = html.Blob([bytes]);
+
+    final url =
+        html.Url.createObjectUrlFromBlob(
+      blob,
+    );
+
+    html.AnchorElement(href: url)
+      ..setAttribute(
+        'download',
+        'receta_${receta['nombre']}.pdf',
+      )
+      ..click();
+
+    html.Url.revokeObjectUrl(url);
+
+  } else {
+
+    final dir =
+        await getApplicationDocumentsDirectory();
+
+    final file = File(
+      '${dir.path}/receta_${receta['nombre']}.pdf',
+    );
+
+    await file.writeAsBytes(bytes);
+
+    await OpenFile.open(file.path);
+  }
+  }
 
   static Future<void> generarExcelRecetas() async {
     final snapshot = await FirebaseFirestore.instance

@@ -124,64 +124,113 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        seccion = 'usuarios';
-                      });
-                    },
-                    child: const Text('Usuarios'),
-                  ),
+            Column(
+  children: [
+
+    Row(
+      children: [
+
+        Expanded(
+          child: ElevatedButton(
+            onPressed: () {
+              setState(() {
+                seccion = 'usuarios';
+              });
+            },
+            style: ElevatedButton.styleFrom(
+      backgroundColor:
+          seccion == 'usuarios'
+              ? Colors.green
+              : Colors.grey.shade200,
+
+      foregroundColor:
+          seccion == 'usuarios'
+              ? Colors.white
+              : Colors.black87,
+    ),
+            child: const Text('Usuarios'),
+          ),
+        ),
+
+        const SizedBox(width: 10),
+
+        Expanded(
+          child: ElevatedButton(
+            onPressed: () {
+              setState(() {
+                seccion = 'favoritos';
+              });
+            },
+            style: ElevatedButton.styleFrom(
+  backgroundColor:
+      seccion == 'favoritos'
+          ? Colors.red
+          : Colors.grey.shade200,
+
+  foregroundColor:
+      seccion == 'favoritos'
+          ? Colors.white
+          : Colors.black87,
+),
+            child: const Text('Favoritos'),
+          ),
+        ),
+      ],
+    ),
+
+    const SizedBox(height: 10),
+
+    Row(
+      children: [
+        Expanded(
+  child: ElevatedButton(
+    onPressed: () {
+      setState(() {
+        seccion = 'recetas';
+      });
+    },
+
+    style: ElevatedButton.styleFrom(
+      backgroundColor:
+          seccion == 'recetas'
+              ? Colors.orange
+              : Colors.grey.shade200,
+
+      foregroundColor:
+          seccion == 'recetas'
+              ? Colors.white
+              : Colors.black87,
+    ),
+
+    child: const Text('Recetas'),
+  ),
+),
+
+        
+        const SizedBox(width: 10),
+
+        Expanded(
+          child: ElevatedButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      const ReportesPlanificadoresScreen(),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        seccion = 'favoritos';
-                      });
-                    },
-                    child: const Text('Favoritos'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        seccion = 'recetas';
-                      });
-                    },
-                    child: const Text('Recetas'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                // --- CÓDIGO NUEVO DEL USUARIO (Planificador) ---
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const ReportesPlanificadoresScreen(),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent, // Para que destaque
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('Planificador'),
-                  ),
-                ),
-                // --- FIN CÓDIGO NUEVO ---
-              ],
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueAccent,
+              foregroundColor: Colors.white,
             ),
+            child: const Text('Planificador'),
+          ),
+        ),
+      ],
+    ),
+  ],
+),
             const SizedBox(height: 20),
 
             // =========================
@@ -555,6 +604,26 @@ class _ReportesScreenState extends State<ReportesScreen> {
                                   Text('Categoría: ${data['categoria'] ?? ''}'),
                                   const SizedBox(height: 8),
                                   Text('${data['calorias'] ?? 0} calorías'),
+                                  const SizedBox(height: 12),
+
+ElevatedButton.icon(
+  onPressed: () {
+
+    PdfService
+        .generarReporteRecetaIndividual(
+      doc.id,
+    );
+
+  },
+
+  icon: const Icon(
+    Icons.picture_as_pdf,
+  ),
+
+  label: const Text(
+    'Descargar PDF',
+  ),
+),
                                 ],
                               ),
                             ),

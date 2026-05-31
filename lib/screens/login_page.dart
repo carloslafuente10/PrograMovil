@@ -388,11 +388,11 @@ const Text(
             const SizedBox(height: 0),
             IgnorePointer(
   child: Transform.translate(
-    offset: const Offset(0, -60),
+    offset: const Offset(0, 0),
     child: Image.asset(
-      'assets/images/vegetables_bottom.png',
+      'assets/images/vegetables_botton.png',
       width: double.infinity,
-      height: 110,
+      height: 100,
       fit: BoxFit.cover,
     ),
   ),
