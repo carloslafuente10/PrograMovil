@@ -1044,6 +1044,7 @@ class _DialogoIngredienteState extends State<_DialogoIngrediente> {
       if (ing.esMaestro && widget.maestroInicial != null) {
         _maestroSeleccionado = widget.maestroInicial;
         _busquedaCtrl.text = widget.maestroInicial!['nombre']?.toString() ?? '';
+        // Filtrar la lista para que coincida con el nombre ya cargado
         final q = _busquedaCtrl.text.toLowerCase();
         if (q.isNotEmpty) {
           _filtrados = widget.maestros
@@ -1052,6 +1053,8 @@ class _DialogoIngredienteState extends State<_DialogoIngrediente> {
               .toList();
         }
       } else if (ing.esMaestro && ing.nombre.isNotEmpty) {
+        // El ingrediente viene de la BD pero no se encontró en la lista local de maestros.
+        // Creamos un objeto temporal para que aparezca el chip de seleccionado.
         _maestroSeleccionado = {
           'id': ing.ingredienteId,
           'nombre': ing.nombre,

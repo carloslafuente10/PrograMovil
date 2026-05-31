@@ -116,8 +116,8 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
           ? i['imagen'].toString()
           : (i['foto']?.toString() ?? '');
 
-      if (nombre.isEmpty && ingId.isNotEmpty) {
       // Consultar Firestore si falta nombre O imagen
+      if ((nombre.isEmpty || imagen.isEmpty) && ingId.isNotEmpty) {
         try {
           final doc = await FirebaseFirestore.instance
               .collection('ingredientes_maestros')
@@ -1132,6 +1132,7 @@ class _IngredienteCardState extends State<_IngredienteCard> {
               Text(widget.ing.nombre, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF444455)),
                   maxLines: 2, overflow: TextOverflow.ellipsis),
             ])),
+            // Botón eliminar en su propio Material para no interferir con el InkWell padre
             Material(
               color: Colors.transparent,
               child: InkWell(
