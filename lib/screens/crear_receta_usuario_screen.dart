@@ -116,7 +116,8 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
           ? i['imagen'].toString()
           : (i['foto']?.toString() ?? '');
 
-      if (nombre.isEmpty && ingId.isNotEmpty) {
+      // Consultar Firestore si falta nombre O imagen
+      if ((nombre.isEmpty || imagen.isEmpty) && ingId.isNotEmpty) {
         try {
           final doc = await FirebaseFirestore.instance
               .collection('ingredientes_maestros')
@@ -487,6 +488,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
           esReenvio: _esReenvio,
           fueEditado: _fueEditado,
           estadoOriginal: _estadoOriginal,
+          cantIngredientes: _ingredientes.length,
           onGuardarBorrador: _guardarBorrador,
           onGuardarReceta: _guardarComoGuardada,
           onEnviarRevision: _enviarARevision,
@@ -715,10 +717,12 @@ class _PaginaIngredientesState extends State<_PaginaIngredientes> {
   List<Map<String, dynamic>> _resultados = [];
   bool _buscando = false;
   static const List<String> _unidades = [
+    '',
     'g','kg','ml','l','L',
     'taza','tazas',
     'cda','cdas','cucharada','cucharadas',
     'cdta','cdtas','cucharadita','cucharaditas',
+    'cucharita','cucharitas',
     'unidad','unidades',
     'pizca','pizcas',
     'puñado','puñados',
@@ -731,6 +735,7 @@ class _PaginaIngredientesState extends State<_PaginaIngredientes> {
     'lata','latas',
     'sobre','sobres',
     'paquete','paquetes',
+    'gramos','mililitros','litros','kilogramos',
     'al gusto','c/n',
   ];
 
@@ -818,7 +823,7 @@ class _PaginaIngredientesState extends State<_PaginaIngredientes> {
                       borderRadius: BorderRadius.circular(5)),
                     child: esPrimordial
                         ? const Icon(Icons.check, color: Colors.white, size: 14)
-                        : null),
+                        : const SizedBox.shrink()),
                   const SizedBox(width: 8),
                   const Text('Es ingrediente primordial ★', style: TextStyle(fontSize: 13)),
                 ])),
@@ -911,7 +916,11 @@ class _PaginaIngredientesState extends State<_PaginaIngredientes> {
             itemBuilder: (ctx, i) {
               final ing = _resultados[i];
               return ListTile(dense: true,
-                leading: _MiniImagen(url: ing['imagen']?.toString() ?? '', size: 36),
+                leading: _MiniImagen(
+                  url: (ing['imagen']?.toString() ?? '').isNotEmpty
+                      ? ing['imagen'].toString()
+                      : ing['foto']?.toString() ?? '',
+                  size: 36),
                 title: Text(ing['nombre'] ?? '', style: const TextStyle(fontSize: 14)),
                 trailing: const Icon(Icons.add_circle_rounded, color: Color(0xFF2D9E73), size: 20),
                 onTap: () => _agregarIngrediente(ing));
@@ -938,24 +947,14 @@ class _PaginaIngredientesState extends State<_PaginaIngredientes> {
               const SizedBox(height: 12),
               Text('Busca y agrega ingredientes', style: TextStyle(color: Colors.grey[500])),
             ]))
-          : ListView.separated(padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
               itemCount: widget.ingredientes.length,
               separatorBuilder: (_, __) => const SizedBox(height: 10),
               itemBuilder: (ctx, i) => _IngredienteCard(
+                  key: ValueKey('${widget.ingredientes[i].id}_$i'),
                   ing: widget.ingredientes[i], unidades: _unidades,
                   onEliminar: () => _eliminar(i), onChanged: widget.onChanged))),
-      if (widget.ingredientes.isNotEmpty)
-        Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: SizedBox(width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: widget.onSiguiente,
-              icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white),
-              label: Text(
-                '${widget.ingredientes.length} ingrediente${widget.ingredientes.length != 1 ? 's' : ''} · Siguiente: Pasos',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-              style: ElevatedButton.styleFrom(backgroundColor: _verde,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)))))),
     ]);
   }
 }
@@ -965,7 +964,7 @@ class _IngredienteCard extends StatefulWidget {
   final List<String> unidades;
   final VoidCallback onEliminar;
   final VoidCallback onChanged;
-  const _IngredienteCard({required this.ing, required this.unidades, required this.onEliminar, required this.onChanged});
+  const _IngredienteCard({super.key, required this.ing, required this.unidades, required this.onEliminar, required this.onChanged});
   @override
   State<_IngredienteCard> createState() => _IngredienteCardState();
 }
@@ -974,31 +973,50 @@ class _IngredienteCardState extends State<_IngredienteCard> {
   static const Color _verde = Color(0xFF2D9E73);
 
   void _abrirEditor() {
+    if (!mounted) return;
     final cantCtrl = TextEditingController(text: widget.ing.cantidad);
-    // Si la unidad actual no está en la lista, la añadimos para que el dropdown
-    // no la sobreescriba silenciosamente con el primer valor de la lista
     final unidadActual = widget.ing.unidad.trim();
-    // Garantizar que el valor seleccionado siempre esté en la lista (evita crash del Dropdown)
-    final listaUnidades = (unidadActual.isNotEmpty && !widget.unidades.contains(unidadActual))
+
+    // Comparación case-insensitive para no duplicar en la lista
+    final yaExiste = widget.unidades.any(
+        (u) => u.toLowerCase() == unidadActual.toLowerCase());
+    final listaUnidades = (unidadActual.isNotEmpty && !yaExiste)
         ? [unidadActual, ...widget.unidades]
-        : widget.unidades;
-    String unidadSel = (unidadActual.isNotEmpty && listaUnidades.contains(unidadActual))
-        ? unidadActual
-        : listaUnidades.first;
+        : List<String>.from(widget.unidades);
+
+    // unidadSel debe ser exactamente uno de los valores de listaUnidades
+    String unidadSel;
+    if (unidadActual.isEmpty) {
+      unidadSel = listaUnidades.contains('') ? '' : listaUnidades.first;
+    } else {
+      final match = listaUnidades.firstWhere(
+          (u) => u.toLowerCase() == unidadActual.toLowerCase(),
+          orElse: () => listaUnidades.first);
+      unidadSel = match;
+    }
+
+    bool esPrimordial = widget.ing.esPrimordial;
+
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       contentPadding: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Padding(padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
         child: Text(widget.ing.nombre, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16))),
-      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if ((widget.ing.imagen ?? '').isNotEmpty)
-          ClipRRect(borderRadius: BorderRadius.circular(4),
-            child: Image.network(widget.ing.imagen!, width: double.infinity, height: 120, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const SizedBox.shrink()))
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if ((widget.ing.imagen ?? '').startsWith('http'))
+          SizedBox(width: double.maxFinite, height: 120,
+            child: ClipRRect(borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(4), topRight: Radius.circular(4)),
+              child: Image.network(widget.ing.imagen!,
+                  width: double.maxFinite, height: 120, fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(height: 80, color: const Color(0xFFE8F7F1),
+                      child: const Center(child: Icon(Icons.restaurant_rounded, size: 40, color: _verde))))))
         else
           Container(height: 80, color: const Color(0xFFE8F7F1),
             child: const Center(child: Icon(Icons.restaurant_rounded, size: 40, color: _verde))),
-        Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('Cantidad', style: TextStyle(fontSize: 12, color: Colors.grey)),
             const SizedBox(height: 6),
@@ -1020,18 +1038,40 @@ class _IngredienteCardState extends State<_IngredienteCard> {
                 value: unidadSel, isExpanded: true,
                 items: listaUnidades.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
                 onChanged: (v) => setDlg(() => unidadSel = v ?? unidadSel)))),
+            const SizedBox(height: 14),
+            GestureDetector(
+              onTap: () => setDlg(() => esPrimordial = !esPrimordial),
+              child: Row(children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: 22, height: 22,
+                  decoration: BoxDecoration(
+                    color: esPrimordial ? _verde : Colors.transparent,
+                    border: Border.all(color: _verde, width: 2),
+                    borderRadius: BorderRadius.circular(5)),
+                  child: esPrimordial
+                      ? const Icon(Icons.check, color: Colors.white, size: 14)
+                      : const SizedBox.shrink()),
+                const SizedBox(width: 8),
+                const Text('Ingrediente primordial ★',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+              ])),
+            const SizedBox(height: 4),
           ])),
-      ]),
+      ])),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx),
             child: Text('Cancelar', style: TextStyle(color: Colors.grey[600]))),
         ElevatedButton(
           onPressed: () {
+            if (!mounted) { Navigator.pop(ctx); return; }
             setState(() {
               widget.ing.cantidad = cantCtrl.text.trim().isEmpty ? '1' : cantCtrl.text.trim();
               widget.ing.unidad = unidadSel;
+              widget.ing.esPrimordial = esPrimordial;
             });
-            widget.onChanged(); Navigator.pop(ctx);
+            widget.onChanged();
+            Navigator.pop(ctx);
           },
           style: ElevatedButton.styleFrom(backgroundColor: _verde,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
@@ -1059,37 +1099,51 @@ class _IngredienteCardState extends State<_IngredienteCard> {
   Widget build(BuildContext context) {
     final cantidadTexto = _formatCantidad(widget.ing.cantidad);
     final unidadTexto   = widget.ing.unidad.trim();
-    return GestureDetector(onTap: _abrirEditor,
-      child: Container(
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: _abrirEditor,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
             boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)]),
-        child: Row(children: [
-          Container(
-            width: 52, height: 52, margin: const EdgeInsets.only(left: 10),
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(color: const Color(0xFFE8F7F1), borderRadius: BorderRadius.circular(10)),
-            child: (widget.ing.imagen ?? '').startsWith('http')
-                ? Image.network(widget.ing.imagen!, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.restaurant_rounded, size: 24, color: _verde))
-                : const Icon(Icons.restaurant_rounded, size: 24, color: _verde)),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            Row(children: [
-              Text(cantidadTexto, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF1A1A2E))),
-              if (unidadTexto.isNotEmpty) ...[
-                const SizedBox(width: 4),
-                Text(unidadTexto, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey[500])),
-              ],
-            ]),
-            const SizedBox(height: 3),
-            Text(widget.ing.nombre, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF444455)),
-                maxLines: 2, overflow: TextOverflow.ellipsis),
-          ])),
-          GestureDetector(onTap: widget.onEliminar,
-            child: Container(margin: const EdgeInsets.only(right: 10), padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(color: const Color(0xFFFFEEEE), borderRadius: BorderRadius.circular(8)),
-              child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFE53935), size: 16))),
-        ])));
+          child: Row(children: [
+            Container(
+              width: 52, height: 52, margin: const EdgeInsets.only(left: 10),
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(color: const Color(0xFFE8F7F1), borderRadius: BorderRadius.circular(10)),
+              child: (widget.ing.imagen ?? '').startsWith('http')
+                  ? Image.network(widget.ing.imagen!, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.restaurant_rounded, size: 24, color: _verde))
+                  : const Icon(Icons.restaurant_rounded, size: 24, color: _verde)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Row(children: [
+                Text(cantidadTexto, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF1A1A2E))),
+                if (unidadTexto.isNotEmpty) ...[
+                  const SizedBox(width: 4),
+                  Text(unidadTexto, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey[500])),
+                ],
+              ]),
+              const SizedBox(height: 3),
+              Text(widget.ing.nombre, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF444455)),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+            ])),
+            // Botón eliminar en su propio Material para no interferir con el InkWell padre
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: widget.onEliminar,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  margin: const EdgeInsets.only(right: 10),
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(color: const Color(0xFFFFEEEE), borderRadius: BorderRadius.circular(8)),
+                  child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFE53935), size: 16)))),
+          ]))));
   }
 }
 
@@ -1218,6 +1272,7 @@ class _BottomBar extends StatelessWidget {
   final int pagina;
   final bool todoValido, guardando, esReenvio, fueEditado;
   final String estadoOriginal;
+  final int cantIngredientes;
   final VoidCallback onGuardarBorrador;
   final VoidCallback onGuardarReceta;
   final VoidCallback onEnviarRevision;
@@ -1228,6 +1283,7 @@ class _BottomBar extends StatelessWidget {
   const _BottomBar({
     required this.pagina, required this.todoValido, required this.guardando,
     required this.esReenvio, required this.fueEditado, required this.estadoOriginal,
+    required this.cantIngredientes,
     required this.onGuardarBorrador, required this.onGuardarReceta,
     required this.onEnviarRevision, required this.onAnterior, required this.onSiguiente});
 
@@ -1236,7 +1292,6 @@ class _BottomBar extends StatelessWidget {
     final bool esBorrador  = estadoOriginal == 'borrador' || estadoOriginal == '';
     final bool puedeEnviar = estadoOriginal == 'guardada' || estadoOriginal == 'rechazada_editada';
     final bool btnEnviarActivo = puedeEnviar && todoValido;
-    final bottomPad = MediaQuery.of(context).padding.bottom;
 
     return Container(
       padding: EdgeInsets.fromLTRB(16, 10, 16, MediaQuery.of(context).padding.bottom + 12),
@@ -1287,8 +1342,11 @@ class _BottomBar extends StatelessWidget {
           Expanded(child: ElevatedButton.icon(
             onPressed: onSiguiente,
             icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 16),
-            label: const Text('Siguiente',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            label: Text(
+              pagina == 1 && cantIngredientes > 0
+                  ? '$cantIngredientes ingrediente${cantIngredientes != 1 ? 's' : ''} · Siguiente'
+                  : 'Siguiente',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
             style: ElevatedButton.styleFrom(backgroundColor: _verde,
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))))),
