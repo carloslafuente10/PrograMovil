@@ -555,8 +555,9 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
                     Navigator.pop(context);
                     Navigator.push(context, MaterialPageRoute(
                       builder: (_) => CrearRecetaUsuarioScreen(
-                        recetaExistente: widget.data,
-                        recetaPersonalId: widget.docId,
+                       recetaExistente: widget.data,
+                       recetaPersonalId: widget.docId,
+                       esCopia: widget.data['copiadaDe'] != null, 
                       ),
                     ));
                   } : null,
@@ -1112,7 +1113,7 @@ class _DetalleRecetaPersonalSheetState extends State<_DetalleRecetaPersonalSheet
             child: SingleChildScrollView(
               controller: scrollCtrl,
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).padding.bottom + 20),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   if (imgUrl.startsWith('http'))
                     ClipRRect(

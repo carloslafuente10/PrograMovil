@@ -34,11 +34,13 @@ class _IngredienteSeleccionado {
 class CrearRecetaUsuarioScreen extends StatefulWidget {
   final Map<String, dynamic>? recetaExistente;
   final String? recetaPersonalId;
+  final bool esCopia;
 
   const CrearRecetaUsuarioScreen({
     super.key,
     this.recetaExistente,
     this.recetaPersonalId,
+    this.esCopia = false,
   });
 
   @override
@@ -312,7 +314,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     if (_guardando) return;
     setState(() => _guardando = true);
     try {
-      // El usuario eligió explícitamente guardar la receta completa
       const nuevoEstado = 'guardada';
       final payload = _buildPayload(nuevoEstado);
       if (_recetaPersonalId != null) {
@@ -335,7 +336,6 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     if (_guardando) return;
     setState(() => _guardando = true);
     try {
-      // El usuario eligió guardar el avance sin marcar como completa
       const nuevoEstado = 'borrador';
       final payload = _buildPayload(nuevoEstado);
       if (_recetaPersonalId != null) {
@@ -371,6 +371,34 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
         _recetaPersonalId = doc.id;
       }
       if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) _mostrarSnack('Error al guardar: $e');
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  Future<void> _guardarCopia() async {
+    if (_guardando) return;
+    setState(() => _guardando = true);
+    try {
+      final payload = _buildPayload('copia');
+      // Preservar copiadaDe para que siga siendo reconocida como copia
+      if (widget.recetaExistente?['copiadaDe'] != null) {
+        payload['copiadaDe'] = widget.recetaExistente!['copiadaDe'];
+      }
+      if (_recetaPersonalId != null) {
+        await FirebaseFirestore.instance
+            .collection('recetas_personales').doc(_recetaPersonalId).update(payload);
+      } else {
+        final doc = await FirebaseFirestore.instance
+            .collection('recetas_personales').add(payload);
+        _recetaPersonalId = doc.id;
+      }
+      if (mounted) {
+        _mostrarSnackVerde('Copia guardada correctamente');
+        Navigator.pop(context);
+      }
     } catch (e) {
       if (mounted) _mostrarSnack('Error al guardar: $e');
     } finally {
@@ -444,6 +472,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _fondo,
+      resizeToAvoidBottomInset: false,
       appBar: _buildAppBar(),
       body: _cargando
           ? const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -481,19 +510,27 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
               pasosCtrl: _pasosCtrl,
               onChanged: () { setState(() {}); _marcarEditado(); }),
           ])),
-        _BottomBar(
-          pagina: _paginaActual,
-          todoValido: _todoValido,
-          guardando: _guardando,
-          esReenvio: _esReenvio,
-          fueEditado: _fueEditado,
-          estadoOriginal: _estadoOriginal,
-          cantIngredientes: _ingredientes.length,
-          onGuardarBorrador: _guardarBorrador,
-          onGuardarReceta: _guardarComoGuardada,
-          onEnviarRevision: _enviarARevision,
-          onAnterior: _paginaActual > 0 ? () => _irAPagina(_paginaActual - 1) : null,
-          onSiguiente: _paginaActual < 2 ? () => _irAPagina(_paginaActual + 1) : null),
+        widget.esCopia
+            ? _BottomBarCopia(
+                guardando: _guardando,
+                onGuardarCopia: _guardarCopia,
+                pagina: _paginaActual,
+                cantIngredientes: _ingredientes.length,
+                onAnterior: _paginaActual > 0 ? () => _irAPagina(_paginaActual - 1) : null,
+                onSiguiente: _paginaActual < 2 ? () => _irAPagina(_paginaActual + 1) : null)
+            : _BottomBar(
+                pagina: _paginaActual,
+                todoValido: _todoValido,
+                guardando: _guardando,
+                esReenvio: _esReenvio,
+                fueEditado: _fueEditado,
+                estadoOriginal: _estadoOriginal,
+                cantIngredientes: _ingredientes.length,
+                onGuardarBorrador: _guardarBorrador,
+                onGuardarReceta: _guardarComoGuardada,
+                onEnviarRevision: _enviarARevision,
+                onAnterior: _paginaActual > 0 ? () => _irAPagina(_paginaActual - 1) : null,
+                onSiguiente: _paginaActual < 2 ? () => _irAPagina(_paginaActual + 1) : null),
       ]),
     );
   }
@@ -505,14 +542,16 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
         onPressed: () => Navigator.pop(context)),
-      title: Text(titles[_paginaActual],
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18)),
+      title: Text(
+        widget.esCopia ? 'Editar copia' : titles[_paginaActual],
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18)),
       actions: [
         if (_guardando)
           const Padding(padding: EdgeInsets.symmetric(horizontal: 16),
             child: Center(child: SizedBox(width: 18, height: 18,
                 child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))))
-        else
+        // ✅ FIX COPIAS: en modo copia no mostramos el botón Guardar del AppBar
+        else if (!widget.esCopia)
           TextButton(
             onPressed: _guardarReceta,
             child: const Text('Guardar', style: TextStyle(color: Colors.white70, fontSize: 13))),
@@ -765,7 +804,6 @@ class _PaginaIngredientesState extends State<_PaginaIngredientes> {
     } catch (_) { if (mounted) setState(() => _buscando = false); }
   }
 
-  // Guarda en ingredientes_maestros + soporta foto, categoría, sustituto, primordial
   void _agregarIngredientePersonalizado() {
     final nombreCtrl     = TextEditingController(text: _searchCtrl.text.trim());
     final fotoCtrl       = TextEditingController();
@@ -892,6 +930,10 @@ class _PaginaIngredientesState extends State<_PaginaIngredientes> {
 
   @override
   Widget build(BuildContext context) {
+    final tecladoAbierto = MediaQuery.of(context).viewInsets.bottom > 0;
+    final mostrarNoEsta = _searchCtrl.text.trim().isNotEmpty && !_buscando &&
+        !(_resultados.isNotEmpty && tecladoAbierto);
+
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
         child: Container(
@@ -925,7 +967,7 @@ class _PaginaIngredientesState extends State<_PaginaIngredientes> {
                 trailing: const Icon(Icons.add_circle_rounded, color: Color(0xFF2D9E73), size: 20),
                 onTap: () => _agregarIngrediente(ing));
             })),
-      if (_searchCtrl.text.trim().isNotEmpty && !_buscando)
+      if (mostrarNoEsta)
         Padding(padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
           child: GestureDetector(onTap: _agregarIngredientePersonalizado,
             child: Container(
@@ -977,14 +1019,12 @@ class _IngredienteCardState extends State<_IngredienteCard> {
     final cantCtrl = TextEditingController(text: widget.ing.cantidad);
     final unidadActual = widget.ing.unidad.trim();
 
-    // Comparación case-insensitive para no duplicar en la lista
     final yaExiste = widget.unidades.any(
         (u) => u.toLowerCase() == unidadActual.toLowerCase());
     final listaUnidades = (unidadActual.isNotEmpty && !yaExiste)
         ? [unidadActual, ...widget.unidades]
         : List<String>.from(widget.unidades);
 
-    // unidadSel debe ser exactamente uno de los valores de listaUnidades
     String unidadSel;
     if (unidadActual.isEmpty) {
       unidadSel = listaUnidades.contains('') ? '' : listaUnidades.first;
@@ -997,86 +1037,121 @@ class _IngredienteCardState extends State<_IngredienteCard> {
 
     bool esPrimordial = widget.ing.esPrimordial;
 
-    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
-      contentPadding: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Padding(padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-        child: Text(widget.ing.nombre, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16))),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if ((widget.ing.imagen ?? '').startsWith('http'))
-          SizedBox(width: double.maxFinite, height: 120,
-            child: ClipRRect(borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(4), topRight: Radius.circular(4)),
-              child: Image.network(widget.ing.imagen!,
-                  width: double.maxFinite, height: 120, fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(height: 80, color: const Color(0xFFE8F7F1),
-                      child: const Center(child: Icon(Icons.restaurant_rounded, size: 40, color: _verde))))))
-        else
-          Container(height: 80, color: const Color(0xFFE8F7F1),
-            child: const Center(child: Icon(Icons.restaurant_rounded, size: 40, color: _verde))),
-        Padding(padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Cantidad', style: TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 6),
-            Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[200]!)),
-              child: TextField(controller: cantCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                decoration: const InputDecoration(border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 12)))),
-            const SizedBox(height: 12),
-            const Text('Unidad', style: TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 6),
-            Container(padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey[200]!)),
-              child: DropdownButtonHideUnderline(child: DropdownButton<String>(
-                value: unidadSel, isExpanded: true,
-                items: listaUnidades.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
-                onChanged: (v) => setDlg(() => unidadSel = v ?? unidadSel)))),
-            const SizedBox(height: 14),
-            GestureDetector(
-              onTap: () => setDlg(() => esPrimordial = !esPrimordial),
-              child: Row(children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  width: 22, height: 22,
-                  decoration: BoxDecoration(
-                    color: esPrimordial ? _verde : Colors.transparent,
-                    border: Border.all(color: _verde, width: 2),
-                    borderRadius: BorderRadius.circular(5)),
-                  child: esPrimordial
-                      ? const Icon(Icons.check, color: Colors.white, size: 14)
-                      : const SizedBox.shrink()),
-                const SizedBox(width: 8),
-                const Text('Ingrediente primordial ★',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-              ])),
-            const SizedBox(height: 4),
-          ])),
-      ])),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancelar', style: TextStyle(color: Colors.grey[600]))),
-        ElevatedButton(
-          onPressed: () {
-            if (!mounted) { Navigator.pop(ctx); return; }
-            setState(() {
-              widget.ing.cantidad = cantCtrl.text.trim().isEmpty ? '1' : cantCtrl.text.trim();
-              widget.ing.unidad = unidadSel;
-              widget.ing.esPrimordial = esPrimordial;
-            });
-            widget.onChanged();
-            Navigator.pop(ctx);
-          },
-          style: ElevatedButton.styleFrom(backgroundColor: _verde,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-          child: const Text('Guardar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
-      ])));
+    // FIX OVERFLOW
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setDlg) => AlertDialog(
+          contentPadding: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            child: Text(widget.ing.nombre,
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16))),
+          content: Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+            child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if ((widget.ing.imagen ?? '').startsWith('http'))
+                  SizedBox(
+                    width: double.maxFinite, height: 120,
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(4), topRight: Radius.circular(4)),
+                      child: Image.network(widget.ing.imagen!,
+                          width: double.maxFinite, height: 120, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                              height: 80, color: const Color(0xFFE8F7F1),
+                              child: const Center(
+                                  child: Icon(Icons.restaurant_rounded, size: 40, color: _verde))))))
+                else
+                  Container(
+                    height: 80, color: const Color(0xFFE8F7F1),
+                    child: const Center(
+                        child: Icon(Icons.restaurant_rounded, size: 40, color: _verde))),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Cantidad', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      const SizedBox(height: 6),
+                      Container(
+                        decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey[200]!)),
+                        child: TextField(
+                          controller: cantCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                          decoration: const InputDecoration(
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 12)))),
+                      const SizedBox(height: 12),
+                      const Text('Unidad', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey[200]!)),
+                        child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: unidadSel, isExpanded: true,
+                              items: listaUnidades.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                              onChanged: (v) => setDlg(() => unidadSel = v ?? unidadSel)))),
+                      const SizedBox(height: 14),
+                      GestureDetector(
+                        onTap: () => setDlg(() => esPrimordial = !esPrimordial),
+                        child: Row(children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            width: 22, height: 22,
+                            decoration: BoxDecoration(
+                              color: esPrimordial ? _verde : Colors.transparent,
+                              border: Border.all(color: _verde, width: 2),
+                              borderRadius: BorderRadius.circular(5)),
+                            child: esPrimordial
+                                ? const Icon(Icons.check, color: Colors.white, size: 14)
+                                : const SizedBox.shrink()),
+                          const SizedBox(width: 8),
+                          const Text('Ingrediente primordial ★',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                        ])),
+                    ])),
+              ],
+            ))),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancelar', style: TextStyle(color: Colors.grey[600]))),
+            ElevatedButton(
+              onPressed: () {
+                if (!mounted) { Navigator.pop(ctx); return; }
+                setState(() {
+                  widget.ing.cantidad = cantCtrl.text.trim().isEmpty ? '1' : cantCtrl.text.trim();
+                  widget.ing.unidad = unidadSel;
+                  widget.ing.esPrimordial = esPrimordial;
+                });
+                widget.onChanged();
+                Navigator.pop(ctx);
+              },
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: _verde,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              child: const Text('Guardar',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
+          ],
+        ),
+      ),
+    );
   }
 
   String _formatCantidad(String raw) {
@@ -1132,7 +1207,6 @@ class _IngredienteCardState extends State<_IngredienteCard> {
               Text(widget.ing.nombre, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF444455)),
                   maxLines: 2, overflow: TextOverflow.ellipsis),
             ])),
-            // Botón eliminar en su propio Material para no interferir con el InkWell padre
             Material(
               color: Colors.transparent,
               child: InkWell(
@@ -1266,6 +1340,67 @@ class _MicroBtn extends StatelessWidget {
   Widget build(BuildContext context) => IconButton(onPressed: onTap,
       icon: Icon(icon, color: color, size: 18), padding: const EdgeInsets.all(4),
       constraints: const BoxConstraints());
+}
+
+class _BottomBarCopia extends StatelessWidget {
+  final bool guardando;
+  final VoidCallback onGuardarCopia;
+  final int pagina;
+  final int cantIngredientes;
+  final VoidCallback? onAnterior;
+  final VoidCallback? onSiguiente;
+
+  static const Color _verde = Color(0xFF2D9E73);
+
+  const _BottomBarCopia({
+    required this.guardando,
+    required this.onGuardarCopia,
+    required this.pagina,
+    required this.cantIngredientes,
+    required this.onAnterior,
+    required this.onSiguiente,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(16, 10, 16, MediaQuery.of(context).padding.bottom + 12),
+      decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, -2))]),
+      child: pagina == 2
+          // Última página: botón central prominente
+          ? SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: guardando ? null : onGuardarCopia,
+                icon: guardando
+                    ? const SizedBox(width: 16, height: 16,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Icon(Icons.save_rounded, color: Colors.white, size: 18),
+                label: const Text('Guardar en copias',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: _verde,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)))))
+          // Páginas anteriores: solo Siguiente
+          : Row(children: [
+              Expanded(child: ElevatedButton.icon(
+                onPressed: onSiguiente,
+                icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 16),
+                label: Text(
+                  pagina == 1 && cantIngredientes > 0
+                      ? '$cantIngredientes ingrediente${cantIngredientes != 1 ? 's' : ''} · Siguiente'
+                      : 'Siguiente',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: _verde,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))))),
+            ]),
+    );
+  }
 }
 
 class _BottomBar extends StatelessWidget {
