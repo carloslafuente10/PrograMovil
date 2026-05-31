@@ -117,6 +117,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
           : (i['foto']?.toString() ?? '');
 
       if (nombre.isEmpty && ingId.isNotEmpty) {
+      // Consultar Firestore si falta nombre O imagen
         try {
           final doc = await FirebaseFirestore.instance
               .collection('ingredientes_maestros')
