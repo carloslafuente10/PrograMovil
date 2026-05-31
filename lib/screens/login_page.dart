@@ -314,24 +314,97 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
+  padding: const EdgeInsets.symmetric(horizontal: 28),
+
+  child: Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(
+        maxWidth: 550,
+      ),
           child: Column(
             children: [
-              const SizedBox(height: 64),
-              const Icon(Icons.restaurant, size: 72, color: _verde),
-              const SizedBox(height: 18),
-              const Text('Recetas App',
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: _textoOscuro)),
+              const SizedBox(height: 10),
+              ClipRRect(
+  borderRadius: BorderRadius.circular(25),
+  child: Image.asset(
+    'assets/images/jaguar_cocinero.png',
+    height: 200,
+  ),
+),
+
+              const SizedBox(height: 10),
+              const Text(
+  'Yagu!',
+  style: TextStyle(
+    fontSize: 34,
+    fontWeight: FontWeight.bold,
+    color: _verde,
+  ),
+),
+const SizedBox(height: 6),
+
+const Text(
+  'Descubre recetas, guarda favoritos y planifica tus comidas.',
+  style: TextStyle(
+    fontSize: 15,
+    color: _textoGris,
+  ),
+),
               const SizedBox(height: 36),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: !registrando ? _panelLogin() : _panelRegistro(),
-              ),
+              Container(
+
+  padding: const EdgeInsets.all(24),
+
+  decoration: BoxDecoration(
+
+    color: Colors.white,
+
+    borderRadius: BorderRadius.circular(25),
+
+    boxShadow: [
+
+      BoxShadow(
+
+        color: Colors.black.withOpacity(0.08),
+
+        blurRadius: 15,
+
+        offset: const Offset(0, 5),
+      ),
+    ],
+  ),
+
+  child: AnimatedSwitcher(
+
+    duration: const Duration(milliseconds: 300),
+
+    child:
+        !registrando
+            ? _panelLogin()
+            : _panelRegistro(),
+  ),
+),
+            
+            const SizedBox(height: 0),
+            IgnorePointer(
+  child: Transform.translate(
+    offset: const Offset(0, -60),
+    child: Image.asset(
+      'assets/images/vegetables_bottom.png',
+      width: double.infinity,
+      height: 110,
+      fit: BoxFit.cover,
+    ),
+  ),
+),
+
             ],
           ),
-        ),
-      ),
-    );
+         ), // ConstrainedBox
+      ),   // Center
+    ),     // SingleChildScrollView
+  ),       // SafeArea
+);         // Scaffold
   }
 
   Widget _panelLogin() {
