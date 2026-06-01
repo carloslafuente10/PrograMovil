@@ -1407,7 +1407,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                             ),
                           _badge(
                             Icons.local_fire_department,
-                            _formatearCalorias(data),
+                            _formatearCalorias(data['calorias']),
                             Colors.orange,
                           ),
                           if ((int.tryParse(
@@ -1614,20 +1614,10 @@ class _ReportesScreenState extends State<ReportesScreen> {
     for (final item in rawIngs) {
       if (item is! Map) continue;
       final id = item['ingrediente_id']?.toString() ?? '';
-
-      // cantidad puede llegar como int64, double o string con coma decimal
-      final cantidadRaw = item['cantidad'];
-      final cantidad = cantidadRaw != null
-          ? cantidadRaw.toString().replaceAll(',', '.')
-          : '';
-
-      final unidad = (item['unidad'] ?? '').toString().trim();
-
-      // Usar 'nombre' del map primero, luego maestros, luego id humanizado
-      String nombre = (item['nombre'] ?? '').toString().trim();
-      if (nombre.isEmpty) nombre = id.replaceAll('-', ' ');
-
-      if (id.isNotEmpty && nombre == id.replaceAll('-', ' ')) {
+      final cantidad = item['cantidad']?.toString() ?? '';
+      final unidad = item['unidad']?.toString() ?? '';
+      String nombre = id.replaceAll('-', ' ');
+      if (id.isNotEmpty) {
         try {
           final doc = await FirebaseFirestore.instance
               .collection('ingredientes_maestros')
@@ -1636,7 +1626,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
           if (doc.exists) nombre = doc.data()!['nombre']?.toString() ?? nombre;
         } catch (_) {}
       }
-
       result.add({'nombre': nombre, 'cantidad': cantidad, 'unidad': unidad});
     }
     return result;
@@ -1720,22 +1709,18 @@ class _ReportesScreenState extends State<ReportesScreen> {
   /// Formatea una línea de ingrediente mostrando cantidad, unidad y nombre.
   /// Si la unidad está vacía se omite para evitar "4  de papas holandesas".
   String _formatearIngrediente(Map<String, dynamic> ing) {
-    final cantidad = _aFraccion((ing['cantidad'] ?? '').toString());
+    final cantidad = _aFraccion(ing['cantidad']?.toString() ?? '');
     final unidad = (ing['unidad'] ?? '').toString().trim();
     final nombre = (ing['nombre'] ?? '').toString().trim();
 
     if (cantidad.isEmpty && unidad.isEmpty) return nombre;
-    // Con unidad: '150 gramos de harina'
-    if (unidad.isNotEmpty && cantidad.isNotEmpty) return '$cantidad $unidad de $nombre';
-    // Solo unidad sin cantidad
-    if (unidad.isNotEmpty) return '$unidad de $nombre';
-    // Sin unidad (contable): '1 cebolla morada'
-    return '$cantidad $nombre';
+    if (unidad.isEmpty) return '$cantidad de $nombre';
+    if (cantidad.isEmpty) return '$unidad de $nombre';
+    return '$cantidad $unidad de $nombre';
   }
 
-  /// Formatea calorías: busca tanto 'calorias' como 'calorías' (con tilde).
-  String _formatearCalorias(Map<String, dynamic> data) {
-    final valor = data['calorias'] ?? data['calorías'];
+  /// Formatea calorías: muestra el valor si existe y es > 0, o "Sin datos" si no.
+  String _formatearCalorias(dynamic valor) {
     if (valor == null) return 'Sin calorías';
     final cal = double.tryParse(valor.toString());
     if (cal == null || cal <= 0) return 'Sin calorías';
@@ -1745,10 +1730,8 @@ class _ReportesScreenState extends State<ReportesScreen> {
   /// Convierte un valor numérico a fracción legible.
   /// Ej: 0.5 → "½", 0.25 → "¼", 1.5 → "1½", 2.0 → "2"
   String _aFraccion(String raw) {
-    // Normalizar coma decimal europea -> punto (ej: '0,25' -> '0.25')
-    final normalizado = raw.trim().replaceAll(',', '.');
-    final val = double.tryParse(normalizado);
-    if (val == null || normalizado.isEmpty) return raw.trim();
+    final val = double.tryParse(raw.trim());
+    if (val == null || raw.trim().isEmpty) return raw;
 
     final fracciones = {
       0.125: '⅛',
