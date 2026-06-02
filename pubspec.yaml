@@ -42,7 +42,7 @@ dev_dependencies:
   video_player: ^2.8.1
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
-  
+
 flutter_launcher_icons:
   android: true
   ios: true
@@ -60,4 +60,4 @@ flutter:
     - assets/images/fondo.webp
     - .env
     - assets/images/jaguar_cocinero.png
-    - assets/images/vegetables_bottom.png
+    - assets/images/vegetables_botton.png
