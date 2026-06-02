@@ -8,16 +8,17 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// VoiceCallScreen — Asistente de voz NID
+// VoiceTransitionScreen — Pantalla de transición + Asistente NID integrado
 //
-// FLUJO COMPLETO:
-//   1. Al abrir → carga catálogo Firestore (RAG) en segundo plano.
-//   2. Saludo inicial automático: NID se presenta con la frase exacta.
-//   3. Usuario pulsa micrófono → STT transcribe su voz.
-//   4. IntentRouter detecta la intención local (siguiente paso, repetir,
-//      listar ingredientes, etc.) antes de gastar tokens en Groq.
-//   5. Si la intención requiere IA → Groq + historial + catálogo.
-//   6. Respuesta limpia (sin markdown) → flutter_tts la reproduce.
+// FLUJO COMBINADO:
+//   1. La pantalla se muestra con fondo de imagen y dos botones 3D.
+//   2. El botón "Seleccionar una receta de mi catálogo" navega a otra pantalla.
+//   3. El botón "Saltar este paso" activa a NID en el lugar:
+//      a. Carga el catálogo Firestore en segundo plano (RAG).
+//      b. NID pronuncia el saludo inicial.
+//      c. El micrófono queda disponible para el usuario.
+//   4. Toda la lógica de STT, TTS, IntentRouter, Groq y Fallback
+//      opera exactamente igual que en VoiceCallScreen original.
 //
 // DEPENDENCIAS (pubspec.yaml):
 //   speech_to_text: ^6.6.0
@@ -25,24 +26,34 @@ import 'package:flutter_tts/flutter_tts.dart';
 //   cloud_firestore, http, flutter_dotenv  ← ya están en el proyecto
 // ═══════════════════════════════════════════════════════════════════════════
 
-class VoiceCallScreen extends StatefulWidget {
-  const VoiceCallScreen({super.key});
+class VoiceTransitionScreen extends StatefulWidget {
+  const VoiceTransitionScreen({super.key});
 
   @override
-  State<VoiceCallScreen> createState() => _VoiceCallScreenState();
+  State<VoiceTransitionScreen> createState() => _VoiceTransitionScreenState();
 }
 
-class _VoiceCallScreenState extends State<VoiceCallScreen>
+class _VoiceTransitionScreenState extends State<VoiceTransitionScreen>
     with SingleTickerProviderStateMixin {
 
   // ─────────────────────────────────────────────
   // PALETA CIBERPUNK ANDINO
   // ─────────────────────────────────────────────
-  static const Color _negro      = Color(0xFF0A0A0F);
-  static const Color _moradoNeon = Color(0xFF7B2FBE);
-  static const Color _cianNeon   = Color(0xFF00F5FF);
-  static const Color _doradoInca = Color(0xFFFFD700);
-  static const Color _verdeApp   = Color(0xFF2D9E73);
+  static const Color _verdeNeon    = Color(0xFF2D9E73);
+  static const Color _verdeSombra  = Color(0xFF1B6347);
+  static const Color _moradoNeon   = Color(0xFF7B2FBE);
+  static const Color _moradoSombra = Color(0xFF4A1A75);
+  static const Color _negro        = Color(0xFF0A0A0F);
+  static const Color _cianNeon     = Color(0xFF00F5FF);
+  static const Color _doradoInca   = Color(0xFFFFD700);
+  static const Color _verdeApp     = Color(0xFF2D9E73);
+
+  // ─────────────────────────────────────────────
+  // ESTADO DE ACTIVACIÓN DE NID
+  // NID permanece dormido hasta que el usuario
+  // presione "Saltar este paso".
+  // ─────────────────────────────────────────────
+  bool _nidActivado = false;
 
   // ─────────────────────────────────────────────
   // SERVICIOS EXTERNOS
@@ -56,52 +67,29 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   // ─────────────────────────────────────────────
   String _textoEscuchado = "";
   String _preguntaFinal  = "";
-  String _respuestaNID   = "";   // Última respuesta visible y en caché para TTS
+  String _respuestaNID   = "";
   bool   _escuchando     = false;
   bool   _procesando     = false;
   bool   _hablando       = false;
 
   // ─────────────────────────────────────────────
   // CATÁLOGO RAG (Firestore)
-  // _catalogoContexto  → String plano para inyectar en el prompt
-  // _recetasData       → datos estructurados para el IntentRouter local
-  // _catalogoCargado   → semáforo UI
   // ─────────────────────────────────────────────
-  /// Índice slim: solo "ID | Nombre | Categoría | Calorías | Tiempo"
-  /// Se inyecta en Groq cuando NO hay receta activa (~500 tokens máx.)
-  String _catalogoContexto = "";
-
-  /// Texto completo de la receta que el usuario eligió en esta sesión.
-  /// Se inyecta en Groq EN LUGAR del catálogo una vez que el usuario
-  /// menciona una receta concreta. Reduce el contexto de ~5 000 → ~300 tokens.
+  String _catalogoContexto     = "";
   String _recetaActivaContexto = "";
-
-  bool   _catalogoCargado  = false;
-
-  /// Cada entrada: { 'nombre', 'categoria', 'calorias', 'tiempo',
-  ///                 'ingredientes': List<String>, 'pasos': List<String> }
+  bool   _catalogoCargado      = false;
   final List<Map<String, dynamic>> _recetasData = [];
 
   // ─────────────────────────────────────────────
   // ESTADO DE RECETA ACTIVA (control paso a paso)
   // ─────────────────────────────────────────────
-
-  /// Nombre de la receta que el usuario eligió en esta sesión
   String? _recetaActivaNombre;
-
-  /// Pasos de la receta activa (lista limpia de Strings)
-  List<String> _pasosActivos = [];
-
-  /// Ingredientes de la receta activa (lista limpia de Strings)
+  List<String> _pasosActivos        = [];
   List<String> _ingredientesActivos = [];
-
-  /// Índice del paso que NID está dictando actualmente (0-based)
-  int _pasoActualIndex = -1; // -1 = no se ha iniciado el dictado
+  int _pasoActualIndex = -1;
 
   // ─────────────────────────────────────────────
   // HISTORIAL PARA GROQ (memoria a corto plazo)
-  // Formato: [{"role": "user"/"assistant", "content": "..."}]
-  // Se envía completo en cada llamada para mantener el hilo.
   // ─────────────────────────────────────────────
   final List<Map<String, String>> _historial = [];
 
@@ -120,16 +108,6 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
 
   // ═══════════════════════════════════════════════════════════════════════════
   // SYSTEM PROMPT — POLÍTICA ZERO-HALLUCINATION + FORMATO TTS
-  //
-  // ESTRUCTURA:
-  //   [A] Identidad de NID
-  //   [B] Contexto RAG inyectado (fuente única de verdad, INMUTABLE)
-  //   [C] Protocolo de verificación obligatorio
-  //   [D] Protocolo de rechazo absoluto
-  //   [E] Reglas de formato TTS (sin markdown)
-  //   [F] Fidelidad numérica estricta (NO aproximaciones en ingredientes)
-  //   [G] Brevedad y dosificación
-  //   [H] Porciones dinámicas
   // ═══════════════════════════════════════════════════════════════════════════
   static const String _systemPromptTemplate = """
 [A — IDENTIDAD]
@@ -197,7 +175,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
   // ─────────────────────────────────────────────
   // SALUDO INICIAL EXACTO DE NID
   // Se pronuncia automáticamente al terminar de
-  // cargar el catálogo. No gasta tokens de API.
+  // cargar el catálogo, SOLO si NID fue activado.
   // ─────────────────────────────────────────────
   static const String _saludoInicial =
       "Bienvenido cocinero, mi nombre es NID. "
@@ -220,8 +198,9 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
       CurvedAnimation(parent: _pulsoController, curve: Curves.easeInOut),
     );
 
+    // TTS se configura en initState para que esté listo cuando NID despierte.
+    // El catálogo NO se carga aquí; espera a que el usuario pulse "Saltar".
     _configurarTts();
-    _cargarCatalogoYSaludar(); // Carga Firestore y luego pronuncia el saludo
   }
 
   @override
@@ -234,13 +213,36 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
   }
 
   // ─────────────────────────────────────────────
+  // _activarNID
+  // Llamado al pulsar "Saltar este paso".
+  // Cambia el modo de la pantalla y despierta
+  // a NID: carga el catálogo y pronuncia el saludo.
+  // ─────────────────────────────────────────────
+  Future<void> _activarNID() async {
+    setState(() => _nidActivado = true);
+    await _cargarCatalogoYSaludar();
+  }
+
+  // ─────────────────────────────────────────────
   // _configurarTts
   // Voz pausada y levemente grave para NID.
+  // En Flutter Web (Edge/Chrome), SpeechSynthesis
+  // puede lanzar un [object SpeechSynthesisErrorEvent]
+  // si el contexto de audio se suspende. El handler
+  // lo intercepta y libera el flag _hablando.
   // ─────────────────────────────────────────────
   Future<void> _configurarTts() async {
     await _tts.setLanguage("es-US");
     await _tts.setSpeechRate(0.42);
     await _tts.setPitch(0.85);
+
+    // Captura cualquier error del motor de síntesis del navegador
+    // antes de que congele _hablando = true indefinidamente.
+    _tts.setErrorHandler((dynamic msg) {
+      debugPrint("TTS Error capturado: $msg");
+      if (mounted) setState(() => _hablando = false);
+    });
+
     _tts.setCompletionHandler(() {
       if (mounted) setState(() => _hablando = false);
     });
@@ -248,13 +250,9 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
 
   // ─────────────────────────────────────────────
   // _iniciarTemporizador / _cancelarTemporizador
-  // Motor nativo del temporizador. Se activa cuando
-  // la IA responde con el comando oculto [TIMER:X].
-  // La detección ocurre ANTES de limpiar para TTS,
-  // por lo que el tag nunca es pronunciado.
   // ─────────────────────────────────────────────
   void _iniciarTemporizador(int minutos) {
-    _cancelarTemporizador(); // Limpia uno previo si existe
+    _cancelarTemporizador();
     setState(() {
       _timerDuration = Duration(minutes: minutos);
       _timerActivo   = true;
@@ -266,7 +264,6 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
           _timerDuration -= const Duration(seconds: 1);
         } else {
           _cancelarTemporizador();
-          // Notificación sonora de finalización vía TTS
           _hablar(
             "El temporizador ha terminado. ¡Tu preparación está lista!",
             guardarEnHistorial: false,
@@ -283,22 +280,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
   }
 
   // ═══════════════════════════════════════════════════════
-  // _sanitizarRecetaFirestore  — HELPER DE SANITIZACIÓN
-  //
-  // Intercepta el mapa crudo de un documento Firestore y
-  // unifica semánticamente ingredientes + cantidades + pasos
-  // en Strings legibles antes de enviarlos a Groq.
-  //
-  // Problema que resuelve: Firestore puede almacenar las
-  // cantidades y nombres en campos separados, produciendo
-  // ráfagas de números sin contexto como "1 1 1 4 1 6" si
-  // se concatenan sin lógica. Este helper los une en frases
-  // naturales: "1 unidad de pechuga de pollo".
-  //
-  // Devuelve Map con:
-  //   'ingredientes': List<String> unificados y legibles
-  //   'pasos':        List<String> limpios
-  //   'contextoTexto': String listo para inyectar en el prompt
+  // _sanitizarRecetaFirestore — HELPER DE SANITIZACIÓN
   // ═══════════════════════════════════════════════════════
   Map<String, dynamic> _sanitizarRecetaFirestore(
       Map<String, dynamic> data, String docId) {
@@ -308,12 +290,6 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     final String calorias  = (data['calorias']  ?? '').toString().trim();
     final String tiempo    = (data['tiempo']    ?? '').toString().trim();
 
-    // ── INGREDIENTES — unificación semántica ──────────────
-    // Soporta 4 estructuras de Firestore:
-    //   A) String simple:             "pechuga de pollo"
-    //   B) Map {nombre, cantidad}:    {nombre: "pollo", cantidad: "1"}
-    //   C) Map {nombre, cantidad, unidad}: {nombre:"harina", cantidad:"2", unidad:"tazas"}
-    //   D) Map con campos separados   {ingrediente:"papa", gramos:"200"}
     final List rawIngredientes = data['ingredientes'] ?? [];
     final List<String> ingredientesLimpios = rawIngredientes.map<String>((ing) {
       if (ing is Map) {
@@ -328,8 +304,6 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
                             ing['unit']       ?? '').toString().trim();
 
         if (nom.isEmpty) return '';
-
-        // Construir frase natural: "2 tazas de harina", "1 unidad de pechuga"
         if (can.isNotEmpty && uni.isNotEmpty) return "$can $uni de $nom";
         if (can.isNotEmpty) return "$can de $nom";
         return nom;
@@ -337,7 +311,6 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
       return ing.toString().trim();
     }).where((s) => s.isNotEmpty).toList();
 
-    // ── PASOS — tolerante a String y Map con claves variables ──
     final List rawPasos = data['pasos'] ?? [];
     final List<String> pasosLimpios = rawPasos.map<String>((paso) {
       if (paso is Map) {
@@ -350,7 +323,6 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
       return paso.toString().trim();
     }).where((s) => s.isNotEmpty).toList();
 
-    // ── Texto de contexto completo para Groq (~300 tokens) ──
     final StringBuffer ctx = StringBuffer();
     ctx.writeln("RECETA: $nombre");
     if (categoria.isNotEmpty) ctx.writeln("  Categoría: $categoria");
@@ -376,13 +348,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
   }
 
   // ═══════════════════════════════════════════════════════
-  // CARGA DE CATÁLOGO FIRESTORE (RAG)
-  //
-  // Fase 1 — Índice slim (solo nombre + meta, sin ingredientes/pasos).
-  //           Se inyecta en Groq cuando NO hay receta activa.
-  //           Mantiene el contexto inicial < 500 tokens.
-  // Fase 2 — Estructura completa sanitizada almacenada en _recetasData
-  //           lista para activarse cuando el usuario elija una receta.
+  // CARGA DE CATÁLOGO FIRESTORE (RAG) + SALUDO INICIAL
   // ═══════════════════════════════════════════════════════
   Future<void> _cargarCatalogoYSaludar() async {
     setState(() => _procesando = true);
@@ -395,11 +361,9 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
       final StringBuffer buffer = StringBuffer();
 
       for (final doc in snapshot.docs) {
-        // ── Sanitizar datos crudos con el helper ──
         final Map<String, dynamic> sanitizado =
             _sanitizarRecetaFirestore(doc.data(), doc.id);
 
-        // ── Línea slim para el índice (solo metadatos, sin ingredientes/pasos) ──
         final List<String> meta = [
           "ID:${doc.id}",
           "RECETA:${sanitizado['nombre']}",
@@ -415,7 +379,6 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
         }
         buffer.writeln(meta.join(" | "));
 
-        // ── Guardar estructura completa sanitizada para el IntentRouter ──
         _recetasData.add(sanitizado);
       }
 
@@ -439,21 +402,11 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
 
   // ═══════════════════════════════════════════════════════
   // INTENT ROUTER — Detección local de intenciones
-  //
-  // Procesa el texto del usuario ANTES de llamar a Groq.
-  // Si detecta una intención manejable localmente (siguiente
-  // paso, repetir, listar ingredientes, etc.) la resuelve
-  // sin gastar tokens. Solo delega a Groq lo que requiere
-  // comprensión semántica real.
-  //
-  // Devuelve true si manejó la intención; false si debe
-  // continuar hacia _consultarNID().
   // ═══════════════════════════════════════════════════════
   Future<bool> _intentRouter(String texto) async {
     final String t = texto.toLowerCase().trim();
 
-    // ── 1. REPETIR ÚLTIMA RESPUESTA ──────────────────────
-    // "qué dijiste", "repite eso", "no te entendí"
+    // ── 1. REPETIR ÚLTIMA RESPUESTA ──
     if (_respuestaNID.isNotEmpty &&
         (t.contains("qué dijiste") ||
          t.contains("que dijiste") ||
@@ -465,8 +418,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
       return true;
     }
 
-    // ── 2. SIGUIENTE PASO ────────────────────────────────
-    // "siguiente", "siguiente paso", "continúa", "adelante"
+    // ── 2. SIGUIENTE PASO ──
     if (_recetaActivaNombre != null && _pasosActivos.isNotEmpty &&
         (t == "siguiente" ||
          t.contains("siguiente paso") ||
@@ -484,13 +436,12 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
           "Has completado todos los pasos de $_recetaActivaNombre. ¡Buen provecho!",
           guardarEnHistorial: true,
         );
-        _pasoActualIndex = _pasosActivos.length - 1; // No salir del array
+        _pasoActualIndex = _pasosActivos.length - 1;
       }
       return true;
     }
 
-    // ── 3. PASO ANTERIOR ─────────────────────────────────
-    // "paso anterior", "regresa", "vuelve"
+    // ── 3. PASO ANTERIOR ──
     if (_recetaActivaNombre != null && _pasosActivos.isNotEmpty &&
         (t.contains("paso anterior") ||
          t.contains("regresa") ||
@@ -511,8 +462,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
       return true;
     }
 
-    // ── 4. REPETIR PASO ACTUAL ───────────────────────────
-    // "repite el paso", "repite eso", "de nuevo"
+    // ── 4. REPETIR PASO ACTUAL ──
     if (_recetaActivaNombre != null &&
         _pasoActualIndex >= 0 &&
         _pasosActivos.isNotEmpty &&
@@ -526,9 +476,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
       return true;
     }
 
-    // ── 5. INICIAR PASOS / EMPEZAR A COCINAR ─────────────
-    // Solo dicta el paso 1 cuando el usuario confirma explícitamente.
-    // Si aún no ha confirmado, NID pregunta primero.
+    // ── 5. INICIAR PASOS / EMPEZAR A COCINAR ──
     if (_recetaActivaNombre != null && _pasosActivos.isNotEmpty &&
         (t.contains("empezar a cocinar") ||
          t.contains("dime los pasos") ||
@@ -540,7 +488,6 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
          t.contains("dale") ||
          t.contains("preparación") ||
          t.contains("preparacion"))) {
-      // Si aún no se ha iniciado el dictado → confirmar antes de lanzar el paso 1
       if (_pasoActualIndex == -1) {
         _pasoActualIndex = 0;
         final String msg =
@@ -549,7 +496,6 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
             "Cuando estés listo, dime 'siguiente'.";
         await _hablar(msg, guardarEnHistorial: true);
       } else {
-        // Ya estaba en marcha → avanzar normalmente
         _pasoActualIndex++;
         if (_pasoActualIndex < _pasosActivos.length) {
           await _hablar(
@@ -567,8 +513,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
       return true;
     }
 
-    // ── 6. LISTAR INGREDIENTES DE LA RECETA ACTIVA ───────
-    // "dime los ingredientes", "qué necesito", "muéstrame los ingredientes"
+    // ── 6. LISTAR INGREDIENTES DE LA RECETA ACTIVA ──
     if (_recetaActivaNombre != null && _ingredientesActivos.isNotEmpty &&
         (t.contains("ingredientes") ||
          t.contains("qué necesito") ||
@@ -582,8 +527,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
       return true;
     }
 
-    // ── 7. LISTAR RECETAS POR CATEGORÍA ──────────────────
-    // "qué recetas de desayuno hay", "recetas de cena"
+    // ── 7. LISTAR RECETAS POR CATEGORÍA ──
     final List<String> categorias = ["desayuno", "almuerzo", "cena", "refrescos", "snack"];
     for (final cat in categorias) {
       if (t.contains(cat)) {
@@ -605,156 +549,165 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
       }
     }
 
-    // ── Ninguna intención local detectada → delegar a Groq ──
     return false;
   }
 
-  // ═══════════════════════════════════════════════════════
-  // TOGGLE MICRÓFONO
-  // Inicia o detiene el STT. Al confirmar texto, primero
-  // pasa por el IntentRouter; si no lo resuelve, va a Groq.
-  // ═══════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TOGGLE MICRÓFONO — Blindado para Flutter Web (Edge / Chrome)
+  //
+  // PROBLEMAS RESUELTOS:
+  //
+  //   [1] Locale inválido en Web Speech API
+  //       Edge no acepta "es_ES" (guión bajo). Requiere BCP-47 con guión:
+  //       "es-ES", "es-BO". Se normaliza ANTES de llamar a listen().
+  //
+  //   [2] Error "network" en bucle
+  //       El WebSocket del STT queda en CLOSING sin llegar a CLOSED.
+  //       Solución: llamar _speech.stop() desde onError para forzar el cierre
+  //       del socket y romper el ciclo de reintentos del plugin.
+  //
+  //   [3] Edge emite "done"/"notListening" tras corte de red con texto vacío
+  //       Candado triple en onStatus: solo procesa si _escuchando era true,
+  //       mounted es true, y el texto capturado no está vacío.
+  //
+  //   [4] _speech.initialize() se re-llama en cada tap aunque ya fue
+  //       inicializado — inofensivo pero genera logs. Se agrega guard
+  //       _sttInicializado para evitarlo.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Semáforo: evita re-inicializar el plugin STT en cada tap.
+  bool _sttInicializado = false;
+
+  /// Convierte un localeId de Flutter (guión bajo, e.g. "es_BO") al formato
+  /// BCP-47 que requiere la Web Speech API (guión, e.g. "es-BO").
+  String _normalizarLocaleWeb(String localeId) =>
+      localeId.replaceAll('_', '-');
+
   Future<void> _toggleMicrofono() async {
     if (!_catalogoCargado || _procesando || _hablando) return;
 
+    // ── Rama DETENER: el usuario pulsó para cortar la escucha activa ──
     if (_escuchando) {
       await _speech.stop();
+      final String capturado = _textoEscuchado.trim();
       setState(() {
         _escuchando    = false;
-        _preguntaFinal = _textoEscuchado;
+        _preguntaFinal = capturado;
       });
-      if (_preguntaFinal.trim().isNotEmpty) {
-        await _procesarTextoUsuario(_preguntaFinal.trim());
+      if (capturado.isNotEmpty) {
+        await _procesarTextoUsuario(capturado);
       }
-    } else {
-      setState(() {
-        _textoEscuchado = "";
-        _respuestaNID   = "";
-      });
+      return;
+    }
 
-      // ═══════════════════════════════════════════════════════
-      // [PARTE 1-A] STT: Inicialización robusta con onStatus
-      // ─────────────────────────────────────────────────────
-      // onStatus sincroniza el flag _escuchando si el OS detiene
-      // el mic por su cuenta (estado "done" / "notListening").
-      // Esto evita que el botón quede activo sin audio real.
-      // ═══════════════════════════════════════════════════════
-      final disponible = await _speech.initialize(
+    // ── Rama INICIAR: preparar nueva sesión de escucha ──
+    setState(() {
+      _textoEscuchado = "";
+      _respuestaNID   = "";
+    });
+
+    // Inicializar el plugin solo la primera vez (guard _sttInicializado).
+    // En Web el plugin reutiliza la misma instancia SpeechRecognition del DOM;
+    // volver a llamar initialize() después del primer éxito no hace daño,
+    // pero genera un error silencioso en Edge que confunde los logs.
+    if (!_sttInicializado) {
+      final bool ok = await _speech.initialize(
         onError: (err) {
-          // "error_speech_timeout" es esperado en silencio largo; no es fatal.
-          debugPrint("STT Error [\${err.errorMsg}] permanente:\${err.permanent}");
-          if (mounted) setState(() => _escuchando = false);
+          // [FIX 2] Detener explícitamente para cerrar el socket WebSocket
+          // y romper el bucle de error "network" en Edge.
+          debugPrint("STT Error [${err.errorMsg}] permanente:${err.permanent}");
+          if (mounted && _escuchando) {
+            setState(() => _escuchando = false);
+            _speech.stop(); // cierra el socket; no lanzar await aquí
+          }
         },
         onStatus: (status) {
-          debugPrint("STT Status: \$status");
-          // El OS reporta "done" o "notListening" cuando termina la sesión.
-          if ((status == "done" || status == "notListening") && mounted && _escuchando) {
+          debugPrint("STT Status: $status");
+
+          // [FIX 3] Candado triple: solo actuar si el mic estaba genuinamente
+          // activo. Descarta el "done" espurio de Edge tras un corte de red.
+          if (!mounted || !_escuchando) return;
+
+          if (status == "done" || status == "notListening") {
+            final String capturado = _textoEscuchado.trim();
             setState(() => _escuchando = false);
-            // Procesar texto parcial si el OS cortó el mic por su cuenta.
-            if (_textoEscuchado.trim().isNotEmpty) {
-              _preguntaFinal = _textoEscuchado;
-              _procesarTextoUsuario(_preguntaFinal.trim());
+            if (capturado.isNotEmpty) {
+              _preguntaFinal = capturado;
+              _procesarTextoUsuario(_preguntaFinal);
             }
           }
         },
       );
 
-      if (disponible) {
-        // ═══════════════════════════════════════════════════════
-        // [PARTE 1-B] Selección dinámica del locale
-        // ─────────────────────────────────────────────────────
-        // Prioridad: es_BO → es_ES → primera es_* disponible.
-        // El diccionario fonético correcto reduce palabras incompletas
-        // en vocablos culinarios del español latinoamericano.
-        // ═══════════════════════════════════════════════════════
-        String localeElegido = "es_ES"; // guardia por defecto
-        try {
-          final locales = await _speech.locales();
-          final localeIds = locales.map((l) => l.localeId).toList();
-          if (localeIds.contains("es_BO")) {
-            localeElegido = "es_BO";
-          } else if (localeIds.contains("es_ES")) {
-            localeElegido = "es_ES";
-          } else {
-            localeElegido = localeIds.firstWhere(
-              (id) => id.startsWith("es"),
-              orElse: () => "es_ES",
-            );
-          }
-        } catch (e) {
-          debugPrint("STT locales() falló, usando es_ES: \$e");
-        }
-        debugPrint("STT Locale elegido: \$localeElegido");
-
-        setState(() => _escuchando = true);
-
-        // ═══════════════════════════════════════════════════════
-        // [PARTE 1-C] Parámetros anti-corte prematuro
-        // ─────────────────────────────────────────────────────
-        // listenMode: ListenMode.dictation
-        //   Le dice al backend del OS que el usuario dictará frases largas,
-        //   no comandos cortos (modo búsqueda). En Android activa el modelo
-        //   de lenguaje de dictado; en iOS configura AVAudioSession continua.
-        //
-        // listenFor: Duration(seconds: 60)
-        //   Tope absoluto de sesión. 60 s cubre cualquier pregunta culinaria.
-        //   (El OS puede reducirlo internamente a ~30 s en algunos Android.)
-        //
-        // pauseFor: Duration(seconds: 4)
-        //   Silencio continuo antes de "finalResult". 4 s deja respirar y
-        //   pensar sin cortar el micrófono. Subir a 5 s si persisten cortes.
-        //
-        // partialResults: true
-        //   Muestra la transcripción en tiempo real en el panel de texto.
-        // ═══════════════════════════════════════════════════════
-        _speech.listen(
-          localeId:       localeElegido,
-          listenFor:      const Duration(seconds: 60),
-          pauseFor:       const Duration(seconds: 4),
-          listenMode:     stt.ListenMode.dictation,
-          partialResults: true,
-          onResult: (result) {
-            setState(() {
-              _textoEscuchado = result.recognizedWords;
-              if (result.finalResult) {
-                _escuchando    = false;
-                _preguntaFinal = _textoEscuchado;
-              }
-            });
-            if (result.finalResult && _preguntaFinal.trim().isNotEmpty) {
-              _procesarTextoUsuario(_preguntaFinal.trim());
-            }
-          },
-        );
+      if (!ok) {
+        debugPrint("STT: micrófono no disponible en este dispositivo/navegador.");
+        return;
       }
+      _sttInicializado = true;
     }
+
+    // ── [FIX 1] Selección y normalización del locale ──
+    // Prioridad: es-BO → es-ES → primera variante es-* disponible.
+    // La Web Speech API de Chromium requiere BCP-47 con guión, no guión bajo.
+    String localeElegido = "es-ES"; // guardia por defecto ya en formato BCP-47
+    try {
+      final locales   = await _speech.locales();
+      final localeIds = locales.map((l) => l.localeId).toList();
+      debugPrint("STT Locales disponibles: $localeIds");
+
+      if (localeIds.contains("es_BO") || localeIds.contains("es-BO")) {
+        localeElegido = "es-BO";
+      } else if (localeIds.contains("es_ES") || localeIds.contains("es-ES")) {
+        localeElegido = "es-ES";
+      } else {
+        final esLocale = localeIds.firstWhere(
+          (id) => id.toLowerCase().startsWith("es"),
+          orElse: () => "es-ES",
+        );
+        localeElegido = _normalizarLocaleWeb(esLocale);
+      }
+    } catch (e) {
+      debugPrint("STT locales() falló, usando es-ES: $e");
+    }
+    debugPrint("STT Locale elegido (BCP-47): $localeElegido");
+
+    setState(() => _escuchando = true);
+
+    _speech.listen(
+      localeId:       localeElegido,
+      listenFor:      const Duration(seconds: 60),
+      pauseFor:       const Duration(seconds: 4),
+      listenMode:     stt.ListenMode.dictation,
+      partialResults: true,
+      onResult: (result) {
+        if (!mounted) return;
+
+        setState(() {
+          _textoEscuchado = result.recognizedWords;
+          if (result.finalResult) {
+            _escuchando    = false;
+            _preguntaFinal = _textoEscuchado;
+          }
+        });
+
+        if (result.finalResult && _preguntaFinal.trim().isNotEmpty) {
+          _procesarTextoUsuario(_preguntaFinal.trim());
+        }
+      },
+    );
   }
 
   // ═══════════════════════════════════════════════════════
   // PROCESADOR CENTRAL
-  // Punto único de entrada para todo texto del usuario.
-  // 1. Pasa primero por IntentRouter (lógica local, sin API).
-  // 2. Si IntentRouter devuelve false → consulta Groq.
   // ═══════════════════════════════════════════════════════
   Future<void> _procesarTextoUsuario(String texto) async {
-    // Intentar resolver localmente
     final bool resueltaLocalmente = await _intentRouter(texto);
     if (resueltaLocalmente) return;
-
-    // No resuelta → delegar a Groq
     await _consultarNID(texto);
   }
 
   // ═══════════════════════════════════════════════════════
   // CONSULTA AL LLM (GROQ + RAG + HISTORIAL)
-  //
-  // Flujo:
-  //   A. Agrega el turno del usuario al historial.
-  //   B. Construye [system + historial completo] y llama a Groq.
-  //   C. Limpia la respuesta de caracteres no aptos para TTS.
-  //   D. Si la respuesta confirma una receta → activa la receta.
-  //   E. Agrega la respuesta al historial.
-  //   F. Reproduce vía TTS.
   // ═══════════════════════════════════════════════════════
   Future<void> _consultarNID(String pregunta) async {
     setState(() {
@@ -762,12 +715,8 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
       _respuestaNID = "";
     });
 
-    // ── A. Registrar turno del usuario ──
     _historial.add({"role": "user", "content": pregunta});
 
-    // ── B. Construir payload ──
-    // Si ya hay una receta activa → inyectar SOLO su texto completo (~300 tokens).
-    // Si aún no → inyectar el índice slim con todos los nombres/meta (~<500 tokens).
     final String catalogoParaApi = _recetaActivaContexto.isNotEmpty
         ? _recetaActivaContexto
         : _catalogoContexto;
@@ -795,7 +744,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
         },
         body: jsonEncode({
           "model":       "llama-3.1-8b-instant",
-          "temperature": 0.1, // Mínima creatividad = máxima fidelidad al catálogo
+          "temperature": 0.1,
           "max_tokens":  300,
           "messages":    mensajesApi,
         }),
@@ -805,67 +754,43 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
         final data = jsonDecode(utf8.decode(response.bodyBytes));
         String respuesta = data['choices'][0]['message']['content'] ?? "";
 
-        // ── Detección de [TIMER:X] ANTES de limpiar para TTS ──
-        // _limpiarParaTts ya elimina [.*?], por eso interceptamos aquí.
         final timerMatch = RegExp(r'\[TIMER:(\d+)\]').firstMatch(respuesta);
         if (timerMatch != null) {
           _iniciarTemporizador(int.parse(timerMatch.group(1)!));
           respuesta = respuesta.replaceAll(RegExp(r'\[TIMER:\d+\]'), '').trim();
         }
 
-        // ── C. Limpiar caracteres no aptos para TTS ──
         respuesta = _limpiarParaTts(respuesta);
 
-        // ══════════════════════════════════════════════════════════════
-        // [PARTE 2] FALLBACK INTELIGENTE — Agente externo conversacional
-        // ──────────────────────────────────────────────────────────────
-        // Si Groq devolvió la frase de rechazo exacta del catálogo, en
-        // lugar de reproducirla seca, interceptamos aquí y disparamos
-        // una segunda llamada al mismo LLM sin restricciones de catálogo.
-        // Esto permite responder consultas culinarias alternativas,
-        // recetas genéricas, sustituciones de ingredientes, etc.
-        //
-        // La frase de activación es la definida en el prompt [D]:
-        //   "Lo siento, esa receta no se encuentra en nuestro sistema..."
-        // Si en el futuro se cambia esa frase, actualizar _frasaRechazo.
-        // ══════════════════════════════════════════════════════════════
+        // ── Fallback conversacional ──
         final bool esRespuestaDeRechazo = respuesta.toLowerCase().contains(
           "no se encuentra en nuestro sistema",
         );
 
         if (esRespuestaDeRechazo) {
           debugPrint("Fallback activado: respuesta de rechazo detectada.");
-          // Llamar al agente externo; si tiene éxito reemplaza `respuesta`.
-          // Si falla, conserva la respuesta original de rechazo.
           final String? respuestaFallback =
               await _consultarAgenteExterno(pregunta);
           if (respuestaFallback != null && respuestaFallback.isNotEmpty) {
             respuesta = respuestaFallback;
           }
         }
-        // ── [FIN PARTE 2] ──────────────────────────────────────────────
 
-        // ── D. Si Groq confirmó una receta → activarla localmente ──
         _intentarActivarReceta(pregunta, respuesta);
 
-        // ── E. Guardar respuesta en historial ──
         _historial.add({"role": "assistant", "content": respuesta});
 
-        // Límite de 20 turnos para no inflar el contexto
         if (_historial.length > 20) {
           _historial.removeRange(0, 2);
         }
 
-        setState(() {
-          _procesando   = false;
-        });
+        setState(() => _procesando = false);
 
-        // ── F. Reproducir ──
-        await _hablar(respuesta, guardarEnHistorial: false); // Ya está en historial
+        await _hablar(respuesta, guardarEnHistorial: false);
 
       } else {
         debugPrint("Groq error: ${response.statusCode} ${response.body}");
-        _historial.removeLast(); // Revertir turno fallido
+        _historial.removeLast();
         setState(() => _procesando = false);
         await _hablar(
           "El portal está inestable. Intenta de nuevo.",
@@ -884,23 +809,9 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // [PARTE 2] _consultarAgenteExterno — Fallback acotado (sin alucinaciones)
-  //
-  // Se invoca SOLO cuando el LLM principal rechazó la consulta por no
-  // encontrarla en los DATOS OFICIALES. Este agente NO responde con
-  // conocimiento libre: su único rol es generar una respuesta amable que
-  // confirme la ausencia del dato y sugiera explorar el catálogo disponible.
-  //
-  // Diseño anti-alucinación:
-  //   • System prompt sin acceso a conocimiento externo culinario.
-  //   • Temperatura 0.2: respuesta controlada, sin creatividad libre.
-  //   • max_tokens 120: solo la negativa amable, nada más.
-  //   • Sin historial: turno aislado para evitar contaminación de contexto.
-  //   • Timeout independiente (12 s) para no bloquear la UI.
-  //   • Devuelve String limpio para TTS, o null si falla (conserva rechazo).
+  // _consultarAgenteExterno — Fallback acotado (sin alucinaciones)
   // ═══════════════════════════════════════════════════════════════════════════
   Future<String?> _consultarAgenteExterno(String preguntaUsuario) async {
-    // System prompt de fallback: personalidad de NID, cero conocimiento externo.
     const String systemFallback =
         "Eres NID, el asistente culinario de voz de PrograMovil, con esencia cibernética andina. "
         "El usuario preguntó por una receta o ingrediente que NO está en la base de datos oficial. "
@@ -921,13 +832,11 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
         },
         body: jsonEncode({
           "model":       "llama-3.1-8b-instant",
-          "temperature": 0.2, // Bajo: respuesta controlada, sin creatividad libre
-          "max_tokens":  120, // Corto: solo la negativa amable, nada más
+          "temperature": 0.2,
+          "max_tokens":  120,
           "messages": [
             {"role": "system", "content": systemFallback},
             {"role": "user",   "content": preguntaUsuario},
-            // No incluir historial: este turno es aislado para evitar
-            // que el contexto previo "sugiera" datos de otras recetas.
           ],
         }),
       ).timeout(
@@ -943,7 +852,6 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
         String respuestaFallback =
             data['choices'][0]['message']['content'] ?? "";
 
-        // Interceptar [TIMER:X] por seguridad (no debería aparecer aquí)
         final timerMatch =
             RegExp(r'\[TIMER:(\d+)\]').firstMatch(respuestaFallback);
         if (timerMatch != null) {
@@ -965,42 +873,27 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     }
   }
 
+  // ─────────────────────────────────────────────
   // _limpiarParaTts
-  // Elimina todo caracter que cause errores de
-  // lectura en el motor de voz de Chrome/Flutter:
-  // asteriscos, guiones decorativos, corchetes,
-  // listas numeradas, etc.
   // ─────────────────────────────────────────────
   String _limpiarParaTts(String texto) {
     return texto
-        .replaceAll(RegExp(r'\*+'), '')           // Asteriscos simples y dobles
-        .replaceAll(RegExp(r'\[.*?\]'), '')        // [texto entre corchetes]
-        .replaceAll(RegExp(r'^\s*[-•–—]\s', multiLine: true), '') // Viñetas
-        .replaceAll(RegExp(r'^\s*\d+\.\s', multiLine: true), '')  // "1. " listas
-        .replaceAll(RegExp(r'#+\s'), '')           // Encabezados markdown
-        .replaceAll('_', '')                       // Cursivas markdown
-        .replaceAll('`', '')                       // Code markdown
-        .replaceAll(RegExp(r'\n{2,}'), '\n')       // Saltos dobles → simple
+        .replaceAll(RegExp(r'\*+'), '')
+        .replaceAll(RegExp(r'\[.*?\]'), '')
+        .replaceAll(RegExp(r'^\s*[-•–—]\s', multiLine: true), '')
+        .replaceAll(RegExp(r'^\s*\d+\.\s', multiLine: true), '')
+        .replaceAll(RegExp(r'#+\s'), '')
+        .replaceAll('_', '')
+        .replaceAll('`', '')
+        .replaceAll(RegExp(r'\n{2,}'), '\n')
         .trim();
   }
 
   // ─────────────────────────────────────────────
   // _intentarActivarReceta
-  // Heurística: si el usuario mencionó un plato
-  // y Groq lo confirmó (no rechazó), lo buscamos
-  // en _recetasData y lo activamos para el control
-  // paso a paso local.
-  //
-  // Fix 5 — Persistencia: una vez activada una receta,
-  // _recetaActivaContexto queda fijo durante toda la sesión.
-  // Groq siempre recibirá el contexto de ESA receta y nunca
-  // podrá contradecir que existe.
   // ─────────────────────────────────────────────
   void _intentarActivarReceta(String pregunta, String respuestaNid) {
-    // Si ya hay una receta activa → respetar la sesión en curso (Fix 5)
     if (_recetaActivaNombre != null) return;
-
-    // Si Groq rechazó → no activar
     if (respuestaNid.contains("no se encuentra en nuestro sistema")) return;
 
     final String p = pregunta.toLowerCase();
@@ -1010,7 +903,6 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
           nombre.split(' ').any((w) => w.length > 3 && p.contains(w))) {
 
         setState(() {
-          // Fix 2 — usar el contextoTexto ya sanitizado por el helper
           _recetaActivaContexto = receta['contextoTexto'] as String;
           _recetaActivaNombre   = receta['nombre'].toString();
           _pasosActivos         = List<String>.from(receta['pasos'] as List);
@@ -1018,17 +910,13 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
           _pasoActualIndex      = -1;
         });
         debugPrint("Receta activada: $_recetaActivaNombre");
-        debugPrint("Tokens aprox. contexto: ${_recetaActivaContexto.length ~/ 4}");
         return;
       }
     }
   }
 
   // ─────────────────────────────────────────────
-  // _hablar
-  // Punto único de reproducción TTS.
-  // Actualiza _respuestaNID (caché para "repite eso")
-  // y opcionalmente agrega al historial de Groq.
+  // _hablar — Punto único de reproducción TTS
   // ─────────────────────────────────────────────
   Future<void> _hablar(String texto, {required bool guardarEnHistorial}) async {
     final String limpio = _limpiarParaTts(texto);
@@ -1042,211 +930,251 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     await _tts.speak(limpio);
   }
 
+  // ─────────────────────────────────────────────
+  // Estado dinámico de NID
+  // ─────────────────────────────────────────────
+  String get _estadoActual {
+    if (_procesando && !_catalogoCargado) return "CARGANDO CATÁLOGO...";
+    if (_procesando)  return "NID ESTÁ PENSANDO...";
+    if (_escuchando)  return "ESCUCHANDO...";
+    if (_hablando)    return "NID ESTÁ HABLANDO...";
+    return "LISTO PARA ESCUCHARTE";
+  }
+
   // ═══════════════════════════════════════════════════════
-  //  BUILD PRINCIPAL  — REDISEÑO FONDO COMPLETO
-  //
-  //  Arquitectura del Stack (de abajo hacia arriba):
-  //
-  //  Capa 0 — Fondo animado a pantalla completa:
-  //    IndexedStack con ambos .webp pre-cargados para evitar
-  //    parpadeo (flicker) al alternar. Ocupa toda la pantalla
-  //    mediante Positioned.fill + BoxFit.cover.
-  //
-  //  Capa 1 — Gradiente oscuro inferior:
-  //    Un overlay de gradiente de abajo hacia arriba garantiza
-  //    legibilidad del panel de texto y del botón del micrófono
-  //    sin importar el contenido de la ilustración.
-  //
-  //  Capa 2 — Elementos flotantes:
-  //    • AppBar transparente con título NID + indicador RAG.
-  //    • Temporizador flotante (Positioned, solo si activo).
-  //    • Panel de texto translúcido (BackdropFilter + opacidad).
-  //    • Botón de micrófono con glow neon.
-  //
-  //  Toda la lógica de backend (TTS/STT handlers, temporizador,
-  //  Firestore, Groq, IntentRouter) permanece sin cambios.
+  //  BUILD PRINCIPAL
   // ═══════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Scaffold(
-      backgroundColor: _negro,
-      // AppBar completamente transparente para que el fondo
-      // animado se extienda debajo de él.
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: _cianNeon),
-          onPressed: () {
-            _speech.stop();
-            _tts.stop();
-            Navigator.pop(context);
-          },
-        ),
-        title: const Text(
-          "N I D",
-          style: TextStyle(
-            color: _cianNeon,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 4,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/images/fondo.webp'),
+            fit: BoxFit.cover,
           ),
         ),
-        actions: [
-          // Botón de reinicio de conversación
-          if (_historial.isNotEmpty && !_procesando && !_escuchando)
-            IconButton(
-              tooltip: "Nueva conversación",
-              icon: const Icon(Icons.refresh, color: _cianNeon, size: 20),
-              onPressed: () {
-                setState(() {
-                  _historial.clear();
-                  _preguntaFinal        = "";
-                  _respuestaNID         = "";
-                  _textoEscuchado       = "";
-                  _recetaActivaNombre   = null;
-                  _recetaActivaContexto = "";
-                  _pasosActivos         = [];
-                  _ingredientesActivos  = [];
-                  _pasoActualIndex      = -1;
-                });
-                _cancelarTemporizador();
-              },
-            ),
-          // Indicador RAG
-          Padding(
-            padding: const EdgeInsets.only(right: 14),
-            child: Row(
-              children: [
-                Icon(Icons.circle,
-                    size: 8,
-                    color: _catalogoCargado ? _verdeApp : Colors.orange),
-                const SizedBox(width: 4),
-                Text(
-                  _catalogoCargado ? "RAG activo" : "Cargando...",
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: _catalogoCargado ? _verdeApp : Colors.orange,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
 
-      // ── body: Stack raíz ──────────────────────────────────
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-
-          // ════════════════════════════════════════════════
-          // CAPA 0 — FONDO ANIMADO (pantalla completa)
-          //
-          // IndexedStack mantiene AMBOS assets siempre montados
-          // en el árbol de widgets. Solo se hace visible el que
-          // corresponde al estado actual, eliminando el flash
-          // negro/blanco que ocurriría si se usara un if/else.
-          //
-          //   index 0 → nid_speaking.webp  (_hablando == true)
-          //   index 1 → nid_idle.webp      (_hablando == false)
-          // ════════════════════════════════════════════════
-          Positioned.fill(
-            child: IndexedStack(
-              index: _hablando ? 0 : 1,
-              sizing: StackFit.expand,
-              children: [
-                Image.asset(
-                  'assets/images/nid_speaking.webp',
-                  fit: BoxFit.cover,
-                  gaplessPlayback: true,
-                ),
-                Image.asset(
-                  'assets/images/nid_idle.webp',
-                  fit: BoxFit.cover,
-                  gaplessPlayback: true,
-                ),
-              ],
-            ),
-          ),
-
-          // ════════════════════════════════════════════════
-          // CAPA 1 — GRADIENTE OSCURO INFERIOR
-          //
-          // Crea una zona oscura en el tercio inferior de la
-          // pantalla para que el panel de texto y el micrófono
-          // sean siempre legibles sobre la ilustración.
-          // ════════════════════════════════════════════════
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: const [0.0, 0.45, 1.0],
-                  colors: [
-                    Colors.transparent,
-                    Colors.transparent,
-                    _negro.withOpacity(0.85),
-                  ],
+            // ── Flecha de regreso ──
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                  onPressed: () {
+                    _speech.stop();
+                    _tts.stop();
+                    Navigator.pop(context);
+                  },
                 ),
               ),
             ),
-          ),
 
-          // ════════════════════════════════════════════════
-          // CAPA 2 — ELEMENTOS FLOTANTES
-          //
-          // SafeArea garantiza que los elementos no queden
-          // debajo del notch ni de la barra de navegación.
-          // ════════════════════════════════════════════════
-          SafeArea(
-            child: Column(
-              children: [
-                // Espacio superior libre para el fondo animado
-                // (el avatar ocupa el área visual principal).
-                const Spacer(flex: 5),
-
-                // ── Panel de texto con fondo translúcido ──
-                // BackdropFilter aplica un desenfoque suave
-                // al contenido de las capas inferiores visible
-                // a través del panel, mejorando la legibilidad.
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: BackdropFilter(
-                      filter: ColorFilter.mode(
-                        Colors.black.withOpacity(0.0),
-                        BlendMode.multiply,
-                      ),
-                      child: _buildPanelTexto(),
+            // ── Panel NID: visible solo cuando NID está activado ──
+            if (_nidActivado) ...[
+              // Gradiente oscuro inferior para legibilidad del panel
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      stops: const [0.0, 0.45, 1.0],
+                      colors: [
+                        Colors.transparent,
+                        Colors.transparent,
+                        _negro.withOpacity(0.85),
+                      ],
                     ),
                   ),
                 ),
+              ),
 
-                // ── Controles (micrófono) ──
-                _buildControles(),
+              // Temporizador flotante
+              _buildTimerWidget(),
 
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
+              // Panel de texto + controles (parte inferior)
+              SafeArea(
+                child: Column(
+                  children: [
+                    // ── AppBar en modo NID ──
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0, vertical: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Título NID
+                          const Text(
+                            "N I D",
+                            style: TextStyle(
+                              color: _cianNeon,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 18,
+                              letterSpacing: 4,
+                            ),
+                          ),
+                          // Botón reset + indicador RAG
+                          Row(
+                            children: [
+                              if (_historial.isNotEmpty &&
+                                  !_procesando &&
+                                  !_escuchando)
+                                IconButton(
+                                  tooltip: "Nueva conversación",
+                                  icon: const Icon(Icons.refresh,
+                                      color: _cianNeon, size: 20),
+                                  onPressed: () {
+                                    setState(() {
+                                      _historial.clear();
+                                      _preguntaFinal        = "";
+                                      _respuestaNID         = "";
+                                      _textoEscuchado       = "";
+                                      _recetaActivaNombre   = null;
+                                      _recetaActivaContexto = "";
+                                      _pasosActivos         = [];
+                                      _ingredientesActivos  = [];
+                                      _pasoActualIndex      = -1;
+                                    });
+                                    _cancelarTemporizador();
+                                  },
+                                ),
+                              Icon(Icons.circle,
+                                  size: 8,
+                                  color: _catalogoCargado
+                                      ? _verdeApp
+                                      : Colors.orange),
+                              const SizedBox(width: 4),
+                              Text(
+                                _catalogoCargado ? "RAG activo" : "Cargando...",
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: _catalogoCargado
+                                      ? _verdeApp
+                                      : Colors.orange,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
 
-          // ── Temporizador flotante (visible solo cuando está activo) ──
-          _buildTimerWidget(),
-        ],
+                    const Spacer(flex: 5),
+
+                    // Panel de texto translúcido
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: _buildPanelTexto(),
+                      ),
+                    ),
+
+                    // Controles (micrófono)
+                    _buildControles(),
+
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+            ],
+
+            // ── Botones de transición: visibles solo cuando NID está dormido ──
+            if (!_nidActivado)
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Column(
+                    children: [
+                      SizedBox(height: size.height * 0.12),
+                      const Spacer(),
+                      SizedBox(height: size.height * 0.35),
+                      const Spacer(),
+
+                      // Botón 1 — Seleccionar receta del catálogo
+                      _buildDuolingoButton(
+                        label: "Seleccionar una receta de mi catálogo",
+                        colorBase: _verdeNeon,
+                        colorSombra: _verdeSombra,
+                        onTap: () {
+                          // Navega a la pantalla de catálogo sin activar NID
+                          Navigator.pop(context);
+                        },
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Botón 2 — Saltar paso → despierta a NID
+                      _buildDuolingoButton(
+                        label: "Saltar este paso",
+                        colorBase: _moradoNeon,
+                        colorSombra: _moradoSombra,
+                        onTap: _activarNID,
+                      ),
+
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 
   // ─────────────────────────────────────────────
-  // _buildTimerWidget
-  // Tarjeta flotante ciberpunk del temporizador.
-  // Se superpone sobre el avatar usando Positioned.
-  // Respeta el diseño dark/neon de NID.
-  // Se oculta automáticamente cuando _timerActivo=false.
+  // _buildDuolingoButton — Botón relieve 3D
+  // ─────────────────────────────────────────────
+  Widget _buildDuolingoButton({
+    required String label,
+    required Color colorBase,
+    required Color colorSombra,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+        decoration: BoxDecoration(
+          color: colorBase,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: colorSombra,
+              offset: const Offset(0, 5),
+              blurRadius: 0,
+            ),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
+  // _buildTimerWidget — Tarjeta flotante del timer
   // ─────────────────────────────────────────────
   Widget _buildTimerWidget() {
     if (!_timerActivo) return const SizedBox.shrink();
@@ -1257,7 +1185,6 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
         "${min.toString().padLeft(2, '0')}:${seg.toString().padLeft(2, '0')}";
 
     return Positioned(
-      // kToolbarHeight (56) + padding de status bar (~24) = ~80px de espacio seguro
       top: kToolbarHeight + 24 + 8,
       left: 20,
       right: 20,
@@ -1284,8 +1211,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
                 shape: BoxShape.circle,
                 border: Border.all(color: _cianNeon.withOpacity(0.4)),
               ),
-              child: const Icon(Icons.timer_rounded,
-                  color: _cianNeon, size: 22),
+              child: const Icon(Icons.timer_rounded, color: _cianNeon, size: 22),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1334,157 +1260,12 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
   }
 
   // ─────────────────────────────────────────────
-  // _buildAvatar
-  // Círculo animado con patrón andino geométrico.
-  // Pulsa al ritmo de _pulsoAnimation cuando habla.
-  // El anillo cambia de color según el estado.
-  // ─────────────────────────────────────────────
-  Widget _buildAvatar() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          AnimatedBuilder(
-            animation: _pulsoAnimation,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: _hablando ? _pulsoAnimation.value : 1.0,
-                child: child,
-              );
-            },
-            child: Container(
-              width: 160,
-              height: 160,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [_moradoNeon.withOpacity(0.3), _negro],
-                ),
-                border: Border.all(
-                  color: _escuchando
-                      ? _cianNeon
-                      : _hablando
-                          ? _doradoInca
-                          : _moradoNeon,
-                  width: 2.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: (_escuchando ? _cianNeon : _moradoNeon)
-                        .withOpacity(0.5),
-                    blurRadius: 24,
-                    spreadRadius: 4,
-                  ),
-                ],
-              ),
-              child: ClipOval(
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // ── Capa 1: Patrón andino de fondo (se mantiene intacto) ──
-                    CustomPaint(
-                      size: const Size(160, 160),
-                      painter: _AndeanPatternPainter(),
-                    ),
-                    // ── Capa 2: Avatar WebP animado ──
-                    // IndexedStack mantiene ambos assets pre-cargados en el árbol
-                    // de widgets para evitar parpadeo (flicker) al alternar estados.
-                    // index 0 = hablando  → nid_hablando.webp (animación en loop)
-                    // index 1 = idle/escuchando → nid_idle.webp (reposo)
-                    // La bandera _hablando ya es el semáforo correcto:
-                    //   true  → TTS reproduciendo audio (setter en _hablar)
-                    //   false → CompletionHandler de FlutterTts lo apaga
-                    SizedBox(
-                      width: 160,
-                      height: 160,
-                      child: IndexedStack(
-                        index: _hablando ? 0 : 1,
-                        sizing: StackFit.expand,
-                        children: [
-                          Image.asset(
-                            'assets/images/nid_hablando.webp',
-                            fit: BoxFit.cover,
-                            gaplessPlayback: true, // evita flash blanco entre frames
-                          ),
-                          Image.asset(
-                            'assets/images/nid_idle.webp',
-                            fit: BoxFit.cover,
-                            gaplessPlayback: true,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          const Text(
-            "N I D",
-            style: TextStyle(
-              color: _doradoInca,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 6,
-            ),
-          ),
-          const SizedBox(height: 4),
-          // Indicador de receta activa y paso actual
-          if (_recetaActivaNombre != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                _pasoActualIndex >= 0
-                    ? "${_recetaActivaNombre!.toUpperCase()}  •  PASO ${_pasoActualIndex + 1}/${_pasosActivos.length}"
-                    : _recetaActivaNombre!.toUpperCase(),
-                style: TextStyle(
-                  color: _verdeApp.withOpacity(0.85),
-                  fontSize: 10,
-                  letterSpacing: 1.5,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          const SizedBox(height: 4),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: Text(
-              key: ValueKey(_estadoActual),
-              _estadoActual,
-              style: TextStyle(
-                color: _cianNeon.withOpacity(0.7),
-                fontSize: 11,
-                letterSpacing: 1.5,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Texto de estado dinámico debajo del nombre
-  String get _estadoActual {
-    if (_procesando && !_catalogoCargado) return "CARGANDO CATÁLOGO...";
-    if (_procesando)  return "NID ESTÁ PENSANDO...";
-    if (_escuchando)  return "ESCUCHANDO...";
-    if (_hablando)    return "NID ESTÁ HABLANDO...";
-    return "LISTO PARA ESCUCHARTE";
-  }
-
-  // ─────────────────────────────────────────────
   // _buildPanelTexto
-  // Muestra: transcripción en tiempo real,
-  // indicador de procesamiento y respuesta de NID.
-  // Incluye chips de acciones rápidas contextuales.
   // ─────────────────────────────────────────────
   Widget _buildPanelTexto() {
     return Container(
-      // Sin margin horizontal: el padding ya viene del Padding externo en build()
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        // Fondo oscuro translúcido: legible sobre la ilustración de fondo
         color: Colors.black.withOpacity(0.62),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _moradoNeon.withOpacity(0.4), width: 1),
@@ -1497,7 +1278,6 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
-            // ── Indicador de turnos en memoria ──
             if (_historial.length >= 2)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -1519,7 +1299,6 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
                 ),
               ),
 
-            // ── Texto del usuario ──
             if (_textoEscuchado.isNotEmpty || _preguntaFinal.isNotEmpty) ...[
               Row(
                 children: [
@@ -1543,7 +1322,6 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
               const SizedBox(height: 12),
             ],
 
-            // ── Respuesta de NID o estados intermedios ──
             if (_procesando && _catalogoCargado) ...[
               Row(
                 children: [
@@ -1581,8 +1359,6 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
                 style: const TextStyle(
                     color: Color(0xFFE8E0FF), fontSize: 14, height: 1.5),
               ),
-
-              // ── Chips de acciones rápidas (si hay receta activa) ──
               if (_recetaActivaNombre != null) ...[
                 const SizedBox(height: 12),
                 _buildAccionesRapidas(),
@@ -1608,10 +1384,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
   }
 
   // ─────────────────────────────────────────────
-  // _buildAccionesRapidas
-  // Chips contextuales que aparecen cuando hay
-  // una receta activa. Permiten acciones comunes
-  // sin hablar, ideal para manos ocupadas en cocina.
+  // _buildAccionesRapidas — Chips contextuales
   // ─────────────────────────────────────────────
   Widget _buildAccionesRapidas() {
     final List<Map<String, dynamic>> acciones = [
@@ -1653,9 +1426,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
   }
 
   // ─────────────────────────────────────────────
-  // _buildControles
-  // Botón principal del micrófono.
-  // Botón rojo para interrumpir TTS si NID habla.
+  // _buildControles — Botón del micrófono
   // ─────────────────────────────────────────────
   Widget _buildControles() {
     return Padding(
@@ -1685,7 +1456,6 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
               ),
             ),
 
-          // Botón principal del micrófono
           GestureDetector(
             onTap: _toggleMicrofono,
             child: AnimatedContainer(
@@ -1722,10 +1492,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// _AndeanPatternPainter
-// Patrón geométrico andino (rombos tipo wiphala) para el fondo del avatar.
-// Reemplazar con Image.asset('assets/images/nid_avatar.png') cuando
-// tengas el asset listo.
+// _AndeanPatternPainter — patrón geométrico andino (rombos tipo wiphala)
 // ═══════════════════════════════════════════════════════════════════════════
 class _AndeanPatternPainter extends CustomPainter {
   @override
@@ -1763,3 +1530,5 @@ class _AndeanPatternPainter extends CustomPainter {
   @override
   bool shouldRepaint(_AndeanPatternPainter old) => false;
 }
+
+

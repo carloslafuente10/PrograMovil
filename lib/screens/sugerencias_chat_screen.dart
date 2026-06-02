@@ -9,6 +9,7 @@ import 'detalle_receta_screen.dart';
 import 'voice_call_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'components/receta_card_widget.dart';
+import 'voice_transition_screen.dart';
 
 class SugerenciasChatScreen extends StatefulWidget {
   const SugerenciasChatScreen({super.key});
@@ -45,6 +46,67 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen>
   bool _bloquearFlujoReporte = false;
   final List<String> _fraseArmada = [];
   bool _mostrarCampoLibre = false;
+
+  // ─────────────────────────────────────────────
+  // VARIABLES DEL NUEVO WIZARD DE REPORTES (IMAGEN)
+  // ─────────────────────────────────────────────
+  /// Paso actual del wizard visual (0-7):
+  /// 0 = Selección categoría principal
+  /// 1 = Selección subcategoría
+  /// 2 = Selección de detalles (chips multi-select)
+  /// 3 = Interpretando (loading IA)
+  /// 4 = Veredicto A.L.I.C.I.A.
+  /// 5 = Agregar contexto extra
+  /// 6 = Revisar reporte
+  /// 7 = Reporte enviado (éxito)
+  /// 8 = Mis reportes (historial)
+  int _wizardPaso = 0;
+
+  /// Categoría elegida en paso 0 del wizard
+  String _wizardCategoria = "";
+
+  /// Subcategoría elegida en paso 1 del wizard
+  String _wizardSubcategoria = "";
+
+  /// Chips de detalles seleccionados en paso 2
+  final List<String> _wizardDetallesSeleccionados = [];
+
+  /// Chips de contexto seleccionados en paso 5
+  final List<String> _wizardContextoSeleccionado = [];
+
+  /// Campo libre de contexto (paso 5)
+  String _wizardContextoLibre = "";
+
+  /// ID del reporte generado (paso 7)
+  String _wizardReporteId = "";
+
+  /// Nivel de confianza IA (paso 4)
+  int _wizardConfianzaIA = 0;
+
+  /// Causa detectada por IA (paso 4)
+  String _wizardCausaIA = "";
+
+  // Mock data de historial de reportes (conectar a Firebase en el futuro)
+  final List<Map<String, dynamic>> _historialReportes = [
+    {
+      "id": "ALICIA-24831",
+      "titulo": "No carga imágenes",
+      "estado": "ENVIADO",
+      "hace": "Hace 1 min",
+    },
+    {
+      "id": "ALICIA-24671",
+      "titulo": "Problemas de login",
+      "estado": "EN PROGRESO",
+      "hace": "Hace 2 días",
+    },
+    {
+      "id": "ALICIA-24412",
+      "titulo": "La app se congela",
+      "estado": "RESUELTO",
+      "hace": "Hace 5 días",
+    },
+  ];
 
   late AnimationController _progressController;
   late Animation<double> _progressAnimation;
@@ -467,6 +529,17 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       String tipoMensaje = "texto";
 
       if (titulo == "Reporte") {
+        // Resetear wizard visual
+        _wizardPaso = 0;
+        _wizardCategoria = "";
+        _wizardSubcategoria = "";
+        _wizardDetallesSeleccionados.clear();
+        _wizardContextoSeleccionado.clear();
+        _wizardContextoLibre = "";
+        _wizardReporteId = "";
+        _wizardConfianzaIA = 0;
+        _wizardCausaIA = "";
+
         saludoChef =
             "¡Alto al fuego en la cocina! 🍳 Vamos a documentar tu reporte paso a paso. Primero, ¿qué área está quemada?";
         tipoMensaje = "botones_reporte_categorias";
@@ -964,27 +1037,1759 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
   Widget _buildResponsiveLayout() {
     if (_categoriaActual == "Reporte") {
-      return Column(
-        children: [
-          Expanded(
-            flex: 1,
-            child: Container(
-              width: double.infinity,
-              color: Colors.white,
-              child: SizedBox.expand(
-                child: Image.asset(
-                  'assets/images/fondo1.webp',
-                  fit: BoxFit.contain,
+      return _buildReporteWizard();
+    } else {
+      return _buildChatLayout();
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════
+  //  NUEVO WIZARD DE REPORTES — replica fiel de la imagen
+  // ═══════════════════════════════════════════════════════
+
+  // Paleta oscura del wizard (extrae los colores de la imagen)
+  static const Color _wBg = Color(0xFF1A1035);
+  static const Color _wCard = Color(0xFF231845);
+  static const Color _wCardBorder = Color(0xFF3A2E5E);
+  static const Color _wGreen = Color(0xFF4DDB6B);
+  static const Color _wGreenDark = Color(0xFF2DBB50);
+  static const Color _wPurple = Color(0xFF7B5EA7);
+  static const Color _wYellow = Color(0xFFFFCC00);
+  static const Color _wRed = Color(0xFFFF4E6A);
+  static const Color _wBlue = Color(0xFF4E9EFF);
+  static const Color _wText = Color(0xFFECE8FF);
+  static const Color _wTextSub = Color(0xFFAA9FCF);
+
+  // ═══════════════════════════════════════════════════════════════
+  // MAPA DE DATOS: categorías → subcategorías → grupos de burbujas
+  // Modificar aquí para añadir/quitar opciones sin tocar widgets
+  // ═══════════════════════════════════════════════════════════════
+  static const Map<String, List<Map<String, dynamic>>> _mapaReportes = {
+    "Problemas de contenido": [
+      {
+        "titulo": "Receta mal explicada",
+        "icono": "menu_book",
+        "grupos": [
+          {
+            "etiqueta": null,
+            "burbujas": [
+              "En el paso", "Está confuso", "No se entiende",
+              "La explicación", "Falta", "El tiempo de cocción",
+              "Las instrucciones"
+            ]
+          }
+        ]
+      },
+      {
+        "titulo": "Ingredientes erróneos",
+        "icono": "eco",
+        "grupos": [
+          {
+            "etiqueta": null,
+            "burbujas": [
+              "El ingrediente", "La cantidad", "Falta",
+              "No coincide", "Los gramos", "Está mal",
+              "En la preparación"
+            ]
+          }
+        ]
+      },
+      {
+        "titulo": "Imágenes rotas",
+        "icono": "broken_image",
+        "grupos": [
+          {
+            "etiqueta": null,
+            "burbujas": [
+              "La imagen", "No carga", "Se ve rota",
+              "Falta", "En el servidor", "Está en blanco",
+              "Tiene un error"
+            ]
+          }
+        ]
+      },
+    ],
+    "Problemas con la experiencia": [
+      {
+        "titulo": "Navegación confusa",
+        "icono": "explore",
+        "grupos": [
+          {
+            "etiqueta": null,
+            "burbujas": [
+              "La pantalla", "No funciona", "Se congela",
+              "Al presionar", "Falta", "Carga Lenta",
+              "No responde"
+            ]
+          }
+        ]
+      },
+      {
+        "titulo": "Letra muy pequeña",
+        "icono": "text_fields",
+        "grupos": [
+          {
+            "etiqueta": null,
+            "burbujas": [
+              "No se lee", "Es ilegible", "Está muy junta",
+              "Falta contraste", "Se corta"
+            ]
+          }
+        ]
+      },
+      {
+        "titulo": "Diseño incómodo",
+        "icono": "dashboard_customize",
+        "grupos": [
+          {
+            "etiqueta": null,
+            "burbujas": [
+              "Están muy juntos", "Muy pequeños", "Se superponen",
+              "Están muy abajo / Muy arriba", "Es confuso",
+              "No se nota"
+            ]
+          }
+        ]
+      },
+    ],
+    "Fallas técnicas": [
+      {
+        "titulo": "Cierre inesperado",
+        "icono": "power_off",
+        "grupos": [
+          {
+            "etiqueta": "¿En qué momento ocurrió?",
+            "burbujas": [
+              "Al abrir la app", "Al tocar una receta",
+              "A mitad de la cocina", "Al usar el asistente",
+              "Al cargar una imagen"
+            ]
+          },
+          {
+            "etiqueta": "¿Qué comportamiento viste?",
+            "burbujas": [
+              "Se cierra sola", "Vuelve al inicio",
+              "Pantalla en negro", "Me saca del perfil"
+            ]
+          }
+        ]
+      },
+      {
+        "titulo": "Error al cargar el contenido",
+        "icono": "cloud_off",
+        "grupos": [
+          {
+            "etiqueta": "¿Qué faltó o no cargó?",
+            "burbujas": [
+              "La foto de la receta", "La lista de ingredientes",
+              "El temporizador", "Los comentarios",
+              "El chat de ALICIA"
+            ]
+          },
+          {
+            "etiqueta": "¿Qué estado viste?",
+            "burbujas": [
+              "Se queda en blanco", "Dice \"Error de conexión\"",
+              "Aparece un símbolo de carga",
+              "No encuentra el contenido", "Sale un texto roto"
+            ]
+          }
+        ]
+      },
+      {
+        "titulo": "Carga Lenta / Lag",
+        "icono": "speed",
+        "grupos": [
+          {
+            "etiqueta": "¿Al hacer qué acción?",
+            "burbujas": [
+              "Al buscar recetas", "Al pasar de pantalla",
+              "Al hacer scroll/desplazar", "Al activar el timer"
+            ]
+          },
+          {
+            "etiqueta": "¿Qué sensación tuviste?",
+            "burbujas": [
+              "Va a tirones", "Se congela unos segundos",
+              "Tarda demasiado", "Reacciona tarde",
+              "Se siente pesada"
+            ]
+          }
+        ]
+      },
+    ],
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // Helper: icono string → IconData
+  // ─────────────────────────────────────────────────────────────
+  IconData _iconoDesdeString(String nombre) {
+    switch (nombre) {
+      case "menu_book": return Icons.menu_book_outlined;
+      case "eco": return Icons.eco_outlined;
+      case "broken_image": return Icons.broken_image_outlined;
+      case "explore": return Icons.explore_outlined;
+      case "text_fields": return Icons.text_fields;
+      case "dashboard_customize": return Icons.dashboard_customize_outlined;
+      case "power_off": return Icons.power_off_outlined;
+      case "cloud_off": return Icons.cloud_off_outlined;
+      case "speed": return Icons.speed_outlined;
+      default: return Icons.help_outline;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Helper: generar respuesta interpretada de ALICIA
+  // ─────────────────────────────────────────────────────────────
+  String _generarRespuestaAlicia() {
+    final String cat = _wizardCategoria;
+    final String sub = _wizardSubcategoria;
+    final List<String> sel = List<String>.from(_wizardDetallesSeleccionados);
+    final String burbujas = sel.isEmpty
+        ? "el problema indicado"
+        : sel.length == 1
+            ? '"${sel[0]}"'
+            : sel.sublist(0, sel.length - 1).map((b) => '"$b"').join(", ") +
+              ' y "${sel.last}"';
+
+    String base =
+        "Entiendo que estás teniendo problemas con \"$sub\" dentro de \"$cat\". "
+        "Según lo que marcaste, el inconveniente está relacionado con $burbujas. ";
+
+    // Respuesta contextual según categoría y subcategoría
+    if (cat == "Problemas de contenido") {
+      if (sub == "Receta mal explicada") {
+        base += "Parece que algún paso o instrucción en la receta no está claro o falta información clave. "
+            "Lo reportaré al equipo de contenido para que revisen y corrijan esa sección. 📋";
+      } else if (sub == "Ingredientes erróneos") {
+        base += "Puede que algún ingrediente, su cantidad o unidad de medida no coincida con lo esperado. "
+            "Nuestro equipo lo verificará contra la receta original. 🥄";
+      } else {
+        base += "Las imágenes pueden no haberse cargado correctamente desde el servidor. "
+            "Le avisaré al equipo técnico para que revisen los recursos visuales. 🖼️";
+      }
+    } else if (cat == "Problemas con la experiencia") {
+      if (sub == "Navegación confusa") {
+        base += "Parece que hay una pantalla o botón que no responde como debería. "
+            "Nuestro equipo de UX revisará ese flujo de navegación. 🧭";
+      } else if (sub == "Letra muy pequeña") {
+        base += "El tamaño o contraste del texto puede estar afectando la legibilidad. "
+            "Tomaré nota para que el equipo de diseño ajuste la tipografía. 🔠";
+      } else {
+        base += "Algunos elementos del diseño pueden estar mal posicionados o superpuestos. "
+            "El equipo de interfaz lo revisará en la próxima actualización. 🎨";
+      }
+    } else {
+      // Fallas técnicas
+      if (sub == "Cierre inesperado") {
+        base += "La app parece estar cerrándose de forma inesperada en ese momento específico. "
+            "Le pasaré los detalles exactos al equipo de ingeniería para rastrear el error. 🔧";
+      } else if (sub == "Error al cargar el contenido") {
+        base += "Parece que hay un problema al obtener o mostrar ciertos datos desde el servidor. "
+            "Nuestros ingenieros revisarán los logs de carga de ese contenido. ☁️";
+      } else {
+        base += "El rendimiento de la app en ese punto puede estar siendo afectado por procesos internos. "
+            "Lo escalaré al equipo de optimización con los detalles que me diste. ⚡";
+      }
+    }
+
+    if (_wizardContextoLibre.trim().isNotEmpty) {
+      base += "\n\nAdemás agregaste: \"${_wizardContextoLibre.trim()}\". Ese detalle extra ayudará mucho al diagnóstico. 🙌";
+    }
+
+    return base;
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // WIZARD PRINCIPAL
+  // ═══════════════════════════════════════════════════════
+  Widget _buildReporteWizard() {
+    return Stack(
+      children: [
+        // Fondo: imagen de Alicia en el país de las maravillas
+        Positioned.fill(
+          child: Image.asset(
+            'assets/images/fondo_alicia.webp',
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF0D0826), Color(0xFF1A1035), Color(0xFF2B0E4B)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                 ),
               ),
             ),
           ),
-          const Divider(height: 1, color: Colors.black12),
-          Expanded(flex: 1, child: _buildChatLayout()),
+        ),
+        // Capa de oscurecimiento semi-transparente para legibilidad
+        Positioned.fill(
+          child: Container(color: const Color(0xCC0D0826)),
+        ),
+        // Contenido del wizard
+        Column(
+          children: [
+            _buildWizardHeader(),
+            Expanded(child: _buildWizardStep()),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Barra superior con pasos y flecha atrás
+  Widget _buildWizardHeader() {
+  // CAMBIO 1: Ahora el total real de pasos con barra secuencial es 6 (del Paso 0 al Paso 5)
+  const int totalPasos = 6; 
+  
+  // CAMBIO 2: La barra se mostrará solo del paso 0 al 5. Al llegar al paso 6 (Mis Reportes) se oculta.
+  final bool mostrarBarra = _wizardPaso < 6;
+
+  return Container(
+    padding: const EdgeInsets.fromLTRB(12, 10, 16, 10),
+    color: _wBg,
+    child: Column(
+      children: [
+        Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back, color: _wText, size: 22),
+              onPressed: () {
+                if (_wizardPaso == 0) {
+                  setState(() {
+                    _opcionSeleccionada = false;
+                    _mensajes.clear();
+                    _animarProgreso(0.0);
+                  });
+                } else if (_wizardPaso == 8) { 
+                  // Mantenemos tus condiciones preventivas de navegación por seguridad
+                  setState(() => _wizardPaso = 7);
+                } else {
+                  setState(() => _wizardPaso = (_wizardPaso - 1).clamp(0, 8));
+                }
+              },
+            ),
+            const Expanded(
+              child: Text(
+                "Reportes",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _wText,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
+            const SizedBox(width: 44), // balance
+          ],
+        ),
+        if (mostrarBarra) ...[
+          const SizedBox(height: 6),
+          _buildWizardProgressDots(totalPasos),
         ],
-      );
-    } else {
-      return _buildChatLayout();
+      ],
+    ),
+  );
+}
+
+  Widget _buildWizardProgressDots(int total) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(total, (i) {
+        final bool activo = i == _wizardPaso;
+        final bool pasado = i < _wizardPaso;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              width: activo ? 24 : 10,
+              height: 10,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(5),
+                color: activo
+                    ? _wGreen
+                    : pasado
+                        ? _wGreenDark
+                        : _wCardBorder,
+              ),
+            ),
+            if (i < total - 1)
+              Container(
+                width: 18,
+                height: 2,
+                color: pasado ? _wGreenDark : _wCardBorder,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+              ),
+          ],
+        );
+      }),
+    );
+  }
+
+  Widget _buildWizardStep() {
+    switch (_wizardPaso) {
+      case 0: return _buildWizardPaso0CategoriaPrincipal();
+      case 1: return _buildWizardPaso1Subcategoria();
+      case 2: return _buildWizardPaso2Burbujas();
+      case 3: return _buildWizardPaso3Interpretando();
+      case 4: return _buildWizardPaso4AliciaInterpreta();
+      case 5: return _buildWizardPaso5Enviado();
+      case 6: return _buildWizardPaso6MisReportes();
+      default: return _buildWizardPaso0CategoriaPrincipal();
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // VENTANA 1: Categorías principales
+  // ══════════════════════════════════════════════════════════════
+  Widget _buildWizardPaso0CategoriaPrincipal() {
+  final List<Map<String, dynamic>> categorias = [
+    {
+      "titulo": "Problemas de contenido",
+      "subtitulo": "Recetas, imágenes, ingredientes",
+      "icono": Icons.menu_book_outlined,
+      "color": const Color(0xFFFF9B3D),
+      "colorBg": const Color(0xFF3D2410),
+    },
+    {
+      "titulo": "Problemas con la experiencia",
+      "subtitulo": "Navegación, diseño, legibilidad",
+      "icono": Icons.explore_outlined,
+      "color": const Color(0xFF9B6EFF),
+      "colorBg": const Color(0xFF2B1F55),
+    },
+    {
+      "titulo": "Fallas técnicas",
+      "subtitulo": "Cierres, carga lenta, errores",
+      "icono": Icons.build_circle_outlined,
+      "color": const Color(0xFFFF4E6A),
+      "colorBg": const Color(0xFF3D0F18),
+    },
+  ];
+
+  return Stack(
+    children: [
+      // 1. Imagen de fondo de Alicia que cubre toda la sección
+      Positioned.fill(
+        child: Image.asset(
+          'assets/images/fondo_alicia.png', // <-- Asegúrate de colocar aquí la ruta correcta de tu PNG
+          fit: BoxFit.cover,
+        ),
+      ),
+      
+      // 2. Contenido interactivo (Textos y Botones) por encima del fondo
+      SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Text(
+              "¿Qué ocurrió? 🍳",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: _wText,
+                fontWeight: FontWeight.w800,
+                fontSize: 24,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              "Te ayudaré a identificar tu problema\ny enviarlo al equipo correcto.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: _wTextSub, fontSize: 13),
+            ),
+            
+            // ─── ESPACIADOR PARA BAJAR LOS BOTONES ───────────────────
+            // Ajusta este número (por ejemplo, 140, 160 o 180) para calibrar 
+            // con precisión a qué altura del mostrador quieres que inicien.
+            SizedBox(height: MediaQuery.of(context).size.height * 0.48),
+            // ─────────────────────────────────────────────────────────
+            
+            ...categorias.map((cat) {
+              return GestureDetector(
+                onTap: () {
+                  // TODO: registrar categoría en analytics al seleccionar
+                  HapticFeedback.lightImpact();
+                  setState(() {
+                    _wizardCategoria = cat["titulo"] as String;
+                    _wizardSubcategoria = "";
+                    _wizardDetallesSeleccionados.clear();
+                  });
+                  Future.delayed(
+                    const Duration(milliseconds: 200),
+                    () => setState(() => _wizardPaso = 1),
+                  );
+                },
+                child: Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                  decoration: BoxDecoration(
+                    color: (cat["colorBg"] as Color).withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: (cat["color"] as Color).withOpacity(0.5),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (cat["color"] as Color).withOpacity(0.2),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: (cat["color"] as Color).withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          cat["icono"] as IconData,
+                          color: cat["color"] as Color,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              cat["titulo"] as String,
+                              style: TextStyle(
+                                color: cat["color"] as Color,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              cat["subtitulo"] as String,
+                              style: const TextStyle(
+                                color: _wTextSub,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_right,
+                        color: _wTextSub,
+                        size: 22,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+  // ══════════════════════════════════════════════════════════════
+  // VENTANA 2: Subcategorías (dependen de categoría elegida)
+  // ══════════════════════════════════════════════════════════════
+  Widget _buildWizardPaso1Subcategoria() {
+    final List<Map<String, dynamic>> subcats =
+        (_mapaReportes[_wizardCategoria] ?? []).map((s) {
+      return {
+        "titulo": s["titulo"] as String,
+        "icono": _iconoDesdeString(s["icono"] as String),
+      };
+    }).toList();
+
+    // Colores por categoría padre
+    final Color colorPadre = _wizardCategoria == "Problemas de contenido"
+        ? const Color(0xFFFF9B3D)
+        : _wizardCategoria == "Problemas con la experiencia"
+            ? const Color(0xFF9B6EFF)
+            : const Color(0xFFFF4E6A);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Miga de pan
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: colorPadre.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: colorPadre.withOpacity(0.4)),
+                ),
+                child: Text(
+                  _wizardCategoria,
+                  style: TextStyle(
+                    color: colorPadre,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            "Selecciona una subcategoría",
+            style: TextStyle(
+              color: _wText,
+              fontWeight: FontWeight.w800,
+              fontSize: 22,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            "¿Qué parte de la app tiene el problema?",
+            style: TextStyle(color: _wTextSub, fontSize: 13),
+          ),
+          const SizedBox(height: 20),
+          ...subcats.map((sub) {
+            return GestureDetector(
+              onTap: () {
+                // TODO: registrar subcategoría elegida para métricas
+                HapticFeedback.lightImpact();
+                setState(() {
+                  _wizardSubcategoria = sub["titulo"] as String;
+                  _wizardDetallesSeleccionados.clear();
+                  _wizardContextoLibre = "";
+                });
+                Future.delayed(
+                  const Duration(milliseconds: 200),
+                  () => setState(() => _wizardPaso = 2),
+                );
+              },
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                decoration: BoxDecoration(
+                  color: _wCard.withOpacity(0.85),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _wCardBorder),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: colorPadre.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        sub["icono"] as IconData,
+                        color: colorPadre,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        sub["titulo"] as String,
+                        style: const TextStyle(
+                          color: _wText,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: _wTextSub, size: 20),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // VENTANA 3: Burbujas / frases clave (multi-select + detalle propio)
+  // ══════════════════════════════════════════════════════════════
+  Widget _buildWizardPaso2Burbujas() {
+    // Obtener los grupos de burbujas para la subcategoría actual
+    final List<Map<String, dynamic>> subcats =
+        _mapaReportes[_wizardCategoria] ?? [];
+    final Map<String, dynamic>? subcatData = subcats.cast<Map<String, dynamic>?>()
+        .firstWhere(
+          (s) => s != null && s["titulo"] == _wizardSubcategoria,
+          orElse: () => null,
+        );
+    final List<dynamic> grupos =
+        subcatData != null ? (subcatData["grupos"] as List<dynamic>) : [];
+
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Selecciona lo que coincide",
+                  style: TextStyle(
+                    color: _wText,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 21,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  "Puedes elegir varias opciones",
+                  style: TextStyle(color: _wTextSub, fontSize: 13),
+                ),
+                const SizedBox(height: 18),
+
+                // Renderizar grupos de burbujas
+                ...grupos.map((grupo) {
+                  final String? etiqueta = grupo["etiqueta"] as String?;
+                  final List<String> burbujas =
+                      (grupo["burbujas"] as List<dynamic>).cast<String>();
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (etiqueta != null) ...[
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _wPurple.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            etiqueta,
+                            style: const TextStyle(
+                              color: _wPurple,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: burbujas.map((burbuja) {
+                          final bool sel =
+                              _wizardDetallesSeleccionados.contains(burbuja);
+                          return GestureDetector(
+                            onTap: () {
+                              // TODO: actualizar contadores de burbujas en analytics
+                              HapticFeedback.lightImpact();
+                              setState(() {
+                                if (sel) {
+                                  _wizardDetallesSeleccionados.remove(burbuja);
+                                } else {
+                                  _wizardDetallesSeleccionados.add(burbuja);
+                                }
+                              });
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: sel
+                                    ? _wGreen.withOpacity(0.2)
+                                    : _wCard.withOpacity(0.85),
+                                borderRadius: BorderRadius.circular(24),
+                                border: Border.all(
+                                  color: sel ? _wGreen : _wCardBorder,
+                                  width: sel ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    burbuja,
+                                    style: TextStyle(
+                                      color: sel ? _wGreen : _wText,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  if (sel) ...[
+                                    const SizedBox(width: 6),
+                                    const Icon(
+                                      Icons.check_circle,
+                                      color: _wGreen,
+                                      size: 15,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+                  );
+                }),
+
+                // Chip "Crear detalle propio"
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    setState(() => _mostrarCampoLibre = !_mostrarCampoLibre);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A1A3E).withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: _wYellow.withOpacity(0.6),
+                        style: BorderStyle.solid,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _mostrarCampoLibre
+                              ? Icons.edit_off_outlined
+                              : Icons.add,
+                          color: _wYellow,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _mostrarCampoLibre
+                              ? "Cerrar detalle propio"
+                              : "+ Crear detalle propio",
+                          style: const TextStyle(
+                            color: _wYellow,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Campo libre de texto (detalle propio)
+                if (_mostrarCampoLibre) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _controller,
+                    style: const TextStyle(color: _wText, fontSize: 13),
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      hintText: "Escribe tu detalle específico...",
+                      hintStyle:
+                          const TextStyle(color: _wTextSub, fontSize: 13),
+                      filled: true,
+                      fillColor: _wCard.withOpacity(0.9),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            const BorderSide(color: _wCardBorder),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            const BorderSide(color: _wCardBorder),
+                      ),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.add_circle, color: _wGreen),
+                        onPressed: () {
+                          final t = _controller.text.trim();
+                          if (t.isNotEmpty) {
+                            // TODO: guardar detalle personalizado junto a las burbujas
+                            setState(() {
+                              _wizardDetallesSeleccionados.add(t);
+                              _controller.clear();
+                              _mostrarCampoLibre = false;
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+
+                // Campo opcional: contexto libre (se guarda en _wizardContextoLibre)
+                const SizedBox(height: 10),
+                const Text(
+                  "¿Quieres agregar más contexto? (opcional)",
+                  style: TextStyle(
+                      color: _wTextSub,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  style: const TextStyle(color: _wText, fontSize: 13),
+                  maxLines: 2,
+                  onChanged: (v) => _wizardContextoLibre = v,
+                  decoration: InputDecoration(
+                    hintText:
+                        "Ej: Solo me pasa al intentar subir fotos...",
+                    hintStyle:
+                        const TextStyle(color: _wTextSub, fontSize: 12),
+                    filled: true,
+                    fillColor: _wCard.withOpacity(0.9),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: _wCardBorder),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: _wCardBorder),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ),
+
+        // Botón CONTINUAR
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _wizardDetallesSeleccionados.isEmpty
+                  ? null
+                  : () {
+                      // TODO: guardar selección en Firestore antes de avanzar
+                      HapticFeedback.mediumImpact();
+                      setState(() {
+                        _mostrarCampoLibre = false;
+                        _wizardPaso = 3;
+                      });
+                      _iniciarInterpretacionIA();
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _wGreen,
+                disabledBackgroundColor: _wCardBorder,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Text(
+                "CONTINUAR",
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // VENTANA 4: Interpretando (pantalla de carga)
+  // ══════════════════════════════════════════════════════════════
+ Widget _buildWizardPaso3Interpretando() {
+  final size = MediaQuery.of(context).size;
+
+  return Stack(
+    children: [
+      // 1. Imagen de fondo .webp que cubre absolutamente toda la pantalla
+      Positioned.fill(
+        child: Image.asset(
+          'assets/images/alicia_interpreta.webp',
+          fit: BoxFit.cover,
+        ),
+      ),
+
+      // 2. Capa de contraste oscura para que los textos no se pierdan con el fondo
+      Positioned.fill(
+        child: Container(
+          color: Colors.black.withOpacity(0.45), // Ajusta el nivel de oscuridad si prefieres
+        ),
+      ),
+
+      // 3. Contenido interactivo desplazado drásticamente hacia arriba de manera segura
+      Positioned(
+        top: size.height * 0.05, // <-- MODIFICADO: Cambiado de 0.15 a 0.05 para subir el bloque por completo
+        left: 0,
+        right: 0,
+        bottom: 0, // Mantiene el espacio inferior disponible para el scroll si fuera necesario
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start, // Mantener empujado hacia el inicio superior
+            children: [
+              // Espacio superior mínimo equilibrado para no chocar con la barra de estado
+              const SizedBox(height: 10), // <-- MODIFICADO: Ajustado de 20 a 10
+              
+              const Text(
+                "Interpretando tu reporte...",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _wText,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 24, // Subimos ligeramente el tamaño para darle más peso
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "Estoy analizando la información para\nencontrar la causa más probable.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _wTextSub, 
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 40),
+              
+              // Barra de progreso con sus colores e integridad original
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: const LinearProgressIndicator(
+                  backgroundColor: _wCardBorder,
+                  valueColor: AlwaysStoppedAnimation<Color>(_wGreen),
+                  minHeight: 6,
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Texto informativo inferior con la estrella dorada
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Icon(Icons.star, color: _wYellow, size: 14),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      "T'anta-Wawa está revisando patrones,\nregistros y posibles soluciones.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _wYellow.withOpacity(0.9),
+                        fontSize: 13,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+}
+  // ══════════════════════════════════════════════════════════════
+  // VENTANA 5: ALICIA interpreta — bocadillo + respuesta contextual
+  // ══════════════════════════════════════════════════════════════
+  Widget _buildWizardPaso4AliciaInterpreta() {
+    final String respuesta = _generarRespuestaAlicia();
+
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Veredicto de A.L.I.C.I.A.",
+                  style: TextStyle(
+                    color: _wText,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  "Esto es lo que encontré:",
+                  style: TextStyle(color: _wTextSub, fontSize: 13),
+                ),
+                const SizedBox(height: 20),
+
+                // Avatar + bocadillo de ALICIA
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Avatar circular de ALICIA
+                    ClipOval(
+                      child: Container(
+                        width: 52,
+                        height: 52,
+                        color: _wGreen.withOpacity(0.15),
+                        child: Image.asset(
+                          'assets/images/iconllama.png',
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.restaurant,
+                            size: 30,
+                            color: _wGreen,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+
+                    // Bocadillo de diálogo
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "A.L.I.C.I.A.",
+                            style: TextStyle(
+                              color: _wGreen,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF162D22).withOpacity(0.9),
+                              borderRadius: const BorderRadius.only(
+                                topLeft: Radius.circular(4),
+                                topRight: Radius.circular(14),
+                                bottomLeft: Radius.circular(14),
+                                bottomRight: Radius.circular(14),
+                              ),
+                              border: Border.all(
+                                  color: _wGreen.withOpacity(0.4)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _wGreen.withOpacity(0.15),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              respuesta,
+                              style: const TextStyle(
+                                color: _wText,
+                                fontSize: 13,
+                                height: 1.55,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Resumen de lo que se detectó
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _wCard.withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _wCardBorder),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Resumen de tu reporte",
+                        style: TextStyle(
+                          color: _wTextSub,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _buildRevisionFila(
+                        Icons.category_outlined,
+                        const Color(0xFFFF9B3D),
+                        "Categoría",
+                        _wizardCategoria,
+                      ),
+                      const Divider(
+                          color: _wCardBorder, height: 16),
+                      _buildRevisionFila(
+                        Icons.tune,
+                        _wPurple,
+                        "Subcategoría",
+                        _wizardSubcategoria,
+                      ),
+                      if (_wizardDetallesSeleccionados
+                          .isNotEmpty) ...[
+                        const Divider(
+                            color: _wCardBorder, height: 16),
+                        const Text(
+                          "Detalles marcados",
+                          style: TextStyle(
+                            color: _wTextSub,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: _wizardDetallesSeleccionados
+                              .map(
+                                (d) => Container(
+                                  padding:
+                                      const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: _wGreen
+                                        .withOpacity(0.15),
+                                    borderRadius:
+                                        BorderRadius.circular(20),
+                                    border: Border.all(
+                                        color: _wGreen
+                                            .withOpacity(0.4)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize:
+                                        MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        d,
+                                        style: const TextStyle(
+                                          color: _wGreen,
+                                          fontSize: 12,
+                                          fontWeight:
+                                              FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Icon(
+                                          Icons.check_circle,
+                                          color: _wGreen,
+                                          size: 13),
+                                    ],
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ],
+                      if (_wizardContextoLibre.trim().isNotEmpty) ...[
+                        const Divider(
+                            color: _wCardBorder, height: 16),
+                        _buildRevisionFila(
+                          Icons.chat_bubble_outline,
+                          _wYellow,
+                          "Contexto extra",
+                          _wizardContextoLibre.trim(),
+                          isSubtext: true,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ),
+
+        // Botones de acción finales
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: Column(
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _estaCargando
+                      ? null
+                      : () {
+                          // TODO: llamar _procesarEnvioAlAdmin() con los datos del wizard
+                          HapticFeedback.heavyImpact();
+                          _enviarReporteWizard();
+                        },
+                  icon: _estaCargando
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.send_outlined, size: 20),
+                  label: Text(
+                    _estaCargando
+                        ? "Enviando..."
+                        : "ENVIAR AL PLANTEL DE COCINA",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _wGreen,
+                    disabledBackgroundColor: _wCardBorder,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    // TODO: volver al paso de burbujas para editar selección
+                    setState(() => _wizardPaso = 2);
+                  },
+                  icon: const Icon(
+                    Icons.edit_outlined,
+                    size: 18,
+                    color: _wTextSub,
+                  ),
+                  label: const Text(
+                    "Editar reporte",
+                    style: TextStyle(color: _wTextSub, fontSize: 14),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: _wCardBorder),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Helper reutilizable para filas de revisión
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildRevisionFila(
+    IconData icon,
+    Color color,
+    String label,
+    String valor, {
+    bool isSubtext = false,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color, size: 16),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: _wTextSub,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                valor,
+                style: const TextStyle(
+                  color: _wText,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: isSubtext ? 3 : 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // PANTALLA DE ÉXITO: ¡Reporte enviado!
+  // ══════════════════════════════════════════════════════════════
+Widget _buildWizardPaso5Enviado() {
+  final size = MediaQuery.of(context).size;
+
+  return Stack(
+    children: [
+      // 1. Imagen de fondo PNG/WebP que cubre absolutamente toda la pantalla
+      Positioned.fill(
+        child: Image.asset(
+          'assets/images/Exito.png', // Corregido con la mayúscula correcta para evitar fallos de renderizado
+          fit: BoxFit.cover,
+        ),
+      ),
+
+      // 2. Contenido interactivo montado encima y empujado hacia abajo
+      Positioned.fill(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
+          child: Column(
+            children: [
+              // Incrementado a 0.52 para empujar el contenido hacia la mitad inferior de la pantalla de forma limpia
+              SizedBox(height: size.height * 0.35),
+
+              const SizedBox(height: 24),
+              const Text(
+                "¡Reporte enviado!",
+                style: TextStyle(
+                  color: _wText,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 26,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "Tu reporte fue enviado al plantel de cocina.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _wTextSub, fontSize: 14),
+              ),
+              const SizedBox(height: 24),
+
+              // ID del reporte
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 14),
+                decoration: BoxDecoration(
+                  color: _wCard.withOpacity(0.85),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _wCardBorder),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      "ID del reporte",
+                      style: TextStyle(color: _wTextSub, fontSize: 12),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _wizardReporteId.isNotEmpty
+                              ? _wizardReporteId
+                              : "ALICIA-????",
+                          style: const TextStyle(
+                            color: _wGreen,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 22,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        GestureDetector(
+                          onTap: () {
+                            // TODO: Clipboard.setData(ClipboardData(text: _wizardReporteId))
+                            HapticFeedback.lightImpact();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("ID copiado al portapapeles"),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                          child: const Icon(
+                            Icons.copy_outlined,
+                            color: _wTextSub,
+                            size: 20,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "El equipo te responderá directamente a tu correo.\nRevisa tu bandeja de entrada.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _wTextSub, fontSize: 12),
+              ),
+              const SizedBox(height: 28),
+              
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () {
+                    // Resetear todo el wizard para un nuevo reporte
+                    setState(() {
+                      _wizardPaso = 0;
+                      _wizardCategoria = "";
+                      _wizardSubcategoria = "";
+                      _wizardDetallesSeleccionados.clear();
+                      _wizardContextoLibre = "";
+                      _wizardReporteId = "";
+                      _mostrarCampoLibre = false;
+                    });
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: _wCardBorder),
+                    foregroundColor: _wText,
+                    backgroundColor: Colors.white.withOpacity(0.05), // Sutil contraste sobre la ilustración
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: const Text(
+                    "Crear otro reporte",
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+
+
+  // ══════════════════════════════════════════════════════════════
+  // HISTORIAL: Mis reportes
+  // ══════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════
+  // HISTORIAL: Mis reportes
+  // ══════════════════════════════════════════════════════════════
+  Widget _buildWizardPaso6MisReportes() {
+    Color _estadoColor(String estado) {
+      switch (estado) {
+        case "ENVIADO": return _wBlue;
+        case "EN PROGRESO": return _wYellow;
+        // ─── SE ELIMINÓ EL CASO "RESUELTO" AQUÍ ───
+        default: return _wTextSub;
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: Text(
+            "Mis reportes",
+            style: TextStyle(
+              color: _wText,
+              fontWeight: FontWeight.w800,
+              fontSize: 20,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: _historialReportes.length,
+            itemBuilder: (context, index) {
+              final reporte = _historialReportes[index];
+              final Color estadoColor =
+                  _estadoColor(reporte["estado"]!);
+              return GestureDetector(
+                onTap: () {
+                  // TODO: navegar al detalle del reporte (Firestore doc)
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _wCard.withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _wCardBorder),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: estadoColor.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.receipt_long_outlined,
+                          color: estadoColor,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  reporte["id"]!,
+                                  style: const TextStyle(
+                                    color: _wTextSub,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding:
+                                      const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: estadoColor
+                                        .withOpacity(0.18),
+                                    borderRadius:
+                                        BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    reporte["estado"]!,
+                                    style: TextStyle(
+                                      color: estadoColor,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              reporte["titulo"]!,
+                              style: const TextStyle(
+                                color: _wText,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              reporte["hace"]!,
+                              style: const TextStyle(
+                                color: _wTextSub,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right,
+                          color: _wTextSub, size: 20),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // LÓGICA: Simula interpretación IA (paso 3 → 4)
+  // ══════════════════════════════════════════════════════════════
+  Future<void> _iniciarInterpretacionIA() async {
+    // TODO: reemplazar con llamada real a Groq usando _construirPromptValidacion
+    // o un prompt específico que tome _wizardCategoria, _wizardSubcategoria
+    // y _wizardDetallesSeleccionados para generar una causa probable.
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    setState(() => _wizardPaso = 4);
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // LÓGICA: Envío final del reporte al backend
+  // ══════════════════════════════════════════════════════════════
+  Future<void> _enviarReporteWizard() async {
+    setState(() => _estaCargando = true);
+    try {
+      // TODO: guardar en Firestore — sustituir el bloque comentado por el real:
+      // final user = FirebaseAuth.instance.currentUser;
+      // await FirebaseFirestore.instance.collection('app_reportes').add({
+      //   'uid': user?.uid,
+      //   'categoria': _wizardCategoria,
+      //   'subcategoria': _wizardSubcategoria,
+      //   'detalles': _wizardDetallesSeleccionados,
+      //   'contextoLibre': _wizardContextoLibre,
+      //   'respuestaAlicia': _generarRespuestaAlicia(),
+      //   'fecha': FieldValue.serverTimestamp(),
+      // });
+      // TODO: llamar a EmailJS igual que en _procesarEnvioAlAdmin para notificar al admin
+
+      await Future.delayed(const Duration(seconds: 1));
+
+      final String nuevoId =
+          "ALICIA-${DateTime.now().millisecondsSinceEpoch % 100000}";
+
+      // Agregar al historial mock — reemplazar por StreamBuilder de Firestore
+      _historialReportes.insert(0, {
+        "id": nuevoId,
+        "titulo": _wizardSubcategoria,
+        "estado": "ENVIADO",
+        "hace": "Hace 1 min",
+      });
+
+      setState(() {
+        _wizardReporteId = nuevoId;
+        _estaCargando = false;
+        _wizardPaso = 5;
+      });
+    } catch (e) {
+      setState(() => _estaCargando = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                "Error al enviar el reporte. Intenta de nuevo."),
+          ),
+        );
+      }
     }
   }
 
@@ -1128,9 +2933,10 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           ],
         ),
         child: ElevatedButton(
+          // CAMBIO AQUÍ: Ahora viaja a la ventana de transición interactiva
           onPressed: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const VoiceCallScreen()),
+            MaterialPageRoute(builder: (_) => VoiceTransitionScreen()),
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
