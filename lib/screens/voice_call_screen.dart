@@ -6,6 +6,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // VoiceCallScreen — Asistente de voz NID
@@ -111,6 +112,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   late AnimationController _pulsoController;
   late Animation<double>    _pulsoAnimation;
 
+  //gemini
+  late GenerativeModel _gemini;
+
   // ─────────────────────────────────────────────
   // VARIABLES DEL TEMPORIZADOR NATIVO
   // ─────────────────────────────────────────────
@@ -201,6 +205,11 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
   @override
   void initState() {
     super.initState();
+    _gemini = GenerativeModel(
+    model: 'gemini-2.0-flash',
+    apiKey: dotenv.env['GEMINI_API_KEY']!,
+   );
+   //print(dotenv.env['GEMINI_API_KEY']);
 
     _pulsoController = AnimationController(
       vsync: this,
@@ -405,6 +414,13 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
           meta.add("Tiempo aprox.:${sanitizado['tiempo']}");
         }
         buffer.writeln(meta.join(" | "));
+        buffer.writeln(
+  "INGREDIENTES: ${sanitizado['ingredientes'].join(', ')}"
+);
+
+for (final paso in sanitizado['pasos']) {
+  buffer.writeln("PASO: $paso");
+}
 
         // ── Guardar estructura completa sanitizada para el IntentRouter ──
         _recetasData.add(sanitizado);
@@ -442,6 +458,32 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
   // ═══════════════════════════════════════════════════════
   Future<bool> _intentRouter(String texto) async {
     final String t = texto.toLowerCase().trim();
+    // ── SALUDO ─────────────────────────────
+if (t == "hola" ||
+    t.contains("buenas") ||
+    t.contains("buenos dias") ||
+    t.contains("buenas tardes")) {
+
+  await _hablar(
+    "Hola, soy NID. ¿Qué receta deseas preparar?",
+    guardarEnHistorial: true,
+  );
+
+  return true;
+}
+
+// ── AYUDA ─────────────────────────────
+if (t.contains("que puedes hacer") ||
+    t.contains("qué puedes hacer") ||
+    t.contains("ayuda")) {
+
+  await _hablar(
+    "Puedo mostrar recetas, ingredientes, pasos, tiempos de preparación y ayudarte a cocinar paso a paso.",
+    guardarEnHistorial: true,
+  );
+
+  return true;
+}
 
     // ── 1. REPETIR ÚLTIMA RESPUESTA ──────────────────────
     // "qué dijiste", "repite eso", "no te entendí"
@@ -466,6 +508,7 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
          t.contains("adelante") ||
          t.contains("el siguiente"))) {
       _pasoActualIndex++;
+      
       if (_pasoActualIndex < _pasosActivos.length) {
         final String msg =
             "Paso ${_pasoActualIndex + 1}: ${_pasosActivos[_pasoActualIndex]}";
@@ -565,13 +608,64 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
          t.contains("qué necesito") ||
          t.contains("que necesito") ||
          t.contains("qué lleva") ||
-         t.contains("que lleva"))) {
+         t.contains("que lleva")))
+         {
       final String lista = _ingredientesActivos.join(", ");
       final String msg =
           "Para preparar $_recetaActivaNombre necesitas: $lista.";
       await _hablar(msg, guardarEnHistorial: true);
       return true;
     }
+    if (_recetaActivaNombre != null &&
+    (t.contains("cuantos pasos") ||
+     t.contains("cuántos pasos"))) {
+
+  await _hablar(
+    "La receta tiene ${_pasosActivos.length} pasos.",
+    guardarEnHistorial: true,
+  );
+
+  return true;
+}
+    // ── RECETAS DISPONIBLES ─────────────────────────────
+if (t.contains("disponibles")||
+    t.contains("que recetas hay") ||
+    t.contains("qué recetas hay") ||
+    t.contains("listar recetas")) 
+    {
+
+  final recetas = _recetasData
+      .map((r) => r['nombre'].toString())
+      .join(", ");
+
+  await _hablar(
+    "Las recetas disponibles son: $recetas",
+    guardarEnHistorial: true,
+  );
+
+  return true;
+}
+// ── RECETA ACTIVA ─────────────────────
+if (t.contains("que receta estoy preparando") ||
+    t.contains("qué receta estoy preparando")) {
+
+  if (_recetaActivaNombre != null) {
+
+    await _hablar(
+      "Actualmente estás preparando $_recetaActivaNombre.",
+      guardarEnHistorial: true,
+    );
+
+  } else {
+
+    await _hablar(
+      "Todavía no has seleccionado una receta.",
+      guardarEnHistorial: true,
+    );
+  }
+
+  return true;
+}
 
     // ── 7. LISTAR RECETAS POR CATEGORÍA ──────────────────
     // "qué recetas de desayuno hay", "recetas de cena"
@@ -597,6 +691,85 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
     }
 
     // ── Ninguna intención local detectada → delegar a Groq ──
+
+    for (final receta in _recetasData) {
+
+  final nombre =
+      receta['nombre'].toString().toLowerCase();
+
+  if (t.contains(nombre)) {
+
+    _recetaActivaNombre =
+        receta['nombre'];
+
+    _pasosActivos =
+        List<String>.from(receta['pasos']);
+
+    _ingredientesActivos =
+        List<String>.from(receta['ingredientes']);
+
+    _pasoActualIndex = -1;
+
+    await _hablar(
+      "Perfecto. Prepararemos ${receta['nombre']}. ¿Te parece si empezamos por el primer paso?",
+      guardarEnHistorial: true,
+    );
+
+    return true;
+  }
+}
+// ── TIEMPO DE PREPARACIÓN ─────────────
+if (t.contains("cuanto tarda") ||
+    t.contains("cuánto tarda") ||
+    t.contains("tiempo")) {
+
+  if (_recetaActivaNombre != null) {
+
+    final receta = _recetasData.firstWhere(
+      (r) => r['nombre'] == _recetaActivaNombre,
+    );
+
+    await _hablar(
+      "El tiempo aproximado es ${receta['tiempo']}.",
+      guardarEnHistorial: true,
+    );
+
+    return true;
+  }
+}
+final match = RegExp(
+  r'para\s+(\d+)\s+personas',
+  caseSensitive: false,
+).firstMatch(t);
+
+if (match != null &&
+    _recetaActivaNombre != null &&
+    _ingredientesActivos.isNotEmpty) {
+
+  final personas =
+      int.parse(match.group(1)!);
+
+  final ingredientes =
+      _ingredientesActivos.join(", ");
+
+  await _hablar(
+    "Ingredientes para $personas personas: $ingredientes",
+    guardarEnHistorial: true,
+  );
+
+  return true;
+}
+if (t.contains("gracias") ||
+    t.contains("adios") ||
+    t.contains("adiós")) {
+
+  await _hablar(
+    "Ha sido un placer ayudarte. Buen provecho.",
+    guardarEnHistorial: true,
+  );
+
+  return true;
+}
     return false;
   }
 
@@ -644,9 +817,15 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
                 _preguntaFinal = _textoEscuchado;
               }
             });
+            /*
             if (result.finalResult && _preguntaFinal.trim().isNotEmpty) {
               _procesarTextoUsuario(_preguntaFinal.trim());
-            }
+            }*/
+            if (_procesando) return;
+
+if (result.finalResult && _preguntaFinal.trim().isNotEmpty) {
+  _procesarTextoUsuario(_preguntaFinal.trim());
+}
           },
         );
       }
@@ -666,6 +845,12 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
 
     // No resuelta → delegar a Groq
     await _consultarNID(texto);
+    /*
+    await _hablar(
+  "Esa consulta aún no está implementada.",
+  guardarEnHistorial: true,
+);
+*/
   }
 
   // ═══════════════════════════════════════════════════════
@@ -679,12 +864,76 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
   //   E. Agrega la respuesta al historial.
   //   F. Reproduce vía TTS.
   // ═══════════════════════════════════════════════════════
+
   Future<void> _consultarNID(String pregunta) async {
+    if (_procesando) return;
+  setState(() {
+    _procesando = true;
+    _respuestaNID = "";
+  });
+   
+  try {
+    if (_catalogoContexto.isEmpty) {
+  setState(() {
+    _respuestaNID = "No hay recetas cargadas.";
+    _procesando = false;
+  });
+  return;
+}
+
+    String prompt = """
+Eres NID.
+
+Debes responder SOLO usando la información que existe en Firebase.
+
+CATALOGO:
+
+$_catalogoContexto
+
+PREGUNTA DEL USUARIO:
+
+$pregunta
+""";
+
+debugPrint("PREGUNTA ENVIADA:");
+debugPrint(prompt);
+
+    final response = await _gemini.generateContent([
+      Content.text(prompt),
+    ]);
+
+    String respuesta =
+        response.text ??
+        "No encontré información en el catálogo.";
+    _intentarActivarReceta(pregunta, respuesta);
+
     setState(() {
-      _procesando   = true;
-      _respuestaNID = "";
+      _respuestaNID = respuesta;
+      _procesando = false;
     });
 
+    //await _hablar(respuesta);
+    await _hablar(
+  respuesta,
+  guardarEnHistorial: true,
+);
+
+  }
+  catch (e) {
+
+  debugPrint("========== GEMINI ERROR ==========");
+  debugPrint(e.toString());
+  debugPrint("==================================");
+
+  setState(() {
+    _procesando = false;
+    _respuestaNID = "Error Gemini";
+  });
+}
+
+
+} // ← cierre de _consultarNID()
+/*
     // ── A. Registrar turno del usuario ──
     _historial.add({"role": "user", "content": pregunta});
 
@@ -707,7 +956,7 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
       ..._historial,
     ];
 
-    final url = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
+    //final url = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
 
     try {
       final response = await http.post(
@@ -777,6 +1026,7 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
     }
   }
 
+
   // ─────────────────────────────────────────────
   // _limpiarParaTts
   // Elimina todo caracter que cause errores de
@@ -784,6 +1034,7 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que "duplique" o "
   // asteriscos, guiones decorativos, corchetes,
   // listas numeradas, etc.
   // ─────────────────────────────────────────────
+  */
   String _limpiarParaTts(String texto) {
     return texto
         .replaceAll(RegExp(r'\*+'), '')           // Asteriscos simples y dobles
