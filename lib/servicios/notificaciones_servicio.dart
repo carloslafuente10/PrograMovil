@@ -65,7 +65,7 @@ class NotificacionesServicio {
         .get();
 
     for (final doc in adminsSnap.docs) {
-      final adminEmail = doc.data()['usuario'] ?? doc.data()['email'] ?? '';
+      final adminEmail = doc.data()['correo'] ?? doc.data()['email'] ?? doc.data()['usuario'] ?? '';
       await _col.add({
         'userId':       doc.id, 
         'adminEmail':   adminEmail,

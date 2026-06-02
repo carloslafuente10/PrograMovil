@@ -76,9 +76,11 @@ class _LoginPageState extends State<LoginPage>
     final doc = await docRef.get();
     if (!doc.exists) {
       await docRef.set({
-        'email': user.email ?? '',
-        'nombre': nombre,
-        'creadoEn': FieldValue.serverTimestamp(),
+       'email':    user.email ?? '',
+       'correo':   user.email ?? '',
+       'nombre':   nombre,
+       'rol':      'user',
+       'creadoEn': FieldValue.serverTimestamp(),
       });
     }
   }

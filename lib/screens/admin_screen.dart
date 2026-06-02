@@ -21,14 +21,12 @@ class AdminScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
-    // Nombre de display: preferir displayName, sino extraer parte antes del @
     final String nombreDisplay = user?.displayName?.isNotEmpty == true
         ? user!.displayName!
         : (user?.email ?? 'Administrador').split('@').first;
 
     final String emailCompleto = user?.email ?? '';
 
-    // Inicial para el avatar
     final String inicial = nombreDisplay.isNotEmpty
         ? nombreDisplay[0].toUpperCase()
         : 'A';
@@ -72,7 +70,6 @@ class AdminScreen extends StatelessWidget {
                         ),
                         const NotificacionCampana(esAdmin: true),
                         const SizedBox(width: 8),
-                        // Avatar con inicial
                         user?.photoURL != null
                             ? CircleAvatar(
                                 radius: 18,
@@ -155,7 +152,6 @@ class AdminScreen extends StatelessWidget {
                                 ),
                               ],
                               const SizedBox(height: 8),
-                              // Badge "Administrador"
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 10, vertical: 4),
@@ -189,7 +185,6 @@ class AdminScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        // Cerrar sesión como botón compacto
                         GestureDetector(
                           onTap: () async {
                             await FirebaseAuth.instance.signOut();
@@ -210,14 +205,13 @@ class AdminScreen extends StatelessWidget {
                                 width: 1,
                               ),
                             ),
-                            child: Row(
+                            child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.logout_rounded,
-                                    color: Colors.white,
-                                    size: 13),
-                                const SizedBox(width: 4),
-                                const Text(
+                                Icon(Icons.logout_rounded,
+                                    color: Colors.white, size: 13),
+                                SizedBox(width: 4),
+                                Text(
                                   'Salir',
                                   style: TextStyle(
                                     color: Colors.white,
@@ -326,7 +320,6 @@ class _AdminCard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
           child: Row(
             children: [
-              // Ícono con color único por tarjeta
               Container(
                 width: 48,
                 height: 48,
@@ -364,7 +357,6 @@ class _AdminCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              // Flecha con color de la tarjeta
               Container(
                 width: 28,
                 height: 28,
