@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'favoritos_provider.dart';
 import 'detalle_receta_screen.dart';
+import '../servicios/historial_servicio.dart';
 
 class FavoritosScreen extends StatelessWidget {
   const FavoritosScreen({super.key});
@@ -315,8 +316,13 @@ class _FavoritoTile extends StatelessWidget {
             child: Text('Cancelar', style: TextStyle(color: Colors.grey[600])),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(ctx);
+              await HistorialService.registrar(
+          accion:
+        'Quitó de favoritos ${receta['nombre']}',
+         tipo: 'favoritos',
+         );
               favState.toggle(receta);
             },
             child: const Text(

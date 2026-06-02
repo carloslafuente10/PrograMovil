@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../servicios/historial_servicio.dart';
 
 String _pluralizarUnidad(String cantidad, String unidad) {
   if (unidad.isEmpty) return unidad;
@@ -310,6 +311,11 @@ class _CrearRecetaAdminScreenState extends State<CrearRecetaAdminScreen>
           .set({'pasos_ordenados': pasosOrdenados});
 
       if (mounted) {
+        await HistorialService.registrar(
+        accion:
+      'Creó la receta ${_nombreCtrl.text.trim()}',
+        tipo: 'receta_admin',
+        );
         _snack('¡Receta publicada exitosamente!');
         Navigator.pop(context);
       }

@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'favoritos_provider.dart';
 import 'cocina_pasos_screen.dart';
 import 'crear_receta_usuario_screen.dart';
+import '../servicios/historial_servicio.dart';
 
 class _IngredienteCompleto {
   final String id;
@@ -649,6 +650,11 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
       final docRef = await FirebaseFirestore.instance
           .collection('recetas_personales')
           .add(payload);
+      await HistorialService.registrar(
+  accion:
+      'Copió la receta ${receta['nombre']} a Mis Recetas',
+  tipo: 'recetas',
+);
 
       if (!mounted) return;
 
@@ -877,7 +883,16 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
                                     final bool esFavLocal = favStateLocal
                                         .esFavorito(nombre);
                                     return GestureDetector(
-                                      onTap: () {
+                                      onTap: () async {
+                                        final eraFavorito =
+                                        favStateLocal.esFavorito(nombre);
+
+                                        await HistorialService.registrar(
+                                        accion: eraFavorito
+                                        ? 'Quitó de favoritos: $nombre'
+                                        : 'Agregó a favoritos: $nombre',
+                                       tipo: 'favoritos',
+                                        );
                                         favStateLocal.toggle({
                                           'id': widget
                                               .recetaId, // <-- LA LÍNEA VITAL QUE FALTABA

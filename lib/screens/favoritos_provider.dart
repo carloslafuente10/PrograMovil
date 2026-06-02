@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../servicios/historial_servicio.dart';
 
 class FavoritosProvider extends InheritedNotifier<FavoritosState> {
   const FavoritosProvider({
@@ -76,10 +77,19 @@ class FavoritosState extends ChangeNotifier {
         .doc(nombre);
 
     if (_favoritos.containsKey(nombre)) {
+      await HistorialService.registrar(
+    accion: 'Quitó de favoritos $nombre',
+    tipo: 'favoritos',
+  );
+
       _favoritos.remove(nombre);
       notifyListeners();
       await docRef.delete();
     } else {
+       await HistorialService.registrar(
+    accion: 'Agregó a favoritos $nombre',
+    tipo: 'favoritos',
+  );
       _favoritos[nombre] = receta;
       notifyListeners();
       await docRef.set(receta);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'detalle_receta_screen.dart';
+import '../servicios/historial_servicio.dart';
 
 class PlanScreen extends StatefulWidget {
   const PlanScreen({super.key});
@@ -115,6 +116,11 @@ class _PlanScreenState extends State<PlanScreen>
           },
           SetOptions(merge: true),
         );
+        await HistorialService.registrar(
+  accion:
+      'Agregó una receta a $tipoComida para $_fechaStr',
+  tipo: 'plan',
+);
   }
 
   Future<void> _eliminarDelPlan(String tipoComida) async {
@@ -127,6 +133,11 @@ class _PlanScreenState extends State<PlanScreen>
           .collection('app-planes')
           .doc(_docId)
           .update({tipoComida: FieldValue.delete()});
+          await HistorialService.registrar(
+  accion:
+      'Eliminó una receta de $tipoComida para $_fechaStr',
+  tipo: 'plan',
+);
     } catch (_) {}
   }
 

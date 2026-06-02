@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../servicios/notificaciones_servicio.dart';
+import '../servicios/historial_servicio.dart';
 
 class _IngredienteSeleccionado {
   final String id;
@@ -346,6 +347,11 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
             .collection('recetas_personales').add(payload);
         _recetaPersonalId = doc.id;
       }
+      await HistorialService.registrar(
+  accion:
+      'Guardó un borrador de receta',
+  tipo: 'borrador',
+);
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) _mostrarSnack('Error al guardar: $e');
@@ -353,6 +359,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       if (mounted) setState(() => _guardando = false);
     }
   }
+  
 
   Future<void> _guardarComoGuardada() async {
     if (!_todoValido) {
@@ -370,6 +377,11 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
             .collection('recetas_personales').add(payload);
         _recetaPersonalId = doc.id;
       }
+      await HistorialService.registrar(
+  accion:
+      'Creó la receta ${_nombreCtrl.text.trim()}',
+  tipo: 'receta_usuario',
+);
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) _mostrarSnack('Error al guardar: $e');
@@ -377,6 +389,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       if (mounted) setState(() => _guardando = false);
     }
   }
+  
 
   Future<void> _guardarCopia() async {
     if (_guardando) return;
@@ -441,6 +454,11 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       payloadPendiente['fechaEnvio'] = FieldValue.serverTimestamp();
       final pendienteRef = await FirebaseFirestore.instance
           .collection('recetas-pendientes').add(payloadPendiente);
+      await HistorialService.registrar(
+  accion:
+      'Envió la receta ${_nombreCtrl.text.trim()} a revisión',
+  tipo: 'revision',
+);
 
       await NotificacionesServicio.notificarAdmins(
         recipeId:     pendienteRef.id,

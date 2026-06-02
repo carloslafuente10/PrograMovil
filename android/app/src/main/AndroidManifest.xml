@@ -14,7 +14,7 @@
     </queries>
 
     <application
-        android:label="programovil"
+        android:label="Yagu!"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

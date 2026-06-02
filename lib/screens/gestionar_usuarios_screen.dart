@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_page.dart';
+import '../servicios/historial_servicio.dart';
 
 class GestionarUsuariosScreen extends StatefulWidget {
   const GestionarUsuariosScreen({super.key});
@@ -376,6 +377,12 @@ class _GestionarUsuariosScreenState extends State<GestionarUsuariosScreen> {
         .collection('app-usuarios')
         .doc(docId)
         .update({'rol': esAdmin ? 'user' : 'admin'});
+    await HistorialService.registrar(
+         accion: esAdmin
+      ? 'Quitó permisos de administrador a $nombre'
+      : 'Otorgó permisos de administrador a $nombre',
+      tipo: 'roles',
+     );
 
     final actualUser = FirebaseAuth.instance.currentUser;
     if (actualUser != null && actualUser.uid == docId && esAdmin) {

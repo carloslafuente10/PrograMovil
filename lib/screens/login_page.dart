@@ -136,6 +136,10 @@ class _LoginPageState extends State<LoginPage>
       await resultado.user?.updateDisplayName(regNombreCtrl.text.trim());
       await _guardarUsuario(resultado.user!,
           nombre: regNombreCtrl.text.trim());
+          await HistorialService.registrar(
+          accion: 'Registró una cuenta',
+          tipo: 'registro',
+          );
       if (!mounted) return;
       Navigator.pushReplacement(context,
           MaterialPageRoute(

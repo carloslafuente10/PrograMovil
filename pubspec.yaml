@@ -35,12 +35,19 @@ dependencies:
   csv: ^5.0.2
   speech_to_text: ^7.4.0
   flutter_tts: ^4.2.5
+  
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   video_player: ^2.8.1
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/logo.jpeg"
 
 flutter:
   uses-material-design: true
@@ -57,3 +64,4 @@ flutter:
     - assets/images/vegetables_botton.png
     - assets/images/banner_home.png
     - assets/images/yagu_reportes.png
+    

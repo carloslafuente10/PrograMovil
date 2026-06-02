@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../servicios/pdf_servicios.dart';
 import 'reportes_planificadores.dart';
 
+
 class ReportesScreen extends StatefulWidget {
   const ReportesScreen({super.key});
 
@@ -117,6 +118,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
           );
           return;
         }
+        
         setState(() => seccion = valor);
       },
       child: AnimatedContainer(
@@ -285,6 +287,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                         valor: 'planificador',
                         icono: Icons.calendar_month_outlined,
                       ),
+                      
                     ],
                   ),
                 ),
