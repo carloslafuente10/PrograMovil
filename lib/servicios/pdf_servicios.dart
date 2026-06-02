@@ -605,7 +605,7 @@ class PdfService {
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
         build: (ctx) => [
-          _encabezado('Catálogo de Recetas', subtitulo: subtituloFiltros),
+          _encabezado('Catálogo de recetas', subtitulo: subtituloFiltros),
           pw.SizedBox(height: 16),
           _tabla(
             headers: ['Nombre', 'Categoría', 'Calorías', 'Tiempo'],
