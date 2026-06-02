@@ -150,7 +150,9 @@ class _RegistroScreenState extends State<RegistroScreen>
       // 4. Navegar eliminando toda la pila anterior
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => AppMainScreen(key: AppMainScreen.globalKey)),
+        MaterialPageRoute(
+          builder: (_) => AppMainScreen(key: AppMainScreen.globalKey),
+        ),
         (route) => false,
       );
     } on FirebaseAuthException catch (e) {
@@ -277,7 +279,7 @@ class _RegistroScreenState extends State<RegistroScreen>
                     const SizedBox(height: 20),
 
                     const Text(
-                      'Sabores de Bolivia',
+                      'Yagu!',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 26,

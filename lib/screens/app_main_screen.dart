@@ -9,6 +9,7 @@ import 'sugerencias_chat_screen.dart';
 import 'mis_recetas_screen.dart';
 import 'package:lottie/lottie.dart';
 import 'components/notificacion_campana.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AppMainScreen extends StatefulWidget {
   const AppMainScreen({super.key});
@@ -312,8 +313,15 @@ class _AjustesScreenState extends State<_AjustesScreen> {
 
     setState(() => _guardandoNombre = true);
     try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
       await FirebaseAuth.instance.currentUser?.updateDisplayName(nuevoNombre);
       await FirebaseAuth.instance.currentUser?.reload();
+      if (uid != null) {
+         await FirebaseFirestore.instance
+           .collection('app-usuarios')
+           .doc(uid)
+           .update({'nombre': nuevoNombre});
+      }
       if (mounted) {
         setState(() => _guardandoNombre = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
