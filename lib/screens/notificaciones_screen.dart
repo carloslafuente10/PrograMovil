@@ -4,8 +4,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../servicios/notificaciones_servicio.dart';
 import 'crear_receta_usuario_screen.dart';
 import 'admin_recetas_pendientes_screen.dart';
+import 'mis_recetas_screen.dart';
 import 'app_main_screen.dart';
 
+// Pantalla de notificaciones para admin y usuario
 class NotificacionesScreen extends StatefulWidget {
   final bool esAdmin;
   const NotificacionesScreen({super.key, required this.esAdmin});
@@ -36,6 +38,7 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
         title: const Text('Notificaciones',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
         actions: [
+          // Botón para alternar entre todas y solo no leídas
           TextButton.icon(
             onPressed: () => setState(() => _soloNoLeidas = !_soloNoLeidas),
             icon: Icon(_soloNoLeidas ? Icons.notifications_active : Icons.notifications_none,
@@ -45,6 +48,7 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
         ],
       ),
       body: StreamBuilder<List<AppNotificacion>>(
+        // Usa stream distinto según si es admin o usuario
         stream: widget.esAdmin
             ? NotificacionesServicio.streamNotificacionesAdmin(adminEmail)
             : NotificacionesServicio.streamNotificaciones(userId),
@@ -67,6 +71,7 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
           final noLeidas = notifs.where((n) => !n.read).length;
 
           return Column(children: [
+            // Barra superior con contador y opción de marcar todas
             if (noLeidas > 0)
               Container(
                 width: double.infinity, color: const Color(0xFFE8F7F1),
@@ -100,89 +105,163 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
     );
   }
 
+  //Maneja el tap en una notificacion segun su tipo
   Future<void> _manejarTap(BuildContext context, AppNotificacion notif) async {
-    if (!notif.read) await NotificacionesServicio.marcarLeida(notif.id);
-    if (!context.mounted) return;
+    final nav = Navigator.of(context);
+    final scaffoldMsg = ScaffoldMessenger.of(context);
 
     switch (notif.type) {
+
       case TipoNotificacion.recetaPendiente:
-        Navigator.push(context, MaterialPageRoute(
-            builder: (_) => const AdminRecetasPendientesScreen()));
+        if (!notif.read) NotificacionesServicio.marcarLeida(notif.id);
+        showDialog(
+          context: context,
+          builder: (dlgCtx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Row(children: [
+              Icon(Icons.pending_actions_rounded, color: Color(0xFF0D6EFD)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('Nueva receta por revisar',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+              ),
+            ]),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(notif.recipeName,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                const SizedBox(height: 8),
+                Text(notif.message,
+                    style: TextStyle(fontSize: 13, color: Colors.grey[700])),
+                const SizedBox(height: 4),
+                Text(_formatFecha(notif.createdAt),
+                    style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dlgCtx),
+                child: Text('Cerrar', style: TextStyle(color: Colors.grey[600]))),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(dlgCtx);
+                  nav.push(MaterialPageRoute(
+                      builder: (_) => const AdminRecetasPendientesScreen()));
+                },
+                icon: const Icon(Icons.arrow_forward_rounded, size: 16, color: Colors.white),
+                label: const Text('Ir a revisar',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0D6EFD),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                )),
+            ],
+          ),
+        );
         break;
+  
       case TipoNotificacion.recetaAprobada:
-        Navigator.of(context).popUntil((route) => route.isFirst);
+        if (!notif.read) NotificacionesServicio.marcarLeida(notif.id);
+        nav.popUntil((route) => route.isFirst);
         AppMainScreen.globalKey.currentState?.setState(() {
           AppMainScreen.globalKey.currentState!.selectedIndex = 0;
         });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        scaffoldMsg.showSnackBar(SnackBar(
           content: Row(children: [
             const Icon(Icons.check_circle_rounded, color: Colors.white),
             const SizedBox(width: 10),
             Expanded(child: Text('Tu receta "${notif.recipeName}" ya está en el catálogo')),
           ]),
-          backgroundColor: _verde,
+          backgroundColor: const Color(0xFF2D9E73),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           margin: const EdgeInsets.all(16),
           duration: const Duration(seconds: 4)));
         break;
-
+  
       case TipoNotificacion.recetaRechazada:
-        _mostrarMotivoYNavegar(context, notif);
+        if (!notif.read) NotificacionesServicio.marcarLeida(notif.id);
+        _mostrarMotivoYNavegar(nav, notif);
         break;
     }
   }
 
-  void _mostrarMotivoYNavegar(BuildContext context, AppNotificacion notif) {
+  // Formatea la fecha de la notificación en texto relativo
+  String _formatFecha(DateTime fecha) {
+    final ahora = DateTime.now();
+    final diff  = ahora.difference(fecha);
+    if (diff.inMinutes < 1)  return 'Ahora mismo';
+    if (diff.inMinutes < 60) return 'Hace ${diff.inMinutes} min';
+    if (diff.inHours < 24)   return 'Hace ${diff.inHours} h';
+    if (diff.inDays < 7)     return 'Hace ${diff.inDays} días';
+    return '${fecha.day}/${fecha.month}/${fecha.year}';
+  }
+
+  // Diálogo para receta rechazada
+ void _mostrarMotivoYNavegar(NavigatorState nav, AppNotificacion notif) {
     showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
+      context: nav.context,
+      builder: (dlgCtx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Row(children: [
           Icon(Icons.cancel_rounded, color: Color(0xFFE53935)),
           SizedBox(width: 8),
-          Text('Receta rechazada', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+          Text('Receta rechazada',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
         ]),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(notif.recipeName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-          const SizedBox(height: 10),
-          const Text('Motivo:', style: TextStyle(fontSize: 12, color: Colors.grey)),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: const Color(0xFFFFEBEE), borderRadius: BorderRadius.circular(10)),
-            child: Text(notif.motivoRechazo ?? 'Sin motivo especificado',
-                style: const TextStyle(fontSize: 13, color: Color(0xFFE53935), height: 1.4))),
-          const SizedBox(height: 12),
-          if (notif.origenPersonalDocId != null && notif.origenPersonalDocId!.isNotEmpty)
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  try {
-                    final doc = await FirebaseFirestore.instance
-                        .collection('recetas_personales')
-                        .doc(notif.origenPersonalDocId).get();
-                    if (doc.exists && context.mounted) {
-                      Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => CrearRecetaUsuarioScreen(
-                          recetaExistente: doc.data(),
-                          recetaPersonalId: doc.id)));
-                    }
-                  } catch (_) {}
-                },
-                icon: const Icon(Icons.edit_rounded, size: 16, color: Colors.white),
-                label: const Text('Editar y reenviar receta',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2D9E73),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 12)))),
-        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(notif.recipeName,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+            const SizedBox(height: 10),
+            const Text('Motivo:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                  color: const Color(0xFFFFEBEE),
+                  borderRadius: BorderRadius.circular(10)),
+              child: Text(notif.motivoRechazo ?? 'Sin motivo especificado',
+                  style: const TextStyle(
+                      fontSize: 13, color: Color(0xFFE53935), height: 1.4))),
+            const SizedBox(height: 12),
+            if (notif.origenPersonalDocId != null &&
+                notif.origenPersonalDocId!.isNotEmpty)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(dlgCtx);
+                    try {
+                      final doc = await FirebaseFirestore.instance
+                          .collection('recetas_personales')
+                          .doc(notif.origenPersonalDocId)
+                          .get();
+                      if (doc.exists) {
+                        nav.push(MaterialPageRoute(
+                            builder: (_) => CrearRecetaUsuarioScreen(
+                                recetaExistente: doc.data(),
+                                recetaPersonalId: doc.id)));
+                      }
+                    } catch (_) {}
+                  },
+                  icon: const Icon(Icons.edit_rounded, size: 16, color: Colors.white),
+                  label: const Text('Editar y reenviar',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2D9E73),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 12)))),
+          ],
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dlgCtx),
             child: Text('Entendido', style: TextStyle(color: Colors.grey[600]))),
         ],
       ),
@@ -190,6 +269,7 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
   }
 }
 
+// Tarjeta individual de notificación
 class _NotifCard extends StatelessWidget {
   final AppNotificacion notif;
   final bool esAdmin;
@@ -205,6 +285,7 @@ class _NotifCard extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         decoration: BoxDecoration(
+          // Fondo distinto si está leída o no
           color: notif.read ? Colors.white : config.bgColor,
           borderRadius: BorderRadius.circular(16),
           border: notif.read ? Border.all(color: Colors.grey[200]!) : Border.all(color: config.borderColor),
@@ -220,12 +301,14 @@ class _NotifCard extends StatelessWidget {
               Row(children: [
                 Expanded(child: Text(config.titulo,
                     style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: config.iconColor))),
+                // Punto indicador de no leída
                 if (!notif.read)
                   Container(width: 8, height: 8,
                       decoration: BoxDecoration(color: config.iconColor, shape: BoxShape.circle)),
               ]),
               const SizedBox(height: 4),
               Text(notif.message, style: TextStyle(fontSize: 12, color: Colors.grey[700], height: 1.4)),
+              // Muestra el motivo de rechazo si existe
               if (notif.motivoRechazo != null && notif.motivoRechazo!.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Container(
@@ -249,15 +332,17 @@ class _NotifCard extends StatelessWidget {
     );
   }
 
+  // Texto de ayuda según el tipo de notificación
   String _hintAccion() {
     switch (notif.type) {
-      case TipoNotificacion.recetaPendiente: return 'Toca para ir a revisar';
+      case TipoNotificacion.recetaPendiente: return 'Toca para ver el detalle';
       case TipoNotificacion.recetaAprobada:  return 'Toca para ver en el catálogo';
-      case TipoNotificacion.recetaRechazada: return 'Toca para editar y reenviar';
+      case TipoNotificacion.recetaRechazada: return 'Toca para ver el motivo';
       default: return '';
     }
   }
 
+  // Configuración visual según el tipo de notificación
   _NotifConfig _config() {
     switch (notif.type) {
       case TipoNotificacion.recetaPendiente:
@@ -282,6 +367,7 @@ class _NotifCard extends StatelessWidget {
     }
   }
 
+  // Convierte fecha a texto relativo
   String _formatFecha(DateTime fecha) {
     final ahora = DateTime.now();
     final diff  = ahora.difference(fecha);
@@ -293,6 +379,7 @@ class _NotifCard extends StatelessWidget {
   }
 }
 
+// Configuración visual de cada tipo de notificación
 class _NotifConfig {
   final String titulo;
   final IconData icon;
