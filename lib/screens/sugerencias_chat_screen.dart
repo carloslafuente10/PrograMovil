@@ -1073,12 +1073,16 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           {
             "etiqueta": null,
             "burbujas": [
-              "En el paso", "Está confuso", "No se entiende",
-              "La explicación", "Falta", "El tiempo de cocción",
-              "Las instrucciones"
-            ]
-          }
-        ]
+              "En el paso",
+              "Está confuso",
+              "No se entiende",
+              "La explicación",
+              "Falta",
+              "El tiempo de cocción",
+              "Las instrucciones",
+            ],
+          },
+        ],
       },
       {
         "titulo": "Ingredientes erróneos",
@@ -1087,12 +1091,16 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           {
             "etiqueta": null,
             "burbujas": [
-              "El ingrediente", "La cantidad", "Falta",
-              "No coincide", "Los gramos", "Está mal",
-              "En la preparación"
-            ]
-          }
-        ]
+              "El ingrediente",
+              "La cantidad",
+              "Falta",
+              "No coincide",
+              "Los gramos",
+              "Está mal",
+              "En la preparación",
+            ],
+          },
+        ],
       },
       {
         "titulo": "Imágenes rotas",
@@ -1101,12 +1109,16 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           {
             "etiqueta": null,
             "burbujas": [
-              "La imagen", "No carga", "Se ve rota",
-              "Falta", "En el servidor", "Está en blanco",
-              "Tiene un error"
-            ]
-          }
-        ]
+              "La imagen",
+              "No carga",
+              "Se ve rota",
+              "Falta",
+              "En el servidor",
+              "Está en blanco",
+              "Tiene un error",
+            ],
+          },
+        ],
       },
     ],
     "Problemas con la experiencia": [
@@ -1117,12 +1129,16 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           {
             "etiqueta": null,
             "burbujas": [
-              "La pantalla", "No funciona", "Se congela",
-              "Al presionar", "Falta", "Carga Lenta",
-              "No responde"
-            ]
-          }
-        ]
+              "La pantalla",
+              "No funciona",
+              "Se congela",
+              "Al presionar",
+              "Falta",
+              "Carga Lenta",
+              "No responde",
+            ],
+          },
+        ],
       },
       {
         "titulo": "Letra muy pequeña",
@@ -1131,11 +1147,14 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           {
             "etiqueta": null,
             "burbujas": [
-              "No se lee", "Es ilegible", "Está muy junta",
-              "Falta contraste", "Se corta"
-            ]
-          }
-        ]
+              "No se lee",
+              "Es ilegible",
+              "Está muy junta",
+              "Falta contraste",
+              "Se corta",
+            ],
+          },
+        ],
       },
       {
         "titulo": "Diseño incómodo",
@@ -1144,12 +1163,15 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           {
             "etiqueta": null,
             "burbujas": [
-              "Están muy juntos", "Muy pequeños", "Se superponen",
-              "Están muy abajo / Muy arriba", "Es confuso",
-              "No se nota"
-            ]
-          }
-        ]
+              "Están muy juntos",
+              "Muy pequeños",
+              "Se superponen",
+              "Están muy abajo / Muy arriba",
+              "Es confuso",
+              "No se nota",
+            ],
+          },
+        ],
       },
     ],
     "Fallas técnicas": [
@@ -1160,19 +1182,23 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           {
             "etiqueta": "¿En qué momento ocurrió?",
             "burbujas": [
-              "Al abrir la app", "Al tocar una receta",
-              "A mitad de la cocina", "Al usar el asistente",
-              "Al cargar una imagen"
-            ]
+              "Al abrir la app",
+              "Al tocar una receta",
+              "A mitad de la cocina",
+              "Al usar el asistente",
+              "Al cargar una imagen",
+            ],
           },
           {
             "etiqueta": "¿Qué comportamiento viste?",
             "burbujas": [
-              "Se cierra sola", "Vuelve al inicio",
-              "Pantalla en negro", "Me saca del perfil"
-            ]
-          }
-        ]
+              "Se cierra sola",
+              "Vuelve al inicio",
+              "Pantalla en negro",
+              "Me saca del perfil",
+            ],
+          },
+        ],
       },
       {
         "titulo": "Error al cargar el contenido",
@@ -1181,20 +1207,24 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           {
             "etiqueta": "¿Qué faltó o no cargó?",
             "burbujas": [
-              "La foto de la receta", "La lista de ingredientes",
-              "El temporizador", "Los comentarios",
-              "El chat de ALICIA"
-            ]
+              "La foto de la receta",
+              "La lista de ingredientes",
+              "El temporizador",
+              "Los comentarios",
+              "El chat de ALICIA",
+            ],
           },
           {
             "etiqueta": "¿Qué estado viste?",
             "burbujas": [
-              "Se queda en blanco", "Dice \"Error de conexión\"",
+              "Se queda en blanco",
+              "Dice \"Error de conexión\"",
               "Aparece un símbolo de carga",
-              "No encuentra el contenido", "Sale un texto roto"
-            ]
-          }
-        ]
+              "No encuentra el contenido",
+              "Sale un texto roto",
+            ],
+          },
+        ],
       },
       {
         "titulo": "Carga Lenta / Lag",
@@ -1203,19 +1233,23 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           {
             "etiqueta": "¿Al hacer qué acción?",
             "burbujas": [
-              "Al buscar recetas", "Al pasar de pantalla",
-              "Al hacer scroll/desplazar", "Al activar el timer"
-            ]
+              "Al buscar recetas",
+              "Al pasar de pantalla",
+              "Al hacer scroll/desplazar",
+              "Al activar el timer",
+            ],
           },
           {
             "etiqueta": "¿Qué sensación tuviste?",
             "burbujas": [
-              "Va a tirones", "Se congela unos segundos",
-              "Tarda demasiado", "Reacciona tarde",
-              "Se siente pesada"
-            ]
-          }
-        ]
+              "Va a tirones",
+              "Se congela unos segundos",
+              "Tarda demasiado",
+              "Reacciona tarde",
+              "Se siente pesada",
+            ],
+          },
+        ],
       },
     ],
   };
@@ -1225,16 +1259,26 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
   // ─────────────────────────────────────────────────────────────
   IconData _iconoDesdeString(String nombre) {
     switch (nombre) {
-      case "menu_book": return Icons.menu_book_outlined;
-      case "eco": return Icons.eco_outlined;
-      case "broken_image": return Icons.broken_image_outlined;
-      case "explore": return Icons.explore_outlined;
-      case "text_fields": return Icons.text_fields;
-      case "dashboard_customize": return Icons.dashboard_customize_outlined;
-      case "power_off": return Icons.power_off_outlined;
-      case "cloud_off": return Icons.cloud_off_outlined;
-      case "speed": return Icons.speed_outlined;
-      default: return Icons.help_outline;
+      case "menu_book":
+        return Icons.menu_book_outlined;
+      case "eco":
+        return Icons.eco_outlined;
+      case "broken_image":
+        return Icons.broken_image_outlined;
+      case "explore":
+        return Icons.explore_outlined;
+      case "text_fields":
+        return Icons.text_fields;
+      case "dashboard_customize":
+        return Icons.dashboard_customize_outlined;
+      case "power_off":
+        return Icons.power_off_outlined;
+      case "cloud_off":
+        return Icons.cloud_off_outlined;
+      case "speed":
+        return Icons.speed_outlined;
+      default:
+        return Icons.help_outline;
     }
   }
 
@@ -1248,8 +1292,8 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     final String burbujas = sel.isEmpty
         ? "el problema indicado"
         : sel.length == 1
-            ? '"${sel[0]}"'
-            : sel.sublist(0, sel.length - 1).map((b) => '"$b"').join(", ") +
+        ? '"${sel[0]}"'
+        : sel.sublist(0, sel.length - 1).map((b) => '"$b"').join(", ") +
               ' y "${sel.last}"';
 
     String base =
@@ -1259,42 +1303,52 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     // Respuesta contextual según categoría y subcategoría
     if (cat == "Problemas de contenido") {
       if (sub == "Receta mal explicada") {
-        base += "Parece que algún paso o instrucción en la receta no está claro o falta información clave. "
+        base +=
+            "Parece que algún paso o instrucción en la receta no está claro o falta información clave. "
             "Lo reportaré al equipo de contenido para que revisen y corrijan esa sección. 📋";
       } else if (sub == "Ingredientes erróneos") {
-        base += "Puede que algún ingrediente, su cantidad o unidad de medida no coincida con lo esperado. "
+        base +=
+            "Puede que algún ingrediente, su cantidad o unidad de medida no coincida con lo esperado. "
             "Nuestro equipo lo verificará contra la receta original. 🥄";
       } else {
-        base += "Las imágenes pueden no haberse cargado correctamente desde el servidor. "
+        base +=
+            "Las imágenes pueden no haberse cargado correctamente desde el servidor. "
             "Le avisaré al equipo técnico para que revisen los recursos visuales. 🖼️";
       }
     } else if (cat == "Problemas con la experiencia") {
       if (sub == "Navegación confusa") {
-        base += "Parece que hay una pantalla o botón que no responde como debería. "
+        base +=
+            "Parece que hay una pantalla o botón que no responde como debería. "
             "Nuestro equipo de UX revisará ese flujo de navegación. 🧭";
       } else if (sub == "Letra muy pequeña") {
-        base += "El tamaño o contraste del texto puede estar afectando la legibilidad. "
+        base +=
+            "El tamaño o contraste del texto puede estar afectando la legibilidad. "
             "Tomaré nota para que el equipo de diseño ajuste la tipografía. 🔠";
       } else {
-        base += "Algunos elementos del diseño pueden estar mal posicionados o superpuestos. "
+        base +=
+            "Algunos elementos del diseño pueden estar mal posicionados o superpuestos. "
             "El equipo de interfaz lo revisará en la próxima actualización. 🎨";
       }
     } else {
       // Fallas técnicas
       if (sub == "Cierre inesperado") {
-        base += "La app parece estar cerrándose de forma inesperada en ese momento específico. "
+        base +=
+            "La app parece estar cerrándose de forma inesperada en ese momento específico. "
             "Le pasaré los detalles exactos al equipo de ingeniería para rastrear el error. 🔧";
       } else if (sub == "Error al cargar el contenido") {
-        base += "Parece que hay un problema al obtener o mostrar ciertos datos desde el servidor. "
+        base +=
+            "Parece que hay un problema al obtener o mostrar ciertos datos desde el servidor. "
             "Nuestros ingenieros revisarán los logs de carga de ese contenido. ☁️";
       } else {
-        base += "El rendimiento de la app en ese punto puede estar siendo afectado por procesos internos. "
+        base +=
+            "El rendimiento de la app en ese punto puede estar siendo afectado por procesos internos. "
             "Lo escalaré al equipo de optimización con los detalles que me diste. ⚡";
       }
     }
 
     if (_wizardContextoLibre.trim().isNotEmpty) {
-      base += "\n\nAdemás agregaste: \"${_wizardContextoLibre.trim()}\". Ese detalle extra ayudará mucho al diagnóstico. 🙌";
+      base +=
+          "\n\nAdemás agregaste: \"${_wizardContextoLibre.trim()}\". Ese detalle extra ayudará mucho al diagnóstico. 🙌";
     }
 
     return base;
@@ -1314,7 +1368,11 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
             errorBuilder: (_, __, ___) => Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Color(0xFF0D0826), Color(0xFF1A1035), Color(0xFF2B0E4B)],
+                  colors: [
+                    Color(0xFF0D0826),
+                    Color(0xFF1A1035),
+                    Color(0xFF2B0E4B),
+                  ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
@@ -1323,9 +1381,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           ),
         ),
         // Capa de oscurecimiento semi-transparente para legibilidad
-        Positioned.fill(
-          child: Container(color: const Color(0xCC0D0826)),
-        ),
+        Positioned.fill(child: Container(color: const Color(0xCC0D0826))),
         // Contenido del wizard
         Column(
           children: [
@@ -1339,59 +1395,59 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
   /// Barra superior con pasos y flecha atrás
   Widget _buildWizardHeader() {
-  // CAMBIO 1: Ahora el total real de pasos con barra secuencial es 6 (del Paso 0 al Paso 5)
-  const int totalPasos = 6; 
-  
-  // CAMBIO 2: La barra se mostrará solo del paso 0 al 5. Al llegar al paso 6 (Mis Reportes) se oculta.
-  final bool mostrarBarra = _wizardPaso < 6;
+    // CAMBIO 1: Ahora el total real de pasos con barra secuencial es 6 (del Paso 0 al Paso 5)
+    const int totalPasos = 6;
 
-  return Container(
-    padding: const EdgeInsets.fromLTRB(12, 10, 16, 10),
-    color: _wBg,
-    child: Column(
-      children: [
-        Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back, color: _wText, size: 22),
-              onPressed: () {
-                if (_wizardPaso == 0) {
-                  setState(() {
-                    _opcionSeleccionada = false;
-                    _mensajes.clear();
-                    _animarProgreso(0.0);
-                  });
-                } else if (_wizardPaso == 8) { 
-                  // Mantenemos tus condiciones preventivas de navegación por seguridad
-                  setState(() => _wizardPaso = 7);
-                } else {
-                  setState(() => _wizardPaso = (_wizardPaso - 1).clamp(0, 8));
-                }
-              },
-            ),
-            const Expanded(
-              child: Text(
-                "Reportes",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: _wText,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                  letterSpacing: 0.3,
+    // CAMBIO 2: La barra se mostrará solo del paso 0 al 5. Al llegar al paso 6 (Mis Reportes) se oculta.
+    final bool mostrarBarra = _wizardPaso < 6;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 16, 10),
+      color: _wBg,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back, color: _wText, size: 22),
+                onPressed: () {
+                  if (_wizardPaso == 0) {
+                    setState(() {
+                      _opcionSeleccionada = false;
+                      _mensajes.clear();
+                      _animarProgreso(0.0);
+                    });
+                  } else if (_wizardPaso == 8) {
+                    // Mantenemos tus condiciones preventivas de navegación por seguridad
+                    setState(() => _wizardPaso = 7);
+                  } else {
+                    setState(() => _wizardPaso = (_wizardPaso - 1).clamp(0, 8));
+                  }
+                },
+              ),
+              const Expanded(
+                child: Text(
+                  "Reportes",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: _wText,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    letterSpacing: 0.3,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 44), // balance
+              const SizedBox(width: 44), // balance
+            ],
+          ),
+          if (mostrarBarra) ...[
+            const SizedBox(height: 6),
+            _buildWizardProgressDots(totalPasos),
           ],
-        ),
-        if (mostrarBarra) ...[
-          const SizedBox(height: 6),
-          _buildWizardProgressDots(totalPasos),
         ],
-      ],
-    ),
-  );
-}
+      ),
+    );
+  }
 
   Widget _buildWizardProgressDots(int total) {
     return Row(
@@ -1411,8 +1467,8 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                 color: activo
                     ? _wGreen
                     : pasado
-                        ? _wGreenDark
-                        : _wCardBorder,
+                    ? _wGreenDark
+                    : _wCardBorder,
               ),
             ),
             if (i < total - 1)
@@ -1430,14 +1486,22 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
   Widget _buildWizardStep() {
     switch (_wizardPaso) {
-      case 0: return _buildWizardPaso0CategoriaPrincipal();
-      case 1: return _buildWizardPaso1Subcategoria();
-      case 2: return _buildWizardPaso2Burbujas();
-      case 3: return _buildWizardPaso3Interpretando();
-      case 4: return _buildWizardPaso4AliciaInterpreta();
-      case 5: return _buildWizardPaso5Enviado();
-      case 6: return _buildWizardPaso6MisReportes();
-      default: return _buildWizardPaso0CategoriaPrincipal();
+      case 0:
+        return _buildWizardPaso0CategoriaPrincipal();
+      case 1:
+        return _buildWizardPaso1Subcategoria();
+      case 2:
+        return _buildWizardPaso2Burbujas();
+      case 3:
+        return _buildWizardPaso3Interpretando();
+      case 4:
+        return _buildWizardPaso4AliciaInterpreta();
+      case 5:
+        return _buildWizardPaso5Enviado();
+      case 6:
+        return _buildWizardPaso6MisReportes();
+      default:
+        return _buildWizardPaso0CategoriaPrincipal();
     }
   }
 
@@ -1445,173 +1509,177 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
   // VENTANA 1: Categorías principales
   // ══════════════════════════════════════════════════════════════
   Widget _buildWizardPaso0CategoriaPrincipal() {
-  final List<Map<String, dynamic>> categorias = [
-    {
-      "titulo": "Problemas de contenido",
-      "subtitulo": "Recetas, imágenes, ingredientes",
-      "icono": Icons.menu_book_outlined,
-      "color": const Color(0xFFFF9B3D),
-      "colorBg": const Color(0xFF3D2410),
-    },
-    {
-      "titulo": "Problemas con la experiencia",
-      "subtitulo": "Navegación, diseño, legibilidad",
-      "icono": Icons.explore_outlined,
-      "color": const Color(0xFF9B6EFF),
-      "colorBg": const Color(0xFF2B1F55),
-    },
-    {
-      "titulo": "Fallas técnicas",
-      "subtitulo": "Cierres, carga lenta, errores",
-      "icono": Icons.build_circle_outlined,
-      "color": const Color(0xFFFF4E6A),
-      "colorBg": const Color(0xFF3D0F18),
-    },
-  ];
+    final List<Map<String, dynamic>> categorias = [
+      {
+        "titulo": "Problemas de contenido",
+        "subtitulo": "Recetas, imágenes, ingredientes",
+        "icono": Icons.menu_book_outlined,
+        "color": const Color(0xFFFF9B3D),
+        "colorBg": const Color(0xFF3D2410),
+      },
+      {
+        "titulo": "Problemas con la experiencia",
+        "subtitulo": "Navegación, diseño, legibilidad",
+        "icono": Icons.explore_outlined,
+        "color": const Color(0xFF9B6EFF),
+        "colorBg": const Color(0xFF2B1F55),
+      },
+      {
+        "titulo": "Fallas técnicas",
+        "subtitulo": "Cierres, carga lenta, errores",
+        "icono": Icons.build_circle_outlined,
+        "color": const Color(0xFFFF4E6A),
+        "colorBg": const Color(0xFF3D0F18),
+      },
+    ];
 
-  return Stack(
-    children: [
-      // 1. Imagen de fondo de Alicia que cubre toda la sección
-      Positioned.fill(
-        child: Image.asset(
-          'assets/images/fondo_alicia.png', // <-- Asegúrate de colocar aquí la ruta correcta de tu PNG
-          fit: BoxFit.cover,
+    return Stack(
+      children: [
+        // 1. Imagen de fondo de Alicia que cubre toda la sección
+        Positioned.fill(
+          child: Image.asset(
+            'assets/images/fondo_alicia.png', // <-- Asegúrate de colocar aquí la ruta correcta de tu PNG
+            fit: BoxFit.cover,
+          ),
         ),
-      ),
-      
-      // 2. Contenido interactivo (Textos y Botones) por encima del fondo
-      SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const Text(
-              "¿Qué ocurrió? 🍳",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: _wText,
-                fontWeight: FontWeight.w800,
-                fontSize: 24,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              "Te ayudaré a identificar tu problema\ny enviarlo al equipo correcto.",
-              textAlign: TextAlign.center,
-              style: TextStyle(color: _wTextSub, fontSize: 13),
-            ),
-            
-            // ─── ESPACIADOR PARA BAJAR LOS BOTONES ───────────────────
-            // Ajusta este número (por ejemplo, 140, 160 o 180) para calibrar 
-            // con precisión a qué altura del mostrador quieres que inicien.
-            SizedBox(height: MediaQuery.of(context).size.height * 0.48),
-            // ─────────────────────────────────────────────────────────
-            
-            ...categorias.map((cat) {
-              return GestureDetector(
-                onTap: () {
-                  // TODO: registrar categoría en analytics al seleccionar
-                  HapticFeedback.lightImpact();
-                  setState(() {
-                    _wizardCategoria = cat["titulo"] as String;
-                    _wizardSubcategoria = "";
-                    _wizardDetallesSeleccionados.clear();
-                  });
-                  Future.delayed(
-                    const Duration(milliseconds: 200),
-                    () => setState(() => _wizardPaso = 1),
-                  );
-                },
-                child: Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-                  decoration: BoxDecoration(
-                    color: (cat["colorBg"] as Color).withOpacity(0.85),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: (cat["color"] as Color).withOpacity(0.5),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (cat["color"] as Color).withOpacity(0.2),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: (cat["color"] as Color).withOpacity(0.18),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          cat["icono"] as IconData,
-                          color: cat["color"] as Color,
-                          size: 26,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              cat["titulo"] as String,
-                              style: TextStyle(
-                                color: cat["color"] as Color,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 15,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              cat["subtitulo"] as String,
-                              style: const TextStyle(
-                                color: _wTextSub,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(
-                        Icons.chevron_right,
-                        color: _wTextSub,
-                        size: 22,
-                      ),
-                    ],
-                  ),
+
+        // 2. Contenido interactivo (Textos y Botones) por encima del fondo
+        SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Text(
+                "¿Qué ocurrió? 🍳",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _wText,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 24,
                 ),
-              );
-            }),
-          ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                "Te ayudaré a identificar tu problema\ny enviarlo al equipo correcto.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _wTextSub, fontSize: 13),
+              ),
+
+              // ─── ESPACIADOR PARA BAJAR LOS BOTONES ───────────────────
+              // Ajusta este número (por ejemplo, 140, 160 o 180) para calibrar
+              // con precisión a qué altura del mostrador quieres que inicien.
+              SizedBox(height: MediaQuery.of(context).size.height * 0.48),
+
+              // ─────────────────────────────────────────────────────────
+              ...categorias.map((cat) {
+                return GestureDetector(
+                  onTap: () {
+                    // TODO: registrar categoría en analytics al seleccionar
+                    HapticFeedback.lightImpact();
+                    setState(() {
+                      _wizardCategoria = cat["titulo"] as String;
+                      _wizardSubcategoria = "";
+                      _wizardDetallesSeleccionados.clear();
+                    });
+                    Future.delayed(
+                      const Duration(milliseconds: 200),
+                      () => setState(() => _wizardPaso = 1),
+                    );
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 18,
+                    ),
+                    decoration: BoxDecoration(
+                      color: (cat["colorBg"] as Color).withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: (cat["color"] as Color).withOpacity(0.5),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (cat["color"] as Color).withOpacity(0.2),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: (cat["color"] as Color).withOpacity(0.18),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            cat["icono"] as IconData,
+                            color: cat["color"] as Color,
+                            size: 26,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                cat["titulo"] as String,
+                                style: TextStyle(
+                                  color: cat["color"] as Color,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                cat["subtitulo"] as String,
+                                style: const TextStyle(
+                                  color: _wTextSub,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right,
+                          color: _wTextSub,
+                          size: 22,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
         ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
+
   // ══════════════════════════════════════════════════════════════
   // VENTANA 2: Subcategorías (dependen de categoría elegida)
   // ══════════════════════════════════════════════════════════════
   Widget _buildWizardPaso1Subcategoria() {
     final List<Map<String, dynamic>> subcats =
         (_mapaReportes[_wizardCategoria] ?? []).map((s) {
-      return {
-        "titulo": s["titulo"] as String,
-        "icono": _iconoDesdeString(s["icono"] as String),
-      };
-    }).toList();
+          return {
+            "titulo": s["titulo"] as String,
+            "icono": _iconoDesdeString(s["icono"] as String),
+          };
+        }).toList();
 
     // Colores por categoría padre
     final Color colorPadre = _wizardCategoria == "Problemas de contenido"
         ? const Color(0xFFFF9B3D)
         : _wizardCategoria == "Problemas con la experiencia"
-            ? const Color(0xFF9B6EFF)
-            : const Color(0xFFFF4E6A);
+        ? const Color(0xFF9B6EFF)
+        : const Color(0xFFFF4E6A);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
@@ -1622,7 +1690,10 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: colorPadre.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(20),
@@ -1672,7 +1743,10 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
               child: Container(
                 width: double.infinity,
                 margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
                 decoration: BoxDecoration(
                   color: _wCard.withOpacity(0.85),
                   borderRadius: BorderRadius.circular(14),
@@ -1721,13 +1795,15 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     // Obtener los grupos de burbujas para la subcategoría actual
     final List<Map<String, dynamic>> subcats =
         _mapaReportes[_wizardCategoria] ?? [];
-    final Map<String, dynamic>? subcatData = subcats.cast<Map<String, dynamic>?>()
+    final Map<String, dynamic>? subcatData = subcats
+        .cast<Map<String, dynamic>?>()
         .firstWhere(
           (s) => s != null && s["titulo"] == _wizardSubcategoria,
           orElse: () => null,
         );
-    final List<dynamic> grupos =
-        subcatData != null ? (subcatData["grupos"] as List<dynamic>) : [];
+    final List<dynamic> grupos = subcatData != null
+        ? (subcatData["grupos"] as List<dynamic>)
+        : [];
 
     return Column(
       children: [
@@ -1765,7 +1841,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                         Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: _wPurple.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(8),
@@ -1784,8 +1862,8 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                         spacing: 8,
                         runSpacing: 8,
                         children: burbujas.map((burbuja) {
-                          final bool sel =
-                              _wizardDetallesSeleccionados.contains(burbuja);
+                          final bool sel = _wizardDetallesSeleccionados
+                              .contains(burbuja);
                           return GestureDetector(
                             onTap: () {
                               // TODO: actualizar contadores de burbujas en analytics
@@ -1801,7 +1879,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 150),
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 10),
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
                               decoration: BoxDecoration(
                                 color: sel
                                     ? _wGreen.withOpacity(0.2)
@@ -1850,7 +1930,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF1A1A3E).withOpacity(0.85),
                       borderRadius: BorderRadius.circular(24),
@@ -1894,19 +1976,19 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                     maxLines: 2,
                     decoration: InputDecoration(
                       hintText: "Escribe tu detalle específico...",
-                      hintStyle:
-                          const TextStyle(color: _wTextSub, fontSize: 13),
+                      hintStyle: const TextStyle(
+                        color: _wTextSub,
+                        fontSize: 13,
+                      ),
                       filled: true,
                       fillColor: _wCard.withOpacity(0.9),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            const BorderSide(color: _wCardBorder),
+                        borderSide: const BorderSide(color: _wCardBorder),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            const BorderSide(color: _wCardBorder),
+                        borderSide: const BorderSide(color: _wCardBorder),
                       ),
                       suffixIcon: IconButton(
                         icon: const Icon(Icons.add_circle, color: _wGreen),
@@ -1932,9 +2014,10 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                 const Text(
                   "¿Quieres agregar más contexto? (opcional)",
                   style: TextStyle(
-                      color: _wTextSub,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600),
+                    color: _wTextSub,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextField(
@@ -1942,21 +2025,17 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                   maxLines: 2,
                   onChanged: (v) => _wizardContextoLibre = v,
                   decoration: InputDecoration(
-                    hintText:
-                        "Ej: Solo me pasa al intentar subir fotos...",
-                    hintStyle:
-                        const TextStyle(color: _wTextSub, fontSize: 12),
+                    hintText: "Ej: Solo me pasa al intentar subir fotos...",
+                    hintStyle: const TextStyle(color: _wTextSub, fontSize: 12),
                     filled: true,
                     fillColor: _wCard.withOpacity(0.9),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          const BorderSide(color: _wCardBorder),
+                      borderSide: const BorderSide(color: _wCardBorder),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          const BorderSide(color: _wCardBorder),
+                      borderSide: const BorderSide(color: _wCardBorder),
                     ),
                   ),
                 ),
@@ -2010,99 +2089,109 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
   // ══════════════════════════════════════════════════════════════
   // VENTANA 4: Interpretando (pantalla de carga)
   // ══════════════════════════════════════════════════════════════
- Widget _buildWizardPaso3Interpretando() {
-  final size = MediaQuery.of(context).size;
+  Widget _buildWizardPaso3Interpretando() {
+    final size = MediaQuery.of(context).size;
 
-  return Stack(
-    children: [
-      // 1. Imagen de fondo .webp que cubre absolutamente toda la pantalla
-      Positioned.fill(
-        child: Image.asset(
-          'assets/images/alicia_interpreta.webp',
-          fit: BoxFit.cover,
-        ),
-      ),
-
-      // 2. Capa de contraste oscura para que los textos no se pierdan con el fondo
-      Positioned.fill(
-        child: Container(
-          color: Colors.black.withOpacity(0.45), // Ajusta el nivel de oscuridad si prefieres
-        ),
-      ),
-
-      // 3. Contenido interactivo desplazado drásticamente hacia arriba de manera segura
-      Positioned(
-        top: size.height * 0.05, // <-- MODIFICADO: Cambiado de 0.15 a 0.05 para subir el bloque por completo
-        left: 0,
-        right: 0,
-        bottom: 0, // Mantiene el espacio inferior disponible para el scroll si fuera necesario
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.start, // Mantener empujado hacia el inicio superior
-            children: [
-              // Espacio superior mínimo equilibrado para no chocar con la barra de estado
-              const SizedBox(height: 10), // <-- MODIFICADO: Ajustado de 20 a 10
-              
-              const Text(
-                "Interpretando tu reporte...",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: _wText,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 24, // Subimos ligeramente el tamaño para darle más peso
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                "Estoy analizando la información para\nencontrar la causa más probable.",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: _wTextSub, 
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 40),
-              
-              // Barra de progreso con sus colores e integridad original
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: const LinearProgressIndicator(
-                  backgroundColor: _wCardBorder,
-                  valueColor: AlwaysStoppedAnimation<Color>(_wGreen),
-                  minHeight: 6,
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Texto informativo inferior con la estrella dorada
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const Icon(Icons.star, color: _wYellow, size: 14),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      "T'anta-Wawa está revisando patrones,\nregistros y posibles soluciones.",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: _wYellow.withOpacity(0.9),
-                        fontSize: 13,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+    return Stack(
+      children: [
+        // 1. Imagen de fondo .webp que cubre absolutamente toda la pantalla
+        Positioned.fill(
+          child: Image.asset(
+            'assets/images/alicia_interpreta.webp',
+            fit: BoxFit.cover,
           ),
         ),
-      ),
-    ],
-  );
-}
+
+        // 2. Capa de contraste oscura para que los textos no se pierdan con el fondo
+        Positioned.fill(
+          child: Container(
+            color: Colors.black.withOpacity(
+              0.45,
+            ), // Ajusta el nivel de oscuridad si prefieres
+          ),
+        ),
+
+        // 3. Contenido interactivo desplazado drásticamente hacia arriba de manera segura
+        Positioned(
+          top:
+              size.height *
+              0.05, // <-- MODIFICADO: Cambiado de 0.15 a 0.05 para subir el bloque por completo
+          left: 0,
+          right: 0,
+          bottom:
+              0, // Mantiene el espacio inferior disponible para el scroll si fuera necesario
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment
+                  .start, // Mantener empujado hacia el inicio superior
+              children: [
+                // Espacio superior mínimo equilibrado para no chocar con la barra de estado
+                const SizedBox(
+                  height: 10,
+                ), // <-- MODIFICADO: Ajustado de 20 a 10
+
+                const Text(
+                  "Interpretando tu reporte...",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: _wText,
+                    fontWeight: FontWeight.w800,
+                    fontSize:
+                        24, // Subimos ligeramente el tamaño para darle más peso
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  "Estoy analizando la información para\nencontrar la causa más probable.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: _wTextSub,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 40),
+
+                // Barra de progreso con sus colores e integridad original
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: const LinearProgressIndicator(
+                    backgroundColor: _wCardBorder,
+                    valueColor: AlwaysStoppedAnimation<Color>(_wGreen),
+                    minHeight: 6,
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Texto informativo inferior con la estrella dorada
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.star, color: _wYellow, size: 14),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        "T'anta-Wawa está revisando patrones,\nregistros y posibles soluciones.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _wYellow.withOpacity(0.9),
+                          fontSize: 13,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   // ══════════════════════════════════════════════════════════════
   // VENTANA 5: ALICIA interpreta — bocadillo + respuesta contextual
   // ══════════════════════════════════════════════════════════════
@@ -2181,7 +2270,8 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                                 bottomRight: Radius.circular(14),
                               ),
                               border: Border.all(
-                                  color: _wGreen.withOpacity(0.4)),
+                                color: _wGreen.withOpacity(0.4),
+                              ),
                               boxShadow: [
                                 BoxShadow(
                                   color: _wGreen.withOpacity(0.15),
@@ -2234,18 +2324,15 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                         "Categoría",
                         _wizardCategoria,
                       ),
-                      const Divider(
-                          color: _wCardBorder, height: 16),
+                      const Divider(color: _wCardBorder, height: 16),
                       _buildRevisionFila(
                         Icons.tune,
                         _wPurple,
                         "Subcategoría",
                         _wizardSubcategoria,
                       ),
-                      if (_wizardDetallesSeleccionados
-                          .isNotEmpty) ...[
-                        const Divider(
-                            color: _wCardBorder, height: 16),
+                      if (_wizardDetallesSeleccionados.isNotEmpty) ...[
+                        const Divider(color: _wCardBorder, height: 16),
                         const Text(
                           "Detalles marcados",
                           style: TextStyle(
@@ -2261,37 +2348,34 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                           children: _wizardDetallesSeleccionados
                               .map(
                                 (d) => Container(
-                                  padding:
-                                      const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 5),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: _wGreen
-                                        .withOpacity(0.15),
-                                    borderRadius:
-                                        BorderRadius.circular(20),
+                                    color: _wGreen.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
-                                        color: _wGreen
-                                            .withOpacity(0.4)),
+                                      color: _wGreen.withOpacity(0.4),
+                                    ),
                                   ),
                                   child: Row(
-                                    mainAxisSize:
-                                        MainAxisSize.min,
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
                                         d,
                                         style: const TextStyle(
                                           color: _wGreen,
                                           fontSize: 12,
-                                          fontWeight:
-                                              FontWeight.w600,
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                       const SizedBox(width: 4),
                                       const Icon(
-                                          Icons.check_circle,
-                                          color: _wGreen,
-                                          size: 13),
+                                        Icons.check_circle,
+                                        color: _wGreen,
+                                        size: 13,
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -2300,8 +2384,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                         ),
                       ],
                       if (_wizardContextoLibre.trim().isNotEmpty) ...[
-                        const Divider(
-                            color: _wCardBorder, height: 16),
+                        const Divider(color: _wCardBorder, height: 16),
                         _buildRevisionFila(
                           Icons.chat_bubble_outline,
                           _wYellow,
@@ -2453,146 +2536,151 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
   // ══════════════════════════════════════════════════════════════
   // PANTALLA DE ÉXITO: ¡Reporte enviado!
   // ══════════════════════════════════════════════════════════════
-Widget _buildWizardPaso5Enviado() {
-  final size = MediaQuery.of(context).size;
+  Widget _buildWizardPaso5Enviado() {
+    final size = MediaQuery.of(context).size;
 
-  return Stack(
-    children: [
-      // 1. Imagen de fondo PNG/WebP que cubre absolutamente toda la pantalla
-      Positioned.fill(
-        child: Image.asset(
-          'assets/images/Exito.png', // Corregido con la mayúscula correcta para evitar fallos de renderizado
-          fit: BoxFit.cover,
-        ),
-      ),
-
-      // 2. Contenido interactivo montado encima y empujado hacia abajo
-      Positioned.fill(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
-          child: Column(
-            children: [
-              // Incrementado a 0.52 para empujar el contenido hacia la mitad inferior de la pantalla de forma limpia
-              SizedBox(height: size.height * 0.35),
-
-              const SizedBox(height: 24),
-              const Text(
-                "¡Reporte enviado!",
-                style: TextStyle(
-                  color: _wText,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 26,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                "Tu reporte fue enviado al plantel de cocina.",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: _wTextSub, fontSize: 14),
-              ),
-              const SizedBox(height: 24),
-
-              // ID del reporte
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 20, vertical: 14),
-                decoration: BoxDecoration(
-                  color: _wCard.withOpacity(0.85),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: _wCardBorder),
-                ),
-                child: Column(
-                  children: [
-                    const Text(
-                      "ID del reporte",
-                      style: TextStyle(color: _wTextSub, fontSize: 12),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          _wizardReporteId.isNotEmpty
-                              ? _wizardReporteId
-                              : "ALICIA-????",
-                          style: const TextStyle(
-                            color: _wGreen,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 22,
-                            letterSpacing: 2,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        GestureDetector(
-                          onTap: () {
-                            // TODO: Clipboard.setData(ClipboardData(text: _wizardReporteId))
-                            HapticFeedback.lightImpact();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("ID copiado al portapapeles"),
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                          },
-                          child: const Icon(
-                            Icons.copy_outlined,
-                            color: _wTextSub,
-                            size: 20,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                "El equipo te responderá directamente a tu correo.\nRevisa tu bandeja de entrada.",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: _wTextSub, fontSize: 12),
-              ),
-              const SizedBox(height: 28),
-              
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () {
-                    // Resetear todo el wizard para un nuevo reporte
-                    setState(() {
-                      _wizardPaso = 0;
-                      _wizardCategoria = "";
-                      _wizardSubcategoria = "";
-                      _wizardDetallesSeleccionados.clear();
-                      _wizardContextoLibre = "";
-                      _wizardReporteId = "";
-                      _mostrarCampoLibre = false;
-                    });
-                  },
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: _wCardBorder),
-                    foregroundColor: _wText,
-                    backgroundColor: Colors.white.withOpacity(0.05), // Sutil contraste sobre la ilustración
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
-                  ),
-                  child: const Text(
-                    "Crear otro reporte",
-                    style: TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 15),
-                  ),
-                ),
-              ),
-            ],
+    return Stack(
+      children: [
+        // 1. Imagen de fondo PNG/WebP que cubre absolutamente toda la pantalla
+        Positioned.fill(
+          child: Image.asset(
+            'assets/images/Exito.png', // Corregido con la mayúscula correcta para evitar fallos de renderizado
+            fit: BoxFit.cover,
           ),
         ),
-      ),
-    ],
-  );
-}
 
+        // 2. Contenido interactivo montado encima y empujado hacia abajo
+        Positioned.fill(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
+            child: Column(
+              children: [
+                // Incrementado a 0.52 para empujar el contenido hacia la mitad inferior de la pantalla de forma limpia
+                SizedBox(height: size.height * 0.35),
 
+                const SizedBox(height: 24),
+                const Text(
+                  "¡Reporte enviado!",
+                  style: TextStyle(
+                    color: _wText,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 26,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Tu reporte fue enviado al plantel de cocina.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _wTextSub, fontSize: 14),
+                ),
+                const SizedBox(height: 24),
+
+                // ID del reporte
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _wCard.withOpacity(0.85),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _wCardBorder),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text(
+                        "ID del reporte",
+                        style: TextStyle(color: _wTextSub, fontSize: 12),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            _wizardReporteId.isNotEmpty
+                                ? _wizardReporteId
+                                : "ALICIA-????",
+                            style: const TextStyle(
+                              color: _wGreen,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 22,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          GestureDetector(
+                            onTap: () {
+                              // TODO: Clipboard.setData(ClipboardData(text: _wizardReporteId))
+                              HapticFeedback.lightImpact();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("ID copiado al portapapeles"),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                            child: const Icon(
+                              Icons.copy_outlined,
+                              color: _wTextSub,
+                              size: 20,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  "El equipo te responderá directamente a tu correo.\nRevisa tu bandeja de entrada.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _wTextSub, fontSize: 12),
+                ),
+                const SizedBox(height: 28),
+
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      // Resetear todo el wizard para un nuevo reporte
+                      setState(() {
+                        _wizardPaso = 0;
+                        _wizardCategoria = "";
+                        _wizardSubcategoria = "";
+                        _wizardDetallesSeleccionados.clear();
+                        _wizardContextoLibre = "";
+                        _wizardReporteId = "";
+                        _mostrarCampoLibre = false;
+                      });
+                    },
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: _wCardBorder),
+                      foregroundColor: _wText,
+                      backgroundColor: Colors.white.withOpacity(
+                        0.05,
+                      ), // Sutil contraste sobre la ilustración
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: const Text(
+                      "Crear otro reporte",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   // ══════════════════════════════════════════════════════════════
   // HISTORIAL: Mis reportes
@@ -2603,10 +2691,13 @@ Widget _buildWizardPaso5Enviado() {
   Widget _buildWizardPaso6MisReportes() {
     Color _estadoColor(String estado) {
       switch (estado) {
-        case "ENVIADO": return _wBlue;
-        case "EN PROGRESO": return _wYellow;
+        case "ENVIADO":
+          return _wBlue;
+        case "EN PROGRESO":
+          return _wYellow;
         // ─── SE ELIMINÓ EL CASO "RESUELTO" AQUÍ ───
-        default: return _wTextSub;
+        default:
+          return _wTextSub;
       }
     }
 
@@ -2631,8 +2722,7 @@ Widget _buildWizardPaso5Enviado() {
             itemCount: _historialReportes.length,
             itemBuilder: (context, index) {
               final reporte = _historialReportes[index];
-              final Color estadoColor =
-                  _estadoColor(reporte["estado"]!);
+              final Color estadoColor = _estadoColor(reporte["estado"]!);
               return GestureDetector(
                 onTap: () {
                   // TODO: navegar al detalle del reporte (Firestore doc)
@@ -2662,8 +2752,7 @@ Widget _buildWizardPaso5Enviado() {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: [
@@ -2677,15 +2766,13 @@ Widget _buildWizardPaso5Enviado() {
                                 ),
                                 const SizedBox(width: 8),
                                 Container(
-                                  padding:
-                                      const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: estadoColor
-                                        .withOpacity(0.18),
-                                    borderRadius:
-                                        BorderRadius.circular(8),
+                                    color: estadoColor.withOpacity(0.18),
+                                    borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
                                     reporte["estado"]!,
@@ -2718,8 +2805,11 @@ Widget _buildWizardPaso5Enviado() {
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_right,
-                          color: _wTextSub, size: 20),
+                      const Icon(
+                        Icons.chevron_right,
+                        color: _wTextSub,
+                        size: 20,
+                      ),
                     ],
                   ),
                 ),
@@ -2749,21 +2839,71 @@ Widget _buildWizardPaso5Enviado() {
   Future<void> _enviarReporteWizard() async {
     setState(() => _estaCargando = true);
     try {
-      // TODO: guardar en Firestore — sustituir el bloque comentado por el real:
-      // final user = FirebaseAuth.instance.currentUser;
-      // await FirebaseFirestore.instance.collection('app_reportes').add({
-      //   'uid': user?.uid,
-      //   'categoria': _wizardCategoria,
-      //   'subcategoria': _wizardSubcategoria,
-      //   'detalles': _wizardDetallesSeleccionados,
-      //   'contextoLibre': _wizardContextoLibre,
-      //   'respuestaAlicia': _generarRespuestaAlicia(),
-      //   'fecha': FieldValue.serverTimestamp(),
-      // });
-      // TODO: llamar a EmailJS igual que en _procesarEnvioAlAdmin para notificar al admin
+      final user = FirebaseAuth.instance.currentUser;
 
-      await Future.delayed(const Duration(seconds: 1));
+      // 1. Validación de usuario
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Error: Debes iniciar sesión para reportar."),
+          ),
+        );
+        setState(() => _estaCargando = false);
+        return;
+      }
 
+      final String respuestaAlicia = _generarRespuestaAlicia();
+
+      // 2. Guardar en Firebase Firestore
+      await FirebaseFirestore.instance.collection('app_reportes').add({
+        'uid': user.uid,
+        'categoria': _wizardCategoria,
+        'subcategoria': _wizardSubcategoria,
+        'detalles': _wizardDetallesSeleccionados,
+        'contextoLibre': _wizardContextoLibre,
+        'respuestaAlicia': respuestaAlicia,
+        'fecha': FieldValue.serverTimestamp(),
+      });
+
+      // 3. Enviar correo al administrador vía EmailJS
+      final url = Uri.parse('https://api.emailjs.com/api/v1.0/email/send');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'service_id': 'service_p1xoabd',
+          'template_id': 'template_olqqlqg',
+          'user_id': 'ldU0dd5S1pMTSYDwk',
+          'template_params': {
+            // El ID que ya comprobamos que funciona
+            'user_uid': user.uid,
+
+            // Inyectamos el correo del usuario en las llaves más comunes
+            'usuario': user.email ?? 'Usuario sin correo',
+            'user_email': user.email ?? 'Usuario sin correo',
+
+            // Unimos la categoría y subcategoría para la clasificación
+            'clasificacion': '$_wizardCategoria - $_wizardSubcategoria',
+
+            // Mandamos la respuesta tanto en 'reporte' como en 'detalle'
+            'reporte': respuestaAlicia,
+            'detalle': respuestaAlicia,
+            'mensaje': respuestaAlicia,
+
+            // Por si acaso, mandamos las variables sueltas
+            'categoria': _wizardCategoria,
+            'subcategoria': _wizardSubcategoria,
+          },
+        }),
+      );
+
+      // Validación de seguridad indispensable
+      if (response.statusCode != 200) {
+        debugPrint("Fallo en la API de correos: ${response.body}");
+        throw Exception("Error al conectar con EmailJS");
+      }
+
+      // 4. Generar ID y pasar a la pantalla de éxito
       final String nuevoId =
           "ALICIA-${DateTime.now().millisecondsSinceEpoch % 100000}";
 
@@ -2781,12 +2921,12 @@ Widget _buildWizardPaso5Enviado() {
         _wizardPaso = 5;
       });
     } catch (e) {
+      debugPrint("Error en el envío del Wizard: $e");
       setState(() => _estaCargando = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-                "Error al enviar el reporte. Intenta de nuevo."),
+            content: Text("Error al enviar el reporte. Intenta de nuevo."),
           ),
         );
       }
@@ -3405,421 +3545,507 @@ Widget _buildWizardPaso5Enviado() {
   }
 
   Widget _buildBancoPalabras() {
-  return Container(
-    padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.06),
-          blurRadius: 8,
-          offset: const Offset(0, -2),
-        ),
-      ],
-    ),
-    child: ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.45,
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 1. ÁREA DE VISUALIZACIÓN DE BURBUJAS SELECCIONADAS
-            Container(
-              width: double.infinity,
-              constraints: const BoxConstraints(minHeight: 48),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: _fraseArmada.isEmpty
-                  ? Text(
-                      "Toca las burbujas para armar tu reporte...",
-                      style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                    )
-                  : Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: _fraseArmada.map((palabra) {
-                        return GestureDetector(
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            setState(() => _fraseArmada.remove(palabra));
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: _verde,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              palabra,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.45,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 1. ÁREA DE VISUALIZACIÓN DE BURBUJAS SELECCIONADAS
+              Container(
+                width: double.infinity,
+                constraints: const BoxConstraints(minHeight: 48),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: _fraseArmada.isEmpty
+                    ? Text(
+                        "Toca las burbujas para armar tu reporte...",
+                        style: TextStyle(
+                          color: Colors.grey.shade400,
+                          fontSize: 13,
+                        ),
+                      )
+                    : Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: _fraseArmada.map((palabra) {
+                          return GestureDetector(
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              setState(() => _fraseArmada.remove(palabra));
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _verde,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                palabra,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-            ),
-            const SizedBox(height: 10),
-
-            // 2. INPUT PARA ESCRIBIR PALABRAS QUE SE CONVIERTEN EN BURBUJAS (EVITA RESPUESTA DE RECETAS)
-            if (_mostrarCampoLibre)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: TextField(
-                  controller: _controller,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: "Escribe una palabra y presiona enviar...",
-                    filled: true,
-                    fillColor: const Color(0xFFF5F5F5),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(Icons.add_circle, color: _verde),
-                      onPressed: () {
-                        final texto = _controller.text.trim();
-                        if (texto.isNotEmpty) {
-                          setState(() {
-                            // En lugar de enviarlo a la IA, se agrega localmente como burbuja
-                            _fraseArmada.add(texto);
-                            _controller.clear();
-                          });
-                        }
-                      },
-                    ),
-                  ),
-                  onSubmitted: (val) {
-                    final texto = val.trim();
-                    if (texto.isNotEmpty) {
-                      setState(() {
-                        _fraseArmada.add(texto);
-                        _controller.clear();
-                      });
-                    }
-                  },
-                ),
+                          );
+                        }).toList(),
+                      ),
               ),
+              const SizedBox(height: 10),
 
-            // 3. BANCO DE PALABRAS DINÁMICO PREDEFINIDO
-            if (!_mostrarInterpretacionReporte && !_mostrarPasoFinalTimbre) ...[
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  ..._bancoPalabrasDinamico.map((palabra) {
-                    final bool yaUsada = _fraseArmada.contains(palabra);
-                    return GestureDetector(
-                      onTap: yaUsada
-                          ? null
-                          : () {
-                              HapticFeedback.lightImpact();
-                              setState(() => _fraseArmada.add(palabra));
-                            },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              // 2. INPUT PARA ESCRIBIR PALABRAS QUE SE CONVIERTEN EN BURBUJAS (EVITA RESPUESTA DE RECETAS)
+              if (_mostrarCampoLibre)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: TextField(
+                    controller: _controller,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: "Escribe una palabra y presiona enviar...",
+                      filled: true,
+                      fillColor: const Color(0xFFF5F5F5),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(Icons.add_circle, color: _verde),
+                        onPressed: () {
+                          final texto = _controller.text.trim();
+                          if (texto.isNotEmpty) {
+                            setState(() {
+                              // En lugar de enviarlo a la IA, se agrega localmente como burbuja
+                              _fraseArmada.add(texto);
+                              _controller.clear();
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                    onSubmitted: (val) {
+                      final texto = val.trim();
+                      if (texto.isNotEmpty) {
+                        setState(() {
+                          _fraseArmada.add(texto);
+                          _controller.clear();
+                        });
+                      }
+                    },
+                  ),
+                ),
+
+              // 3. BANCO DE PALABRAS DINÁMICO PREDEFINIDO
+              if (!_mostrarInterpretacionReporte &&
+                  !_mostrarPasoFinalTimbre) ...[
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    ..._bancoPalabrasDinamico.map((palabra) {
+                      final bool yaUsada = _fraseArmada.contains(palabra);
+                      return GestureDetector(
+                        onTap: yaUsada
+                            ? null
+                            : () {
+                                HapticFeedback.lightImpact();
+                                setState(() => _fraseArmada.add(palabra));
+                              },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: yaUsada
+                                ? Colors.grey.shade100
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: yaUsada
+                                  ? Colors.grey.shade300
+                                  : _verde.withOpacity(0.6),
+                              width: 1.5,
+                            ),
+                            boxShadow: yaUsada
+                                ? []
+                                : [
+                                    BoxShadow(
+                                      color: _verde.withOpacity(0.2),
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                          ),
+                          child: Text(
+                            palabra,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: yaUsada
+                                  ? Colors.grey.shade400
+                                  : const Color(0xFF1B6B4A),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        setState(
+                          () => _mostrarCampoLibre = !_mostrarCampoLibre,
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 7,
+                        ),
                         decoration: BoxDecoration(
-                          color: yaUsada ? Colors.grey.shade100 : Colors.white,
+                          color: const Color(0xFFFFF8E1),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: yaUsada ? Colors.grey.shade300 : _verde.withOpacity(0.6),
+                            color: const Color(0xFFFFD54F),
                             width: 1.5,
                           ),
-                          boxShadow: yaUsada ? [] : [
+                          boxShadow: const [
                             BoxShadow(
-                              color: _verde.withOpacity(0.2),
-                              offset: const Offset(0, 3),
+                              color: Color(0x33FFD54F),
+                              offset: Offset(0, 3),
                             ),
                           ],
                         ),
-                        child: Text(
-                          palabra,
+                        child: const Text(
+                          "✏️ Otro detalle",
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: yaUsada ? Colors.grey.shade400 : const Color(0xFF1B6B4A),
+                            color: Color(0xFF795548),
                           ),
                         ),
                       ),
-                    );
-                  }),
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      setState(() => _mostrarCampoLibre = !_mostrarCampoLibre);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF8E1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFFFD54F), width: 1.5),
-                        boxShadow: const [
-                          BoxShadow(color: Color(0x33FFD54F), offset: Offset(0, 3)),
-                        ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // BOTÓN: COMPROBAR E INSTALAR REPORTE
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _fraseArmada.isNotEmpty
+                        ? () {
+                            // Forzamos la interpretación técnica de A.L.I.C.I.A
+                            setState(() {
+                              _mostrarInterpretacionReporte = true;
+                              _interpretacionIA = _fraseArmada.join(" y ");
+                            });
+                          }
+                        : null,
+                    icon: const Icon(Icons.verified_outlined, size: 20),
+                    label: const Text(
+                      "Comprobar e Instalar Reporte",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
                       ),
-                      child: const Text(
-                        "✏️ Otro detalle",
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF795548)),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _verde,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+
+              // 4. FLUJO DE INTERPRETACIÓN EXCLUSIVO DE SOPORTE (A.L.I.C.I.A)
+              if (_mostrarInterpretacionReporte &&
+                  !_mostrarPasoFinalTimbre) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _verde.withOpacity(0.5)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "🤖 A.L.I.C.I.A Interpreta:",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green[850],
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "El error al que te refieres tiene que ver con \"Problema detectado en base a: $_interpretacionIA\".",
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (_mostrarDetalleManualExtendido)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: TextField(
+                      controller: _controller,
+                      maxLines: 2,
+                      decoration: InputDecoration(
+                        hintText:
+                            "Escribe detalladamente a mano tu problema...",
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          setState(() {
+                            _mostrarDetalleManualExtendido = true;
+                          });
+                        },
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: _verde),
+                        ),
+                        child: const Text(
+                          "Agregar más detalle",
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _mostrarPasoFinalTimbre = true;
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _verde,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text(
+                          "Sí, es correcto",
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_mostrarDetalleManualExtendido)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _mostrarPasoFinalTimbre = true;
+                          });
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _verde,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text("Terminar de redactar"),
+                      ),
+                    ),
+                  ),
+              ],
+
+              // 5. PASO FINAL: INTERFAZ DEL TIMBRE DE COCINA 3D NATIVO
+              if (_mostrarPasoFinalTimbre) _buildTimbreMesaCocinaSection(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimbreMesaCocinaSection() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 10),
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.vibrate();
+            // Aquí pones la llamada a la función real de tu backend que guarda el reporte
+            // Ej: _enviarReporteFinalAPlantel();
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('🔔 Reporte enviado con éxito a la cocina'),
+              ),
+            );
+            setState(() {
+              // Reiniciamos los estados del flujo de reporte
+              _mostrarPasoFinalTimbre = false;
+              _mostrarInterpretacionReporte = false;
+              _mostrarDetalleManualExtendido = false;
+              _fraseArmada.clear();
+            });
+          },
+          child: Column(
+            children: [
+              // Cuerpito del Timbre de Mesa en 3D
+              Stack(
+                alignment: Alignment.topCenter,
+                children: [
+                  // Base o Plato del timbre
+                  Container(
+                    width: 140,
+                    height: 35,
+                    margin: const EdgeInsets.only(top: 45),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: const BorderRadius.all(
+                        Radius.elliptical(140, 35),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.grey.shade500,
+                          Colors.grey.shade300,
+                          Colors.grey.shade600,
+                        ],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                    ),
+                  ),
+                  // Campana metálica esférica
+                  Container(
+                    width: 100,
+                    height: 65,
+                    margin: const EdgeInsets.only(top: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade700,
+                      borderRadius: const BorderRadius.all(
+                        Radius.elliptical(100, 65),
+                      ),
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFFB71C1C),
+                          Color(0xFFEF5350),
+                          Color(0xFF7F0000),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                  ),
+                  // Botón superior / Pulsador
+                  Container(
+                    width: 32,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade800,
+                      borderRadius: BorderRadius.circular(6),
+                      gradient: LinearGradient(
+                        colors: [Colors.grey.shade900, Colors.grey.shade600],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
                       ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-
-              // BOTÓN: COMPROBAR E INSTALAR REPORTE
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _fraseArmada.isNotEmpty
-                      ? () {
-                          // Forzamos la interpretación técnica de A.L.I.C.I.A
-                          setState(() {
-                            _mostrarInterpretacionReporte = true;
-                            _interpretacionIA = _fraseArmada.join(" y ");
-                          });
-                        }
-                      : null,
-                  icon: const Icon(Icons.verified_outlined, size: 20),
-                  label: const Text("Comprobar e Instalar Reporte", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _verde,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
+              const Text(
+                "Enviar reporte al plantel de cocina para ser revisado",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 14,
+                  color: Color(0xFFB71C1C),
                 ),
               ),
             ],
-
-            // 4. FLUJO DE INTERPRETACIÓN EXCLUSIVO DE SOPORTE (A.L.I.C.I.A)
-            if (_mostrarInterpretacionReporte && !_mostrarPasoFinalTimbre) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _verde.withOpacity(0.5)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "🤖 A.L.I.C.I.A Interpreta:",
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green[850], fontSize: 14),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      "El error al que te refieres tiene que ver con \"Problema detectado en base a: $_interpretacionIA\".",
-                      style: const TextStyle(fontSize: 13, color: Colors.black87),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              if (_mostrarDetalleManualExtendido)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: TextField(
-                    controller: _controller,
-                    maxLines: 2,
-                    decoration: InputDecoration(
-                      hintText: "Escribe detalladamente a mano tu problema...",
-                      filled: true,
-                      fillColor: Colors.grey.shade50,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        setState(() {
-                          _mostrarDetalleManualExtendido = true;
-                        });
-                      },
-                      style: OutlinedButton.styleFrom(side: BorderSide(color: _verde)),
-                      child: const Text("Agregar más detalle", style: TextStyle(fontSize: 12)),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _mostrarPasoFinalTimbre = true;
-                        });
-                      },
-                      style: ElevatedButton.styleFrom(backgroundColor: _verde, foregroundColor: Colors.white),
-                      child: const Text("Sí, es correcto", style: TextStyle(fontSize: 12)),
-                    ),
-                  ),
-                ],
-              ),
-              if (_mostrarDetalleManualExtendido)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _mostrarPasoFinalTimbre = true;
-                        });
-                      },
-                      style: ElevatedButton.styleFrom(backgroundColor: _verde, foregroundColor: Colors.white),
-                      child: const Text("Terminar de redactar"),
-                    ),
-                  ),
-                ),
-            ],
-
-            // 5. PASO FINAL: INTERFAZ DEL TIMBRE DE COCINA 3D NATIVO
-            if (_mostrarPasoFinalTimbre) _buildTimbreMesaCocinaSection(),
-          ],
+          ),
         ),
-      ),
-    ),
-  );
-}
-
-  Widget _buildTimbreMesaCocinaSection() {
-  return Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      const SizedBox(height: 10),
-      GestureDetector(
-        onTap: () {
-          HapticFeedback.vibrate();
-          // Aquí pones la llamada a la función real de tu backend que guarda el reporte
-          // Ej: _enviarReporteFinalAPlantel();
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('🔔 Reporte enviado con éxito a la cocina')),
-          );
-          setState(() {
-            // Reiniciamos los estados del flujo de reporte
-            _mostrarPasoFinalTimbre = false;
-            _mostrarInterpretacionReporte = false;
-            _mostrarDetalleManualExtendido = false;
-            _fraseArmada.clear();
-          });
-        },
-        child: Column(
-          children: [
-            // Cuerpito del Timbre de Mesa en 3D
-            Stack(
-              alignment: Alignment.topCenter,
-              children: [
-                // Base o Plato del timbre
-                Container(
-                  width: 140,
-                  height: 35,
-                  margin: const EdgeInsets.only(top: 45),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade400,
-                    borderRadius: const BorderRadius.all(Radius.elliptical(140, 35)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 10,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                    gradient: LinearGradient(
-                      colors: [Colors.grey.shade500, Colors.grey.shade300, Colors.grey.shade600],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    ),
-                  ),
-                ),
-                // Campana metálica esférica
-                Container(
-                  width: 100,
-                  height: 65,
-                  margin: const EdgeInsets.only(top: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade700,
-                    borderRadius: const BorderRadius.all(Radius.elliptical(100, 65)),
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFB71C1C), Color(0xFFEF5350), Color(0xFF7F0000)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                ),
-                // Botón superior / Pulsador
-                Container(
-                  width: 32,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade800,
-                    borderRadius: BorderRadius.circular(6),
-                    gradient: LinearGradient(
-                      colors: [Colors.grey.shade900, Colors.grey.shade600],
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              "Enviar reporte al plantel de cocina para ser revisado",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 14,
-                color: Color(0xFFB71C1C),
-              ),
-            ),
-          ],
+        const SizedBox(height: 16),
+        // TEXTO OBLIGATORIO DE RESPUESTA POR CORREO
+        const Text(
+          "¡Se te enviará la respuesta a tu correo cuando el problema ya esté solucionado!",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: Colors.black87,
+          ),
         ),
-      ),
-      const SizedBox(height: 16),
-      // TEXTO OBLIGATORIO DE RESPUESTA POR CORREO
-      const Text(
-        "¡Se te enviará la respuesta a tu correo cuando el problema ya esté solucionado!",
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: Colors.black87,
+        const SizedBox(height: 6),
+        // TEXTO ADVERTENCIA DE SATURACIÓN
+        Text(
+          "Tres reportes por día serán suficientes para no saturar la cocina",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey.shade500,
+            fontStyle: FontStyle.italic,
+          ),
         ),
-      ),
-      const SizedBox(height: 6),
-      // TEXTO ADVERTENCIA DE SATURACIÓN
-      Text(
-        "Tres reportes por día serán suficientes para no saturar la cocina",
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-          color: Colors.grey.shade500,
-          fontStyle: FontStyle.italic,
-        ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
 
   // ─────────────────────────────────────────────
   // UI DEL TEMPORIZADOR NATIVO (De tu compañero)
@@ -4178,3 +4404,4 @@ Widget _buildWizardPaso5Enviado() {
     );
   }
 }
+

@@ -53,7 +53,7 @@ class _VoiceTransitionScreenState extends State<VoiceTransitionScreen>
   // NID permanece dormido hasta que el usuario
   // presione "Saltar este paso".
   // ─────────────────────────────────────────────
-  bool _nidActivado = false;
+  bool _nidActivado = true;
 
   // ─────────────────────────────────────────────
   // SERVICIOS EXTERNOS
@@ -93,6 +93,11 @@ class _VoiceTransitionScreenState extends State<VoiceTransitionScreen>
   // ─────────────────────────────────────────────
   final List<Map<String, String>> _historial = [];
 
+  // Minutos ofrecidos en el último paso leído.
+  // null = ningún paso activo tiene tiempo que requiera temporizador.
+  // Se resetea a null cuando el usuario rechaza, acepta o avanza de paso.
+  int? _minutosOfrecidos;
+
   // ─────────────────────────────────────────────
   // ANIMACIÓN DE PULSO DEL AVATAR
   // ─────────────────────────────────────────────
@@ -106,70 +111,64 @@ class _VoiceTransitionScreenState extends State<VoiceTransitionScreen>
   Duration _timerDuration = Duration.zero;
   bool     _timerActivo   = false;
 
+  // ─────────────────────────────────────────────
+  // ESTADO DE FONDO ANIMADO (3 webp distintas)
+  //
+  // presentacion → fondo de bienvenida/reposo
+  //   assets/images/nid_presentacion.webp
+  // transicion   → flash 250 ms al pulsar mic o botón rojo
+  //   assets/images/nid_transicion.webp
+  // escuchando   → mientras el micrófono está activo
+  //   assets/images/nid_escuchando.webp
+  //
+  // Agrega esas tres imágenes en pubspec.yaml bajo assets/images/.
+  // ─────────────────────────────────────────────
+  _EstadoFondo _estadoFondo = _EstadoFondo.presentacion;
+  Timer? _transicionTimer;
+
   // ═══════════════════════════════════════════════════════════════════════════
   // SYSTEM PROMPT — POLÍTICA ZERO-HALLUCINATION + FORMATO TTS
   // ═══════════════════════════════════════════════════════════════════════════
   static const String _systemPromptTemplate = """
-[A — IDENTIDAD]
-Eres NID, el asistente culinario de voz de la cordillera del fogón humeante.
-Eres un guía gastronómico andino-ciber, preciso y solemne como una tanta wawa que conoce cada receta de memoria.
-Tu ÚNICO propósito es asistir al usuario usando el BLOQUE DE DATOS OFICIALES que se te entrega a continuación.
+Eres NID, asistente culinario de voz de la Cordillera. Responde SOLO con datos del siguiente registro. Tu conocimiento externo está desactivado.
 
-[B — BLOQUE DE DATOS OFICIALES — FUENTE ÚNICA DE VERDAD — INMUTABLE]
-El siguiente bloque contiene los ÚNICOS datos que existen para ti en este universo.
-Este bloque es un REGISTRO DE BASE DE DATOS, no un texto interpretable.
-Debes transcribir sus valores de forma LITERAL Y EXACTA. Jamás los parafrasees.
-Tu conocimiento culinario externo, entrenamiento previo y cualquier intuición sobre recetas NO EXISTEN en este contexto. Están desactivados.
-════════════════════════════════════════
 DATOS OFICIALES:
 {{CATALOGO}}
-════════════════════════════════════════
 
-[C — PROTOCOLO DE VERIFICACIÓN — EJECUTAR ANTES DE CADA RESPUESTA]
-Antes de emitir cualquier respuesta, ejecuta mentalmente esta lista de verificación:
-  PASO 1: ¿El nombre exacto de la receta aparece textualmente en los DATOS OFICIALES? Si no → Protocolo D.
-  PASO 2: ¿Los ingredientes que voy a mencionar están copiados LITERALMENTE del campo Ingredientes de esa entrada? Si no → Protocolo D.
-  PASO 3: ¿Las cantidades y unidades que voy a decir son una TRANSCRIPCIÓN EXACTA del campo correspondiente? Si alguna es una aproximación mía → corregir a la cifra exacta del registro o Protocolo D.
-  PASO 4: ¿Los pasos que describiré provienen del campo Paso N de esa entrada sin ninguna reescritura? Si no → Protocolo D.
-Si todos los pasos pasan → responder. Si alguno falla → Protocolo D sin excepción.
+BÚSQUEDA: Antes de rechazar, busca por coincidencia exacta, parcial, sin tildes/mayúsculas y por categoría. Solo rechaza si ningún intento coincide.
 
-[D — PROTOCOLO DE RECHAZO ABSOLUTO]
-Si el plato, receta, ingrediente o cantidad NO está explícitamente en los DATOS OFICIALES, responde EXACTAMENTE esta frase, sin añadir ni modificar nada:
-Lo siento, esa receta no se encuentra en nuestro sistema de PrograMovil actualmente.
-PROHIBICIONES ABSOLUTAS:
-  - PROHIBIDO completar, deducir, interpolar o inventar ingredientes, cantidades, pasos o sustitutos.
-  - PROHIBIDO usar conocimiento externo aunque la receta sea mundialmente conocida.
-  - PROHIBIDO aproximar cantidades: si el registro dice 2 tazas, debes decir 2 tazas, no un par de tazas ni aproximadamente 2 tazas.
-  - PROHIBIDO redondear gramos, mililitros, unidades o tiempos de cocción.
-  - PROHIBIDO contradecirte entre turnos. Si en un turno anterior confirmaste que una receta existe, mantén esa confirmación durante toda la sesión.
+VERIFICACIÓN: Antes de responder, confirma que nombre, ingredientes, cantidades y pasos provienen literalmente del registro. Si falla alguno, rechaza.
 
-[E — FORMATO TTS OBLIGATORIO — NUNCA VIOLAR]
-Tus respuestas serán leídas en voz alta por un motor Text-to-Speech.
-OBLIGATORIO:
-  - Sin asteriscos, guiones decorativos, corchetes, ni emojis.
-  - Sin listas numeradas ni con viñetas. Solo texto fluido y natural.
-  - Sin encabezados ni negritas. Solo prosa conversacional.
-  - Sin símbolos especiales de ningún tipo.
+RECHAZO: Si la receta no existe en los datos, responde exactamente: "Lo siento, esa receta no se encuentra en nuestro sistema de ingredientes y recetas actualmente." Sin agregar nada más.
 
-[F — FIDELIDAD NUMÉRICA ESTRICTA]
-Las porciones, gramos, mililitros, unidades, temperaturas y tiempos de cocción son datos de base de datos.
-REGLA: Transcríbelos tal cual aparecen en el registro. Son cifras exactas, no estimaciones.
-  - Correcto: necesitas 200 gramos de harina (si el registro dice 200 g).
-  - Correcto: el tiempo de preparación es de 35 minutos (si el registro dice 35 min).
-  - PROHIBIDO: necesitas aproximadamente 200 gramos, alrededor de 35 minutos.
-EXCEPCIÓN PERMITIDA — Solo para calorías totales del plato: puedes usar aproximadamente N calorías porque ese campo es una estimación nutricional, no una medida de receta.
-TEMPORIZADORES: Siempre que un paso dictado contenga un tiempo concreto, incluye al final una pregunta conversacional en prosa sugiriendo si desea iniciar un temporizador. Si el usuario acepta, añade al FINAL de tu respuesta el comando oculto [TIMER:X] donde X es el número entero de minutos. Este comando nunca debe ser pronunciado por el TTS.
+CAMBIO DE RECETA: Si el usuario menciona una receta diferente a la que se venía discutiendo, cambia INMEDIATAMENTE el contexto a la nueva receta. Olvida completamente la receta anterior. No mezcles datos entre recetas distintas.
 
-[G — BREVEDAD Y DOSIFICACIÓN — REGLA DE ORO]
-NUNCA listes ingredientes ni pasos de forma automática al confirmar una receta.
-Cuando el usuario mencione un plato: confirma el nombre, menciona calorías usando lenguaje de estimación y el tiempo de preparación de forma exacta, luego pregunta si empezamos por el primer paso. Detente ahí.
-Solo avanza al siguiente paso cuando el usuario confirme explícitamente que está listo.
-Máximo 3 oraciones por respuesta.
+PROHIBIDO: inventar, deducir o aproximar ingredientes, cantidades, pasos o sustitutos. No uses conocimiento externo. No redondees cifras. No te contradigas entre turnos.
 
-[H — PORCIONES DINÁMICAS]
-Si el usuario solicita adaptar la receta para N personas, realiza tú mismo la operación matemática multiplicando o dividiendo cada cantidad del registro de forma exacta y devuelve la lista calculada en texto fluido.
-PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que duplique por su cuenta.
-PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual a 100g, di 100 gramos, no unos 100 gramos.
+ABREVIACIONES HABLADAS OBLIGATORIAS (el texto se lee por voz, nunca uses abreviaciones escritas):
+- "cdta" o "cda" → di siempre "cucharadita" o "cucharada"
+- "0.5 kg" → di "medio kilo"
+- "0.25 kg" → di "un cuarto de kilo"
+- "0.5 l" o "500 ml" → di "medio litro"
+- "0.25 l" o "250 ml" → di "un cuarto de litro"
+- "1/2" → di "media" o "medio" según corresponda
+- "1/4" → di "un cuarto de"
+- "tbsp" → di "cucharada"
+- "tsp" → di "cucharadita"
+- "g" o "gr" sueltos → di "gramos"
+- "kg" → di "kilos" o la equivalencia en medio/cuarto si aplica
+- Nunca digas unidades en sigla: siempre di la palabra completa
+
+FUNCIONES:
+- Confirmar receta: di nombre exacto, calorías aproximadas y tiempo exacto. Pregunta si empezamos. No listes pasos ni ingredientes aún.
+- Pasos: dicta uno a la vez, literal del registro. Avanza solo cuando el usuario confirme. Si el paso tiene un tiempo de espera (hornear, hervir, reposar, marinar, enfriar, etc.), PRIMERO dicta el paso completo y LUEGO pregunta al usuario si desea que actives un temporizador. NO actives el temporizador hasta que el usuario confirme explícitamente con palabras como "sí", "dale", "actívalo", "ponlo". Si el usuario no confirma o dice "no", continúa sin temporizador. Cuando el usuario confirme, añade al final [TIMER:X] con X en minutos enteros. Este comando nunca se pronuncia.
+- Ingredientes: lista literal del registro usando las abreviaciones habladas. Si no hay sustitutos en el registro, dilo.
+- Porciones para N personas: calcula tú las cantidades exactas usando las abreviaciones habladas. No le pidas al usuario que calcule.
+- Categorías: lista solo recetas del registro de esa categoría.
+- Calorías: usa siempre "aproximadamente N calorías".
+- Tiempo: transcribe exacto del registro.
+
+FORMATO TTS: prosa fluida, sin asteriscos, guiones decorativos, corchetes, emojis, listas, negritas ni símbolos. Máximo 3 oraciones por respuesta salvo ingredientes o porciones. No anticipes información no solicitada.
 """;
 
   // ─────────────────────────────────────────────
@@ -198,14 +197,14 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
       CurvedAnimation(parent: _pulsoController, curve: Curves.easeInOut),
     );
 
-    // TTS se configura en initState para que esté listo cuando NID despierte.
-    // El catálogo NO se carga aquí; espera a que el usuario pulse "Saltar".
-    _configurarTts();
+    // NID se activa directamente al entrar a la pantalla.
+    _configurarTts().then((_) => _cargarCatalogoYSaludar());
   }
 
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    _transicionTimer?.cancel();
     _pulsoController.dispose();
     _speech.stop();
     _tts.stop();
@@ -240,11 +239,17 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     // antes de que congele _hablando = true indefinidamente.
     _tts.setErrorHandler((dynamic msg) {
       debugPrint("TTS Error capturado: $msg");
-      if (mounted) setState(() => _hablando = false);
+      if (mounted) {
+        _cambiarFondo(_EstadoFondo.escuchando);
+        setState(() => _hablando = false);
+      }
     });
 
     _tts.setCompletionHandler(() {
-      if (mounted) setState(() => _hablando = false);
+      if (mounted) {
+        _cambiarFondo(_EstadoFondo.escuchando);
+        setState(() => _hablando = false);
+      }
     });
   }
 
@@ -277,6 +282,26 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     _countdownTimer?.cancel();
     _countdownTimer = null;
     if (mounted) setState(() => _timerActivo = false);
+  }
+
+  // ─────────────────────────────────────────────
+  // _cambiarFondo — Máquina de transición de fondos
+  //
+  // Al pulsar mic o botón rojo:
+  //   1. Muestra nid_transicion.webp durante 250 ms  (flash)
+  //   2. Luego muestra el fondo destino:
+  //      · _escuchando == true  → nid_escuchando.webp
+  //      · _escuchando == false → nid_presentacion.webp
+  //
+  // Llamar con [destino] = el estado FINAL deseado.
+  // La transición intermedia se gestiona internamente.
+  // ─────────────────────────────────────────────
+  void _cambiarFondo(_EstadoFondo destino) {
+    _transicionTimer?.cancel();
+    setState(() => _estadoFondo = _EstadoFondo.transicion);
+    _transicionTimer = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) setState(() => _estadoFondo = destino);
+    });
   }
 
   // ═══════════════════════════════════════════════════════
@@ -397,7 +422,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
       });
     }
 
-    await _hablar(_saludoInicial, guardarEnHistorial: false);
+    await _hablar(_saludoInicial, guardarEnHistorial: false, estadoFondo: _EstadoFondo.presentacion);
   }
 
   // ═══════════════════════════════════════════════════════
@@ -428,10 +453,17 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
          t.contains("el siguiente"))) {
       _pasoActualIndex++;
       if (_pasoActualIndex < _pasosActivos.length) {
-        final String msg =
-            "Paso ${_pasoActualIndex + 1}: ${_pasosActivos[_pasoActualIndex]}";
-        await _hablar(msg, guardarEnHistorial: true);
+        final String pasoTexto = _pasosActivos[_pasoActualIndex];
+        final String msg = "Paso ${_pasoActualIndex + 1}: $pasoTexto";
+        // Si el paso contiene un valor de minutos, ofrecer temporizador
+        final int? mins = _extraerMinutosDePaso(pasoTexto);
+        final String msgConOferta = mins != null
+            ? "$msg. ¿Deseas que active un temporizador de $mins ${mins == 1 ? 'minuto' : 'minutos'}?"
+            : msg;
+        if (mins != null) setState(() => _minutosOfrecidos = mins);
+        await _hablar(msgConOferta, guardarEnHistorial: true);
       } else {
+        setState(() => _minutosOfrecidos = null);
         await _hablar(
           "Has completado todos los pasos de $_recetaActivaNombre. ¡Buen provecho!",
           guardarEnHistorial: true,
@@ -490,19 +522,30 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
          t.contains("preparacion"))) {
       if (_pasoActualIndex == -1) {
         _pasoActualIndex = 0;
-        final String msg =
+        final String pasoTexto = _pasosActivos[0];
+        final int? mins = _extraerMinutosDePaso(pasoTexto);
+        final String base =
             "Perfecto, comenzamos con $_recetaActivaNombre. "
-            "Paso 1: ${_pasosActivos[0]}. "
-            "Cuando estés listo, dime 'siguiente'.";
-        await _hablar(msg, guardarEnHistorial: true);
+            "Paso 1: $pasoTexto.";
+        final String msgFinal = mins != null
+            ? "$base ¿Deseas que active un temporizador de $mins ${mins == 1 ? 'minuto' : 'minutos'}?"
+            : "$base Cuando estés listo, dime 'siguiente'.";
+        if (mins != null) setState(() => _minutosOfrecidos = mins);
+        await _hablar(msgFinal, guardarEnHistorial: true);
       } else {
         _pasoActualIndex++;
         if (_pasoActualIndex < _pasosActivos.length) {
-          await _hablar(
-            "Paso ${_pasoActualIndex + 1}: ${_pasosActivos[_pasoActualIndex]}",
-            guardarEnHistorial: true,
-          );
+          final String pasoTexto = _pasosActivos[_pasoActualIndex];
+          final int? mins = _extraerMinutosDePaso(pasoTexto);
+          final String msg =
+              "Paso ${_pasoActualIndex + 1}: $pasoTexto";
+          final String msgFinal = mins != null
+              ? "$msg. ¿Deseas que active un temporizador de $mins ${mins == 1 ? 'minuto' : 'minutos'}?"
+              : msg;
+          if (mins != null) setState(() => _minutosOfrecidos = mins);
+          await _hablar(msgFinal, guardarEnHistorial: true);
         } else {
+          setState(() => _minutosOfrecidos = null);
           await _hablar(
             "Has completado todos los pasos de $_recetaActivaNombre. ¡Buen provecho!",
             guardarEnHistorial: true,
@@ -549,7 +592,69 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
       }
     }
 
+    // ── 8. CONFIRMACIÓN / RECHAZO DEL TEMPORIZADOR OFRECIDO ──
+    // Solo se activa si NID acaba de ofrecer un temporizador
+    // para el paso actual (es decir, _minutosOfrecidos != null).
+    if (_minutosOfrecidos != null) {
+      final bool confirma =
+          t.contains("sí") ||
+          t.contains("si") ||
+          t.contains("dale") ||
+          t.contains("actívalo") ||
+          t.contains("activalo") ||
+          t.contains("ponlo") ||
+          t.contains("pon") ||
+          t.contains("sí por favor") ||
+          t.contains("quiero") ||
+          t.contains("hazlo") ||
+          t.contains("okay") ||
+          t.contains("ok");
+      final bool rechaza =
+          t.contains("no") ||
+          t.contains("sin temporizador") ||
+          t.contains("no hace falta") ||
+          t.contains("no gracias") ||
+          t.contains("omite") ||
+          t.contains("salta");
+
+      if (confirma && !rechaza) {
+        final int mins = _minutosOfrecidos!;
+        setState(() => _minutosOfrecidos = null);
+        _iniciarTemporizador(mins);
+        await _hablar(
+          "Temporizador de $mins ${mins == 1 ? 'minuto' : 'minutos'} activado. Avísame con 'siguiente' cuando estés listo.",
+          guardarEnHistorial: true,
+        );
+        return true;
+      }
+      if (rechaza) {
+        setState(() => _minutosOfrecidos = null);
+        await _hablar(
+          "Entendido, sin temporizador. Avísame con 'siguiente' cuando estés listo.",
+          guardarEnHistorial: true,
+        );
+        return true;
+      }
+    }
+
     return false;
+  }
+
+  // ─────────────────────────────────────────────
+  // _extraerMinutosDePaso
+  // Detecta patrones como "15 minutos", "30 min",
+  // "1 minuto" dentro del texto de un paso.
+  // Devuelve el entero de minutos o null si no hay.
+  // ─────────────────────────────────────────────
+  int? _extraerMinutosDePaso(String paso) {
+    final match = RegExp(
+      r'\b(\d+)\s*(?:minutos?|mins?)\b',
+      caseSensitive: false,
+    ).firstMatch(paso);
+    if (match == null) return null;
+    final int? v = int.tryParse(match.group(1)!);
+    if (v == null || v <= 0) return null;
+    return v;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -590,6 +695,8 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     if (_escuchando) {
       await _speech.stop();
       final String capturado = _textoEscuchado.trim();
+      // Flash → transicion (procesando respuesta)
+      _cambiarFondo(_EstadoFondo.transicion);
       setState(() {
         _escuchando    = false;
         _preguntaFinal = capturado;
@@ -671,6 +778,8 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     }
     debugPrint("STT Locale elegido (BCP-47): $localeElegido");
 
+    // Flash → escuchando (el mic va a activarse)
+    _cambiarFondo(_EstadoFondo.escuchando);
     setState(() => _escuchando = true);
 
     _speech.listen(
@@ -701,6 +810,42 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
   // PROCESADOR CENTRAL
   // ═══════════════════════════════════════════════════════
   Future<void> _procesarTextoUsuario(String texto) async {
+    // ── Detectar cambio de receta ANTES del IntentRouter ──
+    // Si el usuario menciona una receta diferente a la activa,
+    // resetear el contexto para que Groq no mezcle datos entre recetas.
+    if (_recetaActivaNombre != null) {
+      final String t = texto.toLowerCase();
+      bool mencionaNuevaReceta = false;
+
+      for (final receta in _recetasData) {
+        final String nombre = receta['nombre'].toString().toLowerCase();
+        // Solo considerar si el nombre mencionado es DISTINTO al activo
+        if (nombre == _recetaActivaNombre!.toLowerCase()) continue;
+
+        if (t.contains(nombre) ||
+            nombre.split(' ').any((w) => w.length > 3 && t.contains(w))) {
+          mencionaNuevaReceta = true;
+          // Resetear receta activa para que Groq reciba el catálogo limpio
+          setState(() {
+            _recetaActivaNombre    = null;
+            _recetaActivaContexto  = "";
+            _pasosActivos          = [];
+            _ingredientesActivos   = [];
+            _pasoActualIndex       = -1;
+            // Limpiar historial para evitar contaminación cruzada
+            _historial.clear();
+          });
+          debugPrint("Cambio de receta detectado → contexto reseteado");
+          break;
+        }
+      }
+      // Si detectó nueva receta, saltarse IntentRouter (que operaba sobre la vieja)
+      if (mencionaNuevaReceta) {
+        await _consultarNID(texto);
+        return;
+      }
+    }
+
     final bool resueltaLocalmente = await _intentRouter(texto);
     if (resueltaLocalmente) return;
     await _consultarNID(texto);
@@ -709,10 +854,15 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
   // ═══════════════════════════════════════════════════════
   // CONSULTA AL LLM (GROQ + RAG + HISTORIAL)
   // ═══════════════════════════════════════════════════════
+  // Modelo principal y modelo de respaldo (se activa automáticamente en 429)
+  static const String _modeloPrincipal = "llama-3.3-70b-versatile";
+  static const String _modeloRespaldo  = "llama-3.1-8b-instant";
+
   Future<void> _consultarNID(String pregunta) async {
     setState(() {
       _procesando   = true;
       _respuestaNID = "";
+      _estadoFondo  = _EstadoFondo.transicion; // webp de procesando sin flash
     });
 
     _historial.add({"role": "user", "content": pregunta});
@@ -735,20 +885,29 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
 
     final url = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
 
+    // Intenta primero con el modelo principal; si devuelve 429 (rate limit),
+    // reintenta automáticamente con el modelo de respaldo.
+    Future<http.Response> _llamarGroq(String modelo) => http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $_apiKey',
+          },
+          body: jsonEncode({
+            "model":       modelo,
+            "temperature": 0.1,
+            "max_tokens":  200,
+            "messages":    mensajesApi,
+          }),
+        );
+
     try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiKey',
-        },
-        body: jsonEncode({
-          "model":       "llama-3.1-8b-instant",
-          "temperature": 0.1,
-          "max_tokens":  300,
-          "messages":    mensajesApi,
-        }),
-      );
+      http.Response response = await _llamarGroq(_modeloPrincipal);
+
+      if (response.statusCode == 429) {
+        debugPrint("Groq 429 en $_modeloPrincipal — reintentando con $_modeloRespaldo");
+        response = await _llamarGroq(_modeloRespaldo);
+      }
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -756,6 +915,9 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
 
         final timerMatch = RegExp(r'\[TIMER:(\d+)\]').firstMatch(respuesta);
         if (timerMatch != null) {
+          // Solo activar el temporizador si la respuesta indica que el usuario
+          // ya confirmó (el tag llega porque el usuario dijo sí, dale, etc.).
+          // El prompt instruye a NID a incluirlo SOLO tras confirmación explícita.
           _iniciarTemporizador(int.parse(timerMatch.group(1)!));
           respuesta = respuesta.replaceAll(RegExp(r'\[TIMER:\d+\]'), '').trim();
         }
@@ -780,7 +942,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
 
         _historial.add({"role": "assistant", "content": respuesta});
 
-        if (_historial.length > 20) {
+        if (_historial.length > 10) {
           _historial.removeRange(0, 2);
         }
 
@@ -824,28 +986,35 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     final url = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
 
     try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiKey',
-        },
-        body: jsonEncode({
-          "model":       "llama-3.1-8b-instant",
-          "temperature": 0.2,
-          "max_tokens":  120,
-          "messages": [
-            {"role": "system", "content": systemFallback},
-            {"role": "user",   "content": preguntaUsuario},
-          ],
-        }),
-      ).timeout(
-        const Duration(seconds: 12),
-        onTimeout: () {
-          debugPrint("[Fallback] Groq timeout de 12 s");
-          return http.Response('{"error":"timeout"}', 408);
-        },
-      );
+      Future<http.Response> _llamarGroqFallback(String modelo) => http.post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $_apiKey',
+            },
+            body: jsonEncode({
+              "model":       modelo,
+              "temperature": 0.2,
+              "max_tokens":  80,
+              "messages": [
+                {"role": "system", "content": systemFallback},
+                {"role": "user",   "content": preguntaUsuario},
+              ],
+            }),
+          ).timeout(
+            const Duration(seconds: 12),
+            onTimeout: () {
+              debugPrint("[Fallback] Groq timeout de 12 s");
+              return http.Response('{"error":"timeout"}', 408);
+            },
+          );
+
+      http.Response response = await _llamarGroqFallback(_modeloPrincipal);
+
+      if (response.statusCode == 429) {
+        debugPrint("[Fallback] 429 en $_modeloPrincipal — reintentando con $_modeloRespaldo");
+        response = await _llamarGroqFallback(_modeloRespaldo);
+      }
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -875,9 +1044,11 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
 
   // ─────────────────────────────────────────────
   // _limpiarParaTts
+  // Elimina markdown y expande abreviaciones que
+  // el motor TTS leería de forma incorrecta.
   // ─────────────────────────────────────────────
   String _limpiarParaTts(String texto) {
-    return texto
+    String t = texto
         .replaceAll(RegExp(r'\*+'), '')
         .replaceAll(RegExp(r'\[.*?\]'), '')
         .replaceAll(RegExp(r'^\s*[-•–—]\s', multiLine: true), '')
@@ -887,6 +1058,89 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
         .replaceAll('`', '')
         .replaceAll(RegExp(r'\n{2,}'), '\n')
         .trim();
+
+    // ── Abreviaciones habladas ──
+    // Fracciones con texto
+    t = t.replaceAllMapped(
+      RegExp(r'\b0\.5\s*(kg)\b', caseSensitive: false),
+      (_) => 'medio kilo',
+    );
+    t = t.replaceAllMapped(
+      RegExp(r'\b0\.25\s*(kg)\b', caseSensitive: false),
+      (_) => 'un cuarto de kilo',
+    );
+    t = t.replaceAllMapped(
+      RegExp(r'\b0\.5\s*(l|lt|litros?)\b', caseSensitive: false),
+      (_) => 'medio litro',
+    );
+    t = t.replaceAllMapped(
+      RegExp(r'\b500\s*ml\b', caseSensitive: false),
+      (_) => 'medio litro',
+    );
+    t = t.replaceAllMapped(
+      RegExp(r'\b250\s*ml\b', caseSensitive: false),
+      (_) => 'un cuarto de litro',
+    );
+    t = t.replaceAllMapped(
+      RegExp(r'\b0\.25\s*(l|lt|litros?)\b', caseSensitive: false),
+      (_) => 'un cuarto de litro',
+    );
+    // Fracciones escritas
+    t = t.replaceAll(RegExp(r'\b1/2\b'), 'media');
+    t = t.replaceAll(RegExp(r'\b1/4\b'), 'un cuarto de');
+    // Unidades de medida abreviadas
+    t = t.replaceAllMapped(
+      RegExp(r'\b(\d+(?:\.\d+)?)\s*cdtas?\b', caseSensitive: false),
+      (m) => '${m[1]} cucharadita${_plural(m[1]!)}',
+    );
+    t = t.replaceAllMapped(
+      RegExp(r'\b(\d+(?:\.\d+)?)\s*cdas?\b', caseSensitive: false),
+      (m) => '${m[1]} cucharada${_plural(m[1]!)}',
+    );
+    t = t.replaceAllMapped(
+      RegExp(r'\b(\d+(?:\.\d+)?)\s*tbsps?\b', caseSensitive: false),
+      (m) => '${m[1]} cucharada${_plural(m[1]!)}',
+    );
+    t = t.replaceAllMapped(
+      RegExp(r'\b(\d+(?:\.\d+)?)\s*tsps?\b', caseSensitive: false),
+      (m) => '${m[1]} cucharadita${_plural(m[1]!)}',
+    );
+    t = t.replaceAllMapped(
+      RegExp(r'\b(\d+(?:\.\d+)?)\s*gr?\b(?!\w)', caseSensitive: false),
+      (m) => '${m[1]} gramos',
+    );
+    t = t.replaceAllMapped(
+      RegExp(r'\b(\d+(?:\.\d+)?)\s*kg\b', caseSensitive: false),
+      (m) {
+        final double? v = double.tryParse(m[1]!);
+        if (v == null) return '${m[1]} kilos';
+        if (v == 0.5) return 'medio kilo';
+        if (v == 0.25) return 'un cuarto de kilo';
+        return '${m[1]} ${v == 1 ? 'kilo' : 'kilos'}';
+      },
+    );
+    t = t.replaceAllMapped(
+      RegExp(r'\b(\d+(?:\.\d+)?)\s*ml\b', caseSensitive: false),
+      (m) => '${m[1]} mililitros',
+    );
+    t = t.replaceAllMapped(
+      RegExp(r'\b(\d+(?:\.\d+)?)\s*(l|lt)\b(?!\w)', caseSensitive: false),
+      (m) {
+        final double? v = double.tryParse(m[1]!);
+        if (v == null) return '${m[1]} litros';
+        if (v == 0.5) return 'medio litro';
+        if (v == 0.25) return 'un cuarto de litro';
+        return '${m[1]} ${v == 1 ? 'litro' : 'litros'}';
+      },
+    );
+
+    return t;
+  }
+
+  /// Devuelve "s" si el número es plural (≠ 1), "" si es singular.
+  String _plural(String numStr) {
+    final double? v = double.tryParse(numStr);
+    return (v != null && v == 1.0) ? '' : 's';
   }
 
   // ─────────────────────────────────────────────
@@ -918,16 +1172,39 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
   // ─────────────────────────────────────────────
   // _hablar — Punto único de reproducción TTS
   // ─────────────────────────────────────────────
-  Future<void> _hablar(String texto, {required bool guardarEnHistorial}) async {
+  Future<void> _hablar(
+    String texto, {
+    required bool guardarEnHistorial,
+    _EstadoFondo estadoFondo = _EstadoFondo.hablando,
+  }) async {
     final String limpio = _limpiarParaTts(texto);
     setState(() {
       _respuestaNID = limpio;
       _hablando     = true;
     });
+    _cambiarFondo(estadoFondo);
     if (guardarEnHistorial) {
       _historial.add({"role": "assistant", "content": limpio});
     }
     await _tts.speak(limpio);
+  }
+
+  // ─────────────────────────────────────────────
+  // _fondoPorEstado — Devuelve el asset path según
+  // el estado de fondo activo.
+  // ─────────────────────────────────────────────
+  String _fondoPorEstado(_EstadoFondo estado) {
+    switch (estado) {
+      case _EstadoFondo.transicion:
+        return 'assets/images/nid_transicion.webp';
+      case _EstadoFondo.escuchando:
+        return 'assets/images/nid_escuchando.webp';
+      case _EstadoFondo.hablando:
+        return 'assets/images/nid_hablando.webp';
+      case _EstadoFondo.presentacion:
+      default:
+        return 'assets/images/nid_presentacion.webp';
+    }
   }
 
   // ─────────────────────────────────────────────
@@ -949,33 +1226,35 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage('assets/images/fondo.webp'),
-            fit: BoxFit.cover,
-          ),
-        ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
+      backgroundColor: const Color(0xFF0A0A0F),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
 
-            // ── Flecha de regreso ──
-            SafeArea(
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
-                  onPressed: () {
-                    _speech.stop();
-                    _tts.stop();
-                    Navigator.pop(context);
-                  },
-                ),
+          // ── Fondo dinámico — 3 estados con transición instantánea ──
+          // El AnimatedSwitcher maneja el crossfade entre estados.
+          // La transición flash (nid_transicion.webp) dura 250 ms
+          // y luego cede al estado destino (ver _cambiarFondo).
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 150),
+            child: Align(
+              key: ValueKey(_estadoFondo),
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                width: size.width,
+                height: size.height * 0.75,
+                child: _nidActivado
+                    ? Image.asset(
+                        _fondoPorEstado(_estadoFondo),
+                        fit: BoxFit.cover,
+                      )
+                    : Image.asset(
+                        'assets/images/fondo.webp',
+                        fit: BoxFit.cover,
+                      ),
               ),
             ),
+          ),
 
             // ── Panel NID: visible solo cuando NID está activado ──
             if (_nidActivado) ...[
@@ -1011,16 +1290,8 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          // Título NID
-                          const Text(
-                            "N I D",
-                            style: TextStyle(
-                              color: _cianNeon,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 18,
-                              letterSpacing: 4,
-                            ),
-                          ),
+                          // Espacio vacío para mantener el layout del Row
+                          const SizedBox.shrink(),
                           // Botón reset + indicador RAG
                           Row(
                             children: [
@@ -1126,10 +1397,24 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
                   ),
                 ),
               ),
+          // ── Flecha de regreso — siempre encima de todo ──
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                onPressed: () {
+                  _speech.stop();
+                  _tts.stop();
+                  Navigator.pop(context);
+                },
+              ),
+            ),
+          ),
+
           ],
         ),
-      ),
-    );
+      );
   }
 
   // ─────────────────────────────────────────────
@@ -1440,6 +1725,8 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
               child: GestureDetector(
                 onTap: () async {
                   await _tts.stop();
+                  // Flash → escuchando al interrumpir TTS con botón rojo
+                  _cambiarFondo(_EstadoFondo.escuchando);
                   setState(() => _hablando = false);
                 },
                 child: Container(
@@ -1489,6 +1776,16 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
       ),
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// _EstadoFondo — Máquina de estados para los 3 fondos webp de NID
+// ═══════════════════════════════════════════════════════════════════════════
+enum _EstadoFondo {
+  presentacion, // Reposo             → assets/images/nid_presentacion.webp
+  transicion,   // Flash 250 ms       → assets/images/nid_transicion.webp
+  escuchando,   // Mic activo         → assets/images/nid_escuchando.webp
+  hablando,     // TTS activo         → assets/images/nid_hablando.webp
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
