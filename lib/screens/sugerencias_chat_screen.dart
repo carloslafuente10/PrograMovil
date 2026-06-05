@@ -6,7 +6,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'detalle_receta_screen.dart';
-import 'voice_call_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'components/receta_card_widget.dart';
 import 'voice_transition_screen.dart';
