@@ -112,15 +112,6 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen>
   double _progreso = 0.0;
 
   // ─────────────────────────────────────────────
-  // VARIABLES DEL FLUJO DE AYUDA
-  // ─────────────────────────────────────────────
-  String? _categoriaComidaElegida;
-  List<String> _ingredientesPrimordiales = [];
-  final List<String> _ingredientesSeleccionados = [];
-  bool _mostrarGridIngredientes = false;
-  bool _bloquearCategorias = false;
-
-  // ─────────────────────────────────────────────
   // VARIABLES DEL TEMPORIZADOR NATIVO
   // ─────────────────────────────────────────────
   Timer? _countdownTimer;
@@ -367,143 +358,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     }
   }
 
-  List<String> _generarVariantes(String categoria) {
-    String base = categoria.trim();
-    String singular = base.endsWith('s')
-        ? base.substring(0, base.length - 1)
-        : base;
-    String plural = base.endsWith('s') ? base : '${base}s';
-
-    return [
-      base,
-      base.toLowerCase(),
-      base.toUpperCase(),
-      base[0].toUpperCase() + base.substring(1).toLowerCase(),
-      singular,
-      singular.toLowerCase(),
-      plural,
-      plural.toLowerCase(),
-    ].toSet().toList();
-  }
-
-  // ─────────────────────────────────────────────
-  // BÚSQUEDA DE RECETAS (Fusión Porcentajes + Contexto)
-  // ─────────────────────────────────────────────
-  Future<void> _buscarRecetasRecomendadas() async {
-    if (_categoriaComidaElegida == null || _ingredientesSeleccionados.isEmpty)
-      return;
-    setState(() => _estaCargando = true);
-    try {
-      final variantes = _generarVariantes(_categoriaComidaElegida!);
-      final snapshot = await FirebaseFirestore.instance
-          .collection('app-recetas-completas')
-          .where(
-            Filter.or(
-              Filter('categoria', whereIn: variantes),
-              Filter('categoría', whereIn: variantes),
-            ),
-          )
-          .get();
-
-      List<Map<String, dynamic>> recetasEncontradas = [];
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        final String contextoSanitizado = _sanitizarRecetaParaContexto(
-          data,
-        ); // De tu compañero
-        List ingredientesDoc = data['ingredientes'] ?? [];
-
-        List<String> nombresReceta = ingredientesDoc
-            .map(
-              (i) =>
-                  (i is Map
-                          ? (i['nombre'] ??
-                                i['name'] ??
-                                i['ingrediente_id'] ??
-                                '')
-                          : i.toString())
-                      .toString()
-                      .trim()
-                      .toLowerCase()
-                      .replaceAll('-', ' '),
-            )
-            .where((n) => n.isNotEmpty)
-            .toList();
-
-        if (nombresReceta.isEmpty) continue;
-
-        int coincidencias = 0;
-        for (String ingSel in _ingredientesSeleccionados) {
-          if (nombresReceta.any(
-            (nr) =>
-                nr.contains(ingSel.toLowerCase().trim()) ||
-                ingSel.toLowerCase().trim().contains(nr),
-          )) {
-            coincidencias++;
-          }
-        }
-
-        // Lógica de porcentajes y límite visual (Tu lógica)
-        if (coincidencias > 0) {
-          double porcentaje = (coincidencias / nombresReceta.length) * 100;
-          if (porcentaje > 100) porcentaje = 100.0;
-
-          recetasEncontradas.add({
-            'id': doc.id,
-            'nombre': data['nombre']?.toString() ?? "Receta",
-            'img': data['imagen']?.toString() ?? '',
-            'calorias':
-                (data['calorías'] ?? data['calorias'])?.toString() ?? '—',
-            'tiempo': data['tiempo']?.toString() ?? '—',
-            'categoria':
-                (data['categoría'] ?? data['categoria'])?.toString() ?? '',
-            'porcentaje': porcentaje,
-            'contexto':
-                contextoSanitizado, // Listo para inyectar si se necesita
-          });
-        }
-      }
-
-      recetasEncontradas.sort(
-        (a, b) =>
-            (b['porcentaje'] as double).compareTo(a['porcentaje'] as double),
-      );
-      if (recetasEncontradas.length > 4) {
-        recetasEncontradas = recetasEncontradas.sublist(0, 4);
-      }
-
-      setState(() {
-        if (recetasEncontradas.isEmpty) {
-          _mensajes.add({
-            "rol": "llama",
-            "texto":
-                "He buscado en mi alacena pero no tengo una receta exacta con esa combinación. 🥣 ¿Intentamos con otros ingredientes?",
-            "tipo": "texto",
-          });
-        } else {
-          _mensajes.add({
-            "rol": "llama",
-            "texto":
-                "¡He encontrado el maridaje perfecto! 👨‍🍳 Aquí tienes las opciones que mejor combinan con tu selección.",
-            "tipo": "recetas_grid",
-            "recetas": recetasEncontradas,
-          });
-        }
-      });
-    } catch (e) {
-      debugPrint("Error buscar recetas: $e");
-      setState(
-        () => _mensajes.add({
-          "rol": "llama",
-          "texto": "Se nos ha derramado el caldo... Error en la conexión.",
-          "tipo": "texto",
-        }),
-      );
-    } finally {
-      setState(() => _estaCargando = false);
-    }
-  }
-
   void _seleccionarOpcion(String titulo, String descripcion) {
     setState(() {
       _opcionSeleccionada = true;
@@ -511,11 +365,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       _mensajes.clear();
       _esperandoDetalleReporte = false;
       _esperandoParrafoSugerencia = false;
-      _mostrarGridIngredientes = false;
-      _bloquearCategorias = false;
+
       _bloquearFlujoReporte = false;
-      _categoriaComidaElegida = null;
-      _ingredientesSeleccionados.clear();
+
       _categoriaReporteActual = "";
       _subCategoriaReporteActual = "";
       _bloquearReportes = false;
@@ -544,10 +396,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
         tipoMensaje = "botones_reporte_categorias";
         _esperandoDetalleReporte = true;
         _animarProgreso(0.0);
-      } else if (titulo == "Ayuda") {
-        saludoChef =
-            "Aquí estoy para guiarte en tu siguiente comida. Por favor selecciona una categoría:";
-        tipoMensaje = "botones_categoria";
       } else if (titulo == "Consulta Especifica") {
         saludoChef =
             "¡Entrando comandas de alta cocina! 🚀 Escribe libremente tu inquietud culinaria o técnica.";
@@ -776,54 +624,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     }
   }
 
-  Future<void> _cargarIngredientesPrimordiales(String categoria) async {
-    setState(() => _estaCargando = true);
-    try {
-      final variantes = _generarVariantes(categoria);
-      final snapshot = await FirebaseFirestore.instance
-          .collection('app-recetas-completas')
-          .where(
-            Filter.or(
-              Filter('categoria', whereIn: variantes),
-              Filter('categoría', whereIn: variantes),
-            ),
-          )
-          .get();
-
-      Set<String> setIngs = {};
-      for (var doc in snapshot.docs) {
-        for (var ing in (doc.data()['ingredientes'] ?? [])) {
-          if (ing is Map &&
-              (ing['es_primordial'] == true ||
-                  ing['es_primordial'].toString().toLowerCase() == 'true')) {
-            String nom = (ing['nombre'] ?? ing['ingrediente_id'] ?? '')
-                .toString()
-                .replaceAll('-', ' ')
-                .trim();
-            if (nom.isNotEmpty) {
-              nom = nom[0].toUpperCase() + nom.substring(1).toLowerCase();
-              setIngs.add(nom);
-            }
-          }
-        }
-      }
-
-      setState(() {
-        _ingredientesPrimordiales = setIngs.toList()..sort();
-        _mostrarGridIngredientes = true;
-        _mensajes.add({
-          "rol": "llama",
-          "texto": "Por favor elige los ingredientes disponibles:",
-          "tipo": "grid_ingredients",
-        });
-      });
-    } catch (e) {
-      debugPrint("Error DB: $e");
-    } finally {
-      setState(() => _estaCargando = false);
-    }
-  }
-
   // ─────────────────────────────────────────────
   // ENVÍO DE MENSAJES (Fusión Regex Temporizador)
   // ─────────────────────────────────────────────
@@ -840,11 +640,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       _controller.clear();
       _estaCargando = true;
     });
-
-    if (textoOriginal.startsWith("Dame una recomendación de")) {
-      await _buscarRecetasRecomendadas();
-      return;
-    }
 
     if (_esperandoParrafoSugerencia) {
       setState(() {
@@ -1006,8 +801,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                 onPressed: () => setState(() {
                   _opcionSeleccionada = false;
                   _mensajes.clear();
-                  _mostrarGridIngredientes = false;
-                  _bloquearCategorias = false;
+
                   _pasoReporte = 0;
                   _fraseArmada.clear();
                   _animarProgreso(0.0);
@@ -2966,13 +2760,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
               icono: Icons.bug_report_outlined,
               colorIcono: const Color(0xFFE57373),
             ),
-            _buildMenuButton(
-              titulo: "Ayuda",
-              descripcion: "Necesito una recomendación de comida",
-              subDescripcion: "Necesito una recomendación",
-              icono: Icons.restaurant_menu,
-              colorIcono: const Color(0xFFFFB74D),
-            ),
+
             _buildHighlightedButton(),
           ],
         ),
@@ -3276,13 +3064,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                             _buildReporteSubcategoriasGrid(
                               msg["categoria_reporte"],
                             ),
-                          if (msg["tipo"] == "botones_categoria")
-                            _buildCategoriasGrid(),
-                          if (msg["tipo"] == "grid_ingredients" &&
-                              _mostrarGridIngredientes)
-                            _buildIngredientesGrid(),
-                          if (msg["tipo"] == "recetas_grid")
-                            _buildRecetasGridCards(msg["recetas"]),
+
                           if (msg["tipo"] == "reporte_btn" ||
                               msg["tipo"] == "sugerencia_btn")
                             _buildActionBtn(
@@ -4130,261 +3912,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-  Widget _buildCategoriasGrid() {
-    final List<Map<String, dynamic>> cats = [
-      {
-        "nombre": "Desayuno",
-        "icono": Icons.free_breakfast,
-        "color": const Color(0xFFFFB74D),
-      },
-      {
-        "nombre": "Almuerzo",
-        "icono": Icons.lunch_dining,
-        "color": const Color(0xFFE57373),
-      },
-      {
-        "nombre": "Cena",
-        "icono": Icons.dinner_dining,
-        "color": const Color(0xFF7986CB),
-      },
-      {
-        "nombre": "Snack",
-        "icono": Icons.fastfood,
-        "color": const Color(0xFF81C784),
-      },
-      {
-        "nombre": "Refrescos",
-        "icono": Icons.local_drink,
-        "color": const Color(0xFF4FC3F7),
-      },
-    ];
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 12,
-        alignment: WrapAlignment.center,
-        children: cats.map((cat) {
-          final String nombre = cat["nombre"];
-          final bool isSelected = _categoriaComidaElegida == nombre;
-          final bool desactivar = _bloquearCategorias && !isSelected;
-          final Color baseColor = cat["color"];
-
-          return GestureDetector(
-            onTap: desactivar
-                ? null
-                : () {
-                    HapticFeedback.lightImpact();
-                    if (_bloquearCategorias) return;
-                    setState(() {
-                      _bloquearCategorias = true;
-                      _categoriaComidaElegida = nombre;
-                      _mensajes.add({
-                        "rol": "usuario",
-                        "texto": "Categoría: $nombre",
-                        "tipo": "texto",
-                      });
-                    });
-                    _cargarIngredientesPrimordiales(nombre);
-                  },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: isSelected ? baseColor.withOpacity(0.15) : Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isSelected ? baseColor : Colors.grey.shade300,
-                  width: isSelected ? 2.5 : 1.5,
-                ),
-                boxShadow: desactivar
-                    ? []
-                    : [
-                        BoxShadow(
-                          color: baseColor.withOpacity(isSelected ? 0.5 : 0.2),
-                          blurRadius: 0,
-                          offset: Offset(0, isSelected ? 1 : 4),
-                        ),
-                      ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    cat["icono"],
-                    size: 18,
-                    color: desactivar ? Colors.grey.shade400 : baseColor,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    nombre,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                      color: desactivar ? Colors.grey.shade400 : Colors.black87,
-                    ),
-                  ),
-                  if (isSelected) ...[
-                    const SizedBox(width: 6),
-                    Icon(Icons.check_circle, size: 16, color: baseColor),
-                  ],
-                ],
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildIngredientesGrid() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Column(
-        children: [
-          Wrap(
-            spacing: 10.0,
-            runSpacing: 12.0,
-            alignment: WrapAlignment.center,
-            children: _ingredientesPrimordiales.map((ing) {
-              final bool isSel = _ingredientesSeleccionados.contains(ing);
-              return GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  setState(() {
-                    if (isSel) {
-                      _ingredientesSeleccionados.remove(ing);
-                    } else if (_ingredientesSeleccionados.length < 8) {
-                      _ingredientesSeleccionados.add(ing);
-                    }
-                  });
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSel ? _verde.withOpacity(0.12) : Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: isSel ? _verde : Colors.grey.shade300,
-                      width: isSel ? 2 : 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: isSel
-                            ? _verde.withOpacity(0.3)
-                            : Colors.grey.withOpacity(0.15),
-                        blurRadius: 0,
-                        offset: Offset(0, isSel ? 1 : 3),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (isSel)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: Icon(
-                            Icons.check_circle,
-                            size: 16,
-                            color: _verde,
-                          ),
-                        ),
-                      Text(
-                        ing,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          color: isSel ? _verde : Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: AnimatedOpacity(
-              opacity: _ingredientesSeleccionados.isNotEmpty ? 1.0 : 0.45,
-              duration: const Duration(milliseconds: 300),
-              child: ElevatedButton.icon(
-                onPressed: _ingredientesSeleccionados.isNotEmpty
-                    ? () {
-                        HapticFeedback.mediumImpact();
-                        setState(() {
-                          _mostrarGridIngredientes = false;
-                          _controller.text =
-                              "Dame una recomendación de $_categoriaComidaElegida usando: ${_ingredientesSeleccionados.join(', ')}";
-                        });
-                        _enviarMensaje();
-                      }
-                    : null,
-                icon: const Icon(Icons.restaurant_menu, size: 20),
-                label: const Text(
-                  "Cocinar con estos ingredientes",
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _verde,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: 4,
-                  shadowColor: _verde.withOpacity(0.4),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecetasGridCards(List<dynamic> recetasData) {
-    final recetas = recetasData.cast<Map<String, dynamic>>();
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 16),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 16,
-        alignment: WrapAlignment.center,
-        children: recetas.map((receta) {
-          return SizedBox(
-            width: 150,
-            height: 215,
-            child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => DetalleRecetaScreen(
-                      recetaId: receta['id']!,
-                      nombreReceta: receta['nombre']!,
-                    ),
-                  ),
-                );
-              },
-              child: RecetaCardWidget(
-                receta: receta,
-                verde: _verde,
-                porcentajeMatch: receta['porcentaje'] as double,
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
   Widget _buildActionBtn(VoidCallback onPres, IconData icon, String label) {
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 12),
@@ -4403,4 +3930,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 }
+
+
+
 
