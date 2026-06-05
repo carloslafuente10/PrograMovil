@@ -1,1047 +1,1039 @@
-import 'dart:io';
-import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:universal_html/html.dart' as html;
-import 'package:path_provider/path_provider.dart';
-import 'package:open_file/open_file.dart';
-import 'package:excel/excel.dart';
-import 'package:csv/csv.dart';
+import 'package:printing/printing.dart';
 
-final _colorVerde = PdfColor.fromHex('2D9E73');
-final _colorVerdeOsc = PdfColor.fromHex('1B5E20');
-final _colorVerdeClaro = PdfColor.fromHex('E8F7F1');
-final _colorCafe = PdfColor.fromHex('8B5E3C');
-final _colorFondo = PdfColor.fromHex('F4F6F8');
+// ── helpers fecha sin intl ────────────────────────────────────────────────────
+String _fmtFecha(DateTime d) {
+  const meses = ['','enero','febrero','marzo','abril','mayo','junio',
+      'julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  return '${d.day.toString().padLeft(2,'0')} de ${meses[d.month]} de ${d.year}';
+}
+String _fmtHora(DateTime d) =>
+    '${d.hour.toString().padLeft(2,'0')}:${d.minute.toString().padLeft(2,'0')}';
+String _fmtCorto(DateTime d) =>
+    '${d.day.toString().padLeft(2,'0')}/${d.month.toString().padLeft(2,'0')}/${d.year}  ${_fmtHora(d)}';
+String _fmtSolo(DateTime d) =>
+    '${d.day.toString().padLeft(2,'0')}/${d.month.toString().padLeft(2,'0')}/${d.year}';
 
-class PdfService {
-  static Future<void> _guardarYAbrir(
-    Uint8List bytes,
-    String nombre, {
-    String ext = 'pdf',
+// ── colores PDF (sin withOpacity) ─────────────────────────────────────────────
+const PdfColor _verde      = PdfColor.fromInt(0xFF2D9E73);
+const PdfColor _verdeClaro = PdfColor.fromInt(0xFFE8F5EE);
+const PdfColor _gris       = PdfColor.fromInt(0xFF6B7280);
+const PdfColor _grisClaro  = PdfColor.fromInt(0xFFF3F4F6);
+const PdfColor _blanco     = PdfColors.white;
+const PdfColor _negro      = PdfColor.fromInt(0xFF1F2937);
+const PdfColor _tabla1     = PdfColor.fromInt(0xFFF9FAFB);
+const PdfColor _loginBg    = PdfColor.fromInt(0xFFDCFCE7);
+const PdfColor _logoutBg   = PdfColor.fromInt(0xFFFFE4E6);
+const PdfColor _favBg      = PdfColor.fromInt(0xFFFFE4EF);
+const PdfColor _planBg     = PdfColor.fromInt(0xFFDBEAFE);
+const PdfColor _recetasBg  = PdfColor.fromInt(0xFFFFEDD5);
+const PdfColor _rolesBg    = PdfColor.fromInt(0xFFF3E8FF);
+
+// ═════════════════════════════════════════════════════════════════════════════
+// CLASE PRINCIPAL — usa el mismo nombre en AMBAS versiones para compatibilidad
+// ═════════════════════════════════════════════════════════════════════════════
+// Alias para compatibilidad: PdfService = PdfServicios
+typedef PdfService = PdfServicios;
+
+class PdfServicios {
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // HISTORIAL — exportar historial general
+  // ══════════════════════════════════════════════════════════════════════════
+  static Future<void> exportarHistorialGeneral({
+    required BuildContext context,
+    required List<Map<String, dynamic>> actividades,
+    required String filtroRol,
+    required String filtroAccion,
+    DateTime? fecha,
   }) async {
-    if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      html.AnchorElement(href: url)
-        ..setAttribute('download', '$nombre.$ext')
-        ..click();
-      html.Url.revokeObjectUrl(url);
-    } else {
-      final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/$nombre.$ext');
-      await file.writeAsBytes(bytes);
-      await OpenFile.open(file.path);
-    }
-  }
+    final pdf    = pw.Document();
+    final ahora  = DateTime.now();
+    final fechaG = '${_fmtFecha(ahora)}  ${_fmtHora(ahora)}';
+    final labelFecha = fecha != null ? _fmtFecha(fecha) : 'Todas las fechas';
 
-  static pw.Widget _encabezado(String titulo, {String? subtitulo}) {
-    return pw.Container(
-      width: double.infinity,
-      padding: const pw.EdgeInsets.all(16),
-      decoration: pw.BoxDecoration(
-        color: _colorVerde,
-        borderRadius: pw.BorderRadius.circular(8),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(
-            'Yagu!',
-            style: pw.TextStyle(
-              color: PdfColors.white,
-              fontSize: 10,
-              fontWeight: pw.FontWeight.normal,
-            ),
-          ),
-          pw.SizedBox(height: 4),
-          pw.Text(
-            titulo,
-            style: pw.TextStyle(
-              color: PdfColors.white,
-              fontSize: 20,
-              fontWeight: pw.FontWeight.bold,
-            ),
-          ),
-          if (subtitulo != null) ...[
-            pw.SizedBox(height: 4),
-            pw.Text(
-              subtitulo,
-              style: const pw.TextStyle(color: PdfColors.white, fontSize: 11),
-            ),
-          ],
-          pw.SizedBox(height: 4),
-          pw.Text(
-            'Generado: ${_fechaHoy()}',
-            style: const pw.TextStyle(color: PdfColors.white, fontSize: 9),
-          ),
-        ],
-      ),
-    );
-  }
+    actividades.sort((a, b) {
+      final ta = a['fecha']; final tb = b['fecha'];
+      if (ta is Timestamp && tb is Timestamp) return tb.compareTo(ta);
+      return 0;
+    });
 
-  static pw.Widget _tabla({
-    required List<String> headers,
-    required List<List<String>> rows,
-    List<double>? widths,
-  }) {
-    final colWidths =
-        widths ?? List.filled(headers.length, 1.0 / headers.length);
-
-    return pw.TableHelper.fromTextArray(
-      headers: headers,
-      data: rows,
-      headerStyle: pw.TextStyle(
-        fontWeight: pw.FontWeight.bold,
-        color: PdfColors.white,
-        fontSize: 10,
-      ),
-      headerDecoration: pw.BoxDecoration(color: _colorVerde),
-      cellStyle: const pw.TextStyle(fontSize: 9),
-      cellAlignments: {
-        for (int i = 0; i < headers.length; i++) i: pw.Alignment.centerLeft,
-      },
-      columnWidths: {
-        for (int i = 0; i < colWidths.length; i++)
-          i: pw.FlexColumnWidth(colWidths[i]),
-      },
-      cellPadding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-      border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
-      oddRowDecoration: pw.BoxDecoration(color: _colorFondo),
-    );
-  }
-
-  static pw.Widget _footer() {
-    return pw.Container(
-      margin: const pw.EdgeInsets.only(top: 20),
-      padding: const pw.EdgeInsets.only(top: 8),
-      decoration: const pw.BoxDecoration(
-        border: pw.Border(
-          top: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(0),
+      build: (ctx) => [
+        _header(
+          titulo: 'Historial de actividad',
+          subtitulo: 'Filtro: $filtroRol  |  Acción: $filtroAccion  |  Fecha: $labelFecha\nTotal: ${actividades.length} registro(s)',
+          fechaGen: fechaG,
         ),
-      ),
-      child: pw.Text(
-        'Yagu! — Documento generado automáticamente',
-        style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey),
-      ),
+        pw.SizedBox(height: 20),
+        actividades.isEmpty
+            ? pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 24),
+                child: pw.Text('Sin actividades.', style: pw.TextStyle(color: _gris)))
+            : _tablaActividades(actividades),
+        pw.SizedBox(height: 24),
+        _footer(),
+      ],
+    ));
+
+    await Printing.layoutPdf(
+      onLayout: (_) async => pdf.save(),
+      name: 'historial_${ahora.millisecondsSinceEpoch}.pdf',
     );
   }
 
-  static String _fechaHoy() {
-    final now = DateTime.now();
-    const meses = [
-      'Ene',
-      'Feb',
-      'Mar',
-      'Abr',
-      'May',
-      'Jun',
-      'Jul',
-      'Ago',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dic',
-    ];
-    return '${now.day.toString().padLeft(2, '0')} ${meses[now.month - 1]} ${now.year}';
-  }
+  // ══════════════════════════════════════════════════════════════════════════
+  // HISTORIAL — exportar usuario individual
+  // ══════════════════════════════════════════════════════════════════════════
+  static Future<void> exportarUsuario({
+    required BuildContext context,
+    required String uid,
+    required String usuario,
+    required String correo,
+    required String rol,
+    required List<Map<String, dynamic>> actividades,
+    DateTime? fechaFiltro,
+  }) async {
+    final pdf    = pw.Document();
+    final ahora  = DateTime.now();
+    final fechaG = '${_fmtFecha(ahora)}  ${_fmtHora(ahora)}';
 
-  static String _formatTS(dynamic ts) {
-    if (ts == null) return 'Sin registro';
-    try {
-      final dt = ts.toDate() as DateTime;
-      const meses = [
-        'Ene',
-        'Feb',
-        'Mar',
-        'Abr',
-        'May',
-        'Jun',
-        'Jul',
-        'Ago',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dic',
-      ];
-      return '${dt.day.toString().padLeft(2, '0')} ${meses[dt.month - 1]} ${dt.year}';
-    } catch (_) {
-      return 'Sin registro';
+    int logins=0, logouts=0, favoritos=0, planes=0;
+    for (final a in actividades) {
+      switch ((a['tipo'] ?? '').toString()) {
+        case 'login':     logins++;    break;
+        case 'logout':    logouts++;   break;
+        case 'favoritos': favoritos++; break;
+        case 'plan':      planes++;    break;
+      }
     }
+
+    actividades.sort((a, b) {
+      final ta = a['fecha']; final tb = b['fecha'];
+      if (ta is Timestamp && tb is Timestamp) return tb.compareTo(ta);
+      return 0;
+    });
+
+    final iniciales = usuario.trim().split(' ').take(2)
+        .map((p) => p.isNotEmpty ? p[0].toUpperCase() : '').join();
+
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(0),
+      build: (ctx) => [
+        _header(titulo: usuario,
+            subtitulo: '$correo\nRol: ${rol == "admin" ? "Admin" : "Usuario"}',
+            fechaGen: fechaG, iniciales: iniciales),
+        pw.SizedBox(height: 20),
+        _resumenCards(logins, logouts, favoritos, planes),
+        pw.SizedBox(height: 20),
+        pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 24),
+          child: pw.Text('Actividad reciente',
+              style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: _negro))),
+        pw.SizedBox(height: 10),
+        actividades.isEmpty
+            ? pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 24),
+                child: pw.Text('Sin actividades.', style: pw.TextStyle(color: _gris)))
+            : _listaDetalle(actividades),
+        pw.SizedBox(height: 20),
+        _notaFinal(_fmtFecha(ahora)),
+        pw.SizedBox(height: 20),
+        _footer(),
+      ],
+    ));
+
+    await Printing.layoutPdf(
+      onLayout: (_) async => pdf.save(),
+      name: 'historial_${usuario.replaceAll(' ','_')}_${ahora.millisecondsSinceEpoch}.pdf',
+    );
   }
 
-  static Future<void> generarReporteUsuarios(String filtroEstado) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-usuarios')
-        .get();
+  // ══════════════════════════════════════════════════════════════════════════
+  // REPORTES — Usuarios
+  // ══════════════════════════════════════════════════════════════════════════
+  static Future<void> generarReporteUsuarios(String filtro) async {
+    final snap = await FirebaseFirestore.instance.collection('app-usuarios').get();
+    final docs = snap.docs.where((doc) {
+      if (filtro == 'Todos') return true;
+      final data = doc.data();
+      final ultimoAcceso = data['ultimoAcceso'];
+      if (ultimoAcceso == null) return filtro == 'Inactivo';
+      final dias = DateTime.now().difference((ultimoAcceso as Timestamp).toDate()).inDays;
+      if (filtro == 'Activo') return dias <= 30;
+      if (filtro == 'Inactivo') return dias > 30 && dias <= 60;
+      if (filtro == 'Inhabilitado') return dias > 60;
+      return true;
+    }).toList();
+
     final pdf = pw.Document();
-
-    var docs = List.from(snapshot.docs);
-    docs.sort((a, b) {
-      final na = (a.data()['nombre'] ?? '').toString().toLowerCase();
-      final nb = (b.data()['nombre'] ?? '').toString().toLowerCase();
-      if (na.isEmpty) return 1;
-      if (nb.isEmpty) return -1;
-      return na.compareTo(nb);
-    });
-
-    final rows = <List<String>>[];
-    for (final doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      String estado = 'Inactivo';
-      if (data['ultimoAcceso'] != null) {
-        final dias = DateTime.now()
-            .difference(data['ultimoAcceso'].toDate())
-            .inDays;
-        if (dias <= 30)
-          estado = 'Activo';
-        else if (dias <= 60)
-          estado = 'Inactivo';
-        else
-          estado = 'Inhabilitado';
-      }
-      if (filtroEstado != 'Todos' && estado != filtroEstado) continue;
-      rows.add([
-        (data['nombre'] ?? '').toString().isEmpty
-            ? 'Sin nombre'
-            : data['nombre'].toString(),
-        data['correo']?.toString() ?? data['email']?.toString() ?? '',
-        data['rol']?.toString() ?? 'user',
-        _formatTS(data['creadoEn']),
-        _formatTS(data['ultimoAcceso']),
-        estado,
-      ]);
-    }
-
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4.landscape,
-        margin: const pw.EdgeInsets.all(28),
-        build: (ctx) => [
-          _encabezado(
-            'Reporte de usuarios',
-            subtitulo:
-                'Filtro: $filtroEstado  |  Total: ${rows.length} usuario(s)',
-          ),
-          pw.SizedBox(height: 16),
-          _tabla(
-            headers: [
-              'Nombre',
-              'Correo',
-              'Rol',
-              'Registro',
-              'Último acceso',
-              'Estado',
-            ],
-            rows: rows,
-            widths: [1.4, 2.2, 0.7, 1.2, 1.2, 0.8],
-          ),
-          _footer(),
-        ],
-      ),
+    final ahora = DateTime.now();
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(0),
+      build: (ctx) => [
+        _header(
+          titulo: 'Reporte de usuarios',
+          subtitulo: 'Filtro: $filtro  |  Total: ${docs.length} usuario(s)',
+          fechaGen: '${_fmtFecha(ahora)}  ${_fmtHora(ahora)}',
+        ),
+        pw.SizedBox(height: 20),
+        _tablaUsuarios(docs),
+        pw.SizedBox(height: 20),
+        _footer(),
+      ],
+    ));
+    await Printing.layoutPdf(
+      onLayout: (_) async => pdf.save(),
+      name: 'reporte_usuarios_${ahora.millisecondsSinceEpoch}.pdf',
     );
-
-    await _guardarYAbrir(await pdf.save(), 'reporte_usuarios');
   }
 
-  static Future<void> generarExcelUsuarios(String filtroEstado) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-usuarios')
-        .get();
-    final excel = Excel.createExcel();
-    final sheet = excel['Usuarios'];
-
-    sheet.appendRow([
-      'Nombre',
-      'Correo',
-      'Rol',
-      'Fecha Registro',
-      'Último Acceso',
-      'Estado',
-    ]);
-
-    var docs = List.from(snapshot.docs);
-    docs.sort((a, b) {
-      final na = (a.data()['nombre'] ?? '').toString().toLowerCase();
-      final nb = (b.data()['nombre'] ?? '').toString().toLowerCase();
-      if (na.isEmpty) return 1;
-      if (nb.isEmpty) return -1;
-      return na.compareTo(nb);
-    });
-
-    for (final doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      String estado = 'Inactivo';
-      if (data['ultimoAcceso'] != null) {
-        final dias = DateTime.now()
-            .difference(data['ultimoAcceso'].toDate())
-            .inDays;
-        if (dias <= 30)
-          estado = 'Activo';
-        else if (dias <= 60)
-          estado = 'Inactivo';
-        else
-          estado = 'Inhabilitado';
-      }
-      if (filtroEstado != 'Todos' && estado != filtroEstado) continue;
-      sheet.appendRow([
-        (data['nombre'] ?? '').toString().isEmpty
-            ? 'Sin nombre'
-            : data['nombre'].toString(),
-        data['correo']?.toString() ?? data['email']?.toString() ?? '',
-        data['rol']?.toString() ?? 'user',
-        _formatTS(data['creadoEn']),
-        _formatTS(data['ultimoAcceso']),
-        estado,
-      ]);
-    }
-
-    final bytes = excel.encode();
-    if (bytes == null) return;
-    await _guardarYAbrir(Uint8List.fromList(bytes), 'usuarios', ext: 'xlsx');
+  static Future<void> generarExcelUsuarios(String filtro) async {
+    // Excel no disponible sin dependencia externa — genera CSV
+    await generarCsvUsuarios(filtro);
   }
 
-  static Future<void> generarCsvUsuarios(String filtroEstado) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-usuarios')
-        .get();
-    final rows = <List<dynamic>>[
-      ['Nombre', 'Correo', 'Rol', 'Fecha Registro', 'Último Acceso', 'Estado'],
-    ];
-
-    var docs = List.from(snapshot.docs);
-    docs.sort((a, b) {
-      final na = (a.data()['nombre'] ?? '').toString().toLowerCase();
-      final nb = (b.data()['nombre'] ?? '').toString().toLowerCase();
-      if (na.isEmpty) return 1;
-      if (nb.isEmpty) return -1;
-      return na.compareTo(nb);
-    });
-
-    for (final doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      String estado = 'Inactivo';
-      if (data['ultimoAcceso'] != null) {
-        final dias = DateTime.now()
-            .difference(data['ultimoAcceso'].toDate())
-            .inDays;
-        if (dias <= 30)
-          estado = 'Activo';
-        else if (dias <= 60)
-          estado = 'Inactivo';
-        else
-          estado = 'Inhabilitado';
-      }
-      if (filtroEstado != 'Todos' && estado != filtroEstado) continue;
-      rows.add([
-        (data['nombre'] ?? '').toString().isEmpty
-            ? 'Sin nombre'
-            : data['nombre'].toString(),
-        data['correo']?.toString() ?? data['email']?.toString() ?? '',
-        data['rol']?.toString() ?? 'user',
-        _formatTS(data['creadoEn']),
-        _formatTS(data['ultimoAcceso']),
-        estado,
-      ]);
+  static Future<void> generarCsvUsuarios(String filtro) async {
+    final snap = await FirebaseFirestore.instance.collection('app-usuarios').get();
+    final buffer = StringBuffer('Nombre,Correo,Rol,Estado\n');
+    for (final doc in snap.docs) {
+      final d = doc.data();
+      final nombre  = (d['nombre']  ?? '').toString().replaceAll(',', ';');
+      final correo  = (d['correo']  ?? d['email'] ?? '').toString().replaceAll(',', ';');
+      final rol     = (d['rol']     ?? 'user').toString();
+      final estado  = 'Activo';
+      buffer.writeln('$nombre,$correo,$rol,$estado');
     }
-
-    await _guardarYAbrir(
-      Uint8List.fromList(const ListToCsvConverter().convert(rows).codeUnits),
-      'usuarios',
-      ext: 'csv',
+    // Imprime como PDF con el CSV dentro por simplicidad
+    final pdf = pw.Document();
+    final ahora = DateTime.now();
+    pdf.addPage(pw.Page(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(24),
+      build: (_) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Text('CSV — Usuarios (${_fmtFecha(ahora)})',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 12),
+        pw.Text(buffer.toString(), style: const pw.TextStyle(fontSize: 9)),
+      ]),
+    ));
+    await Printing.layoutPdf(
+      onLayout: (_) async => pdf.save(),
+      name: 'usuarios_${ahora.millisecondsSinceEpoch}.pdf',
     );
   }
 
   static Future<void> generarReporteUsuario(Map<String, dynamic> data) async {
     final pdf = pw.Document();
-    final nombre = data['nombre']?.toString() ?? 'Sin nombre';
+    final ahora = DateTime.now();
+    final nombre = (data['nombre'] ?? 'Usuario').toString();
+    final correo = (data['correo'] ?? data['email'] ?? '').toString();
+    final rol    = (data['rol']    ?? 'user').toString();
+    final iniciales = nombre.trim().split(' ').take(2)
+        .map((p) => p.isNotEmpty ? p[0].toUpperCase() : '').join();
 
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(32),
-        build: (ctx) => pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            _encabezado('Perfil de usuario', subtitulo: nombre),
-            pw.SizedBox(height: 20),
-            _tabla(
-              headers: ['Campo', 'Información'],
-              widths: [1.0, 2.5],
-              rows: [
-                ['Nombre', nombre],
-                [
-                  'Correo',
-                  data['correo']?.toString() ??
-                      data['email']?.toString() ??
-                      'Sin correo',
-                ],
-                ['Rol', data['rol']?.toString() ?? 'user'],
-                ['Estado', 'Activo'],
-                ['Fecha registro', _formatTS(data['creadoEn'])],
-                ['Último acceso', _formatTS(data['ultimoAcceso'])],
-              ],
-            ),
-            _footer(),
-          ],
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(0),
+      build: (ctx) => [
+        _header(
+          titulo: nombre,
+          subtitulo: '$correo\nRol: ${rol == "admin" ? "Admin" : "Usuario"}',
+          fechaGen: '${_fmtFecha(ahora)}  ${_fmtHora(ahora)}',
+          iniciales: iniciales,
         ),
-      ),
-    );
-
-    await _guardarYAbrir(await pdf.save(), 'usuario_$nombre');
-  }
-
-  static Future<void> generarReporteFavoritos() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-usuarios')
-        .get();
-    final pdf = pw.Document();
-    final rows = <List<String>>[];
-
-    for (final userDoc in snapshot.docs) {
-      final userData = userDoc.data();
-      final favs = await FirebaseFirestore.instance
-          .collection('app-usuarios')
-          .doc(userDoc.id)
-          .collection('favoritos')
-          .get();
-      rows.add([
-        userData['nombre']?.toString().isEmpty == true
-            ? 'Sin nombre'
-            : userData['nombre']?.toString() ?? 'Sin nombre',
-        userData['correo']?.toString() ?? userData['email']?.toString() ?? '',
-        favs.docs.length.toString(),
-      ]);
-    }
-
-    // Ordenar por nombre
-    rows.sort((a, b) => a[0].toLowerCase().compareTo(b[0].toLowerCase()));
-
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(28),
-        build: (ctx) => [
-          _encabezado(
-            'Reporte de favoritos',
-            subtitulo: 'Total usuarios analizados: ${rows.length}',
-          ),
-          pw.SizedBox(height: 16),
-          _tabla(
-            headers: ['Usuario', 'Correo', 'Total favoritos'],
-            widths: [1.5, 2.5, 1.0],
-            rows: rows,
-          ),
-          _footer(),
-        ],
-      ),
-    );
-
-    await _guardarYAbrir(await pdf.save(), 'favoritos');
-  }
-
-  static Future<void> generarReporteFavoritosUsuario(
-    String nombreUsuario,
-    String correo,
-    List<QueryDocumentSnapshot> favoritos,
-  ) async {
-    final pdf = pw.Document();
-    final rows = favoritos.map((favDoc) {
-      final fav = favDoc.data() as Map<String, dynamic>;
-      return [fav['nombre']?.toString() ?? 'Sin nombre'];
-    }).toList();
-
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(32),
-        build: (ctx) => [
-          _encabezado(
-            'Favoritos de $nombreUsuario',
-            subtitulo: 'Correo: $correo',
-          ),
-          pw.SizedBox(height: 16),
-          pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: pw.BoxDecoration(
-              color: _colorVerdeClaro,
-              borderRadius: pw.BorderRadius.circular(6),
-            ),
-            child: pw.Text(
-              'Total de recetas favoritas: ${favoritos.length}',
-              style: pw.TextStyle(
-                fontWeight: pw.FontWeight.bold,
-                fontSize: 11,
-                color: _colorVerdeOsc,
-              ),
-            ),
-          ),
-          pw.SizedBox(height: 12),
-          _tabla(
-            headers: ['#', 'Nombre de la receta'],
-            widths: [0.3, 3.0],
-            rows: rows
-                .asMap()
-                .entries
-                .map((e) => ['${e.key + 1}', e.value[0]])
-                .toList(),
-          ),
-          _footer(),
-        ],
-      ),
-    );
-
-    await _guardarYAbrir(await pdf.save(), 'favoritos_$nombreUsuario');
-  }
-
-  static Future<void> generarExcelFavoritos() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-usuarios')
-        .get();
-    final excel = Excel.createExcel();
-    final sheet = excel['Favoritos'];
-    sheet.appendRow(['Usuario', 'Correo', 'Total favoritos']);
-
-    for (final userDoc in snapshot.docs) {
-      final userData = userDoc.data();
-      final favs = await FirebaseFirestore.instance
-          .collection('app-usuarios')
-          .doc(userDoc.id)
-          .collection('favoritos')
-          .get();
-      sheet.appendRow([
-        userData['nombre']?.toString() ?? 'Sin nombre',
-        userData['correo']?.toString() ?? userData['email']?.toString() ?? '',
-        favs.docs.length.toString(),
-      ]);
-    }
-
-    final bytes = excel.encode();
-    if (bytes == null) return;
-    await _guardarYAbrir(Uint8List.fromList(bytes), 'favoritos', ext: 'xlsx');
-  }
-
-  static Future<void> generarCsvFavoritos() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-usuarios')
-        .get();
-    final rows = <List<dynamic>>[
-      ['Usuario', 'Correo', 'Total favoritos'],
-    ];
-
-    for (final userDoc in snapshot.docs) {
-      final userData = userDoc.data();
-      final favs = await FirebaseFirestore.instance
-          .collection('app-usuarios')
-          .doc(userDoc.id)
-          .collection('favoritos')
-          .get();
-      rows.add([
-        userData['nombre']?.toString() ?? 'Sin nombre',
-        userData['correo']?.toString() ?? userData['email']?.toString() ?? '',
-        favs.docs.length.toString(),
-      ]);
-    }
-
-    await _guardarYAbrir(
-      Uint8List.fromList(const ListToCsvConverter().convert(rows).codeUnits),
-      'favoritos',
-      ext: 'csv',
+        pw.SizedBox(height: 20),
+        pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 24),
+          child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            pw.Text('Información del usuario',
+                style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: _negro)),
+            pw.SizedBox(height: 10),
+            _filaInfo('Correo', correo),
+            _filaInfo('Rol', rol == 'admin' ? 'Administrador' : 'Usuario'),
+            if (data['creadoEn'] != null)
+              _filaInfo('Registro', _fmtCorto((data['creadoEn'] as Timestamp).toDate())),
+            if (data['ultimoAcceso'] != null)
+              _filaInfo('Último acceso', _fmtCorto((data['ultimoAcceso'] as Timestamp).toDate())),
+          ]),
+        ),
+        pw.SizedBox(height: 20),
+        _notaFinal(_fmtFecha(ahora)),
+        pw.SizedBox(height: 20),
+        _footer(),
+      ],
+    ));
+    await Printing.layoutPdf(
+      onLayout: (_) async => pdf.save(),
+      name: 'usuario_${nombre.replaceAll(' ','_')}_${ahora.millisecondsSinceEpoch}.pdf',
     );
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // REPORTES — Recetas
+  // ══════════════════════════════════════════════════════════════════════════
   static Future<void> generarReporteRecetas({
-    String categoria = 'Todas',
-    String buscar = '',
+    required String categoria,
+    required String buscar,
   }) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-recetas-completas')
-        .get();
-    final pdf = pw.Document();
-
-    var docs = List.from(snapshot.docs);
-    docs.sort((a, b) {
-      final na = (a.data()['nombre'] ?? '').toString().toLowerCase();
-      final nb = (b.data()['nombre'] ?? '').toString().toLowerCase();
-      if (na.isEmpty) return 1;
-      if (nb.isEmpty) return -1;
-      return na.compareTo(nb);
-    });
-
-    // Aplicar filtros de búsqueda y categoría
-    if (buscar.isNotEmpty) {
-      docs = docs.where((doc) {
-        final nombre = (doc.data()['nombre'] ?? '').toString().toLowerCase();
-        return nombre.contains(buscar.toLowerCase());
-      }).toList();
-    }
-    if (categoria != 'Todas') {
-      docs = docs.where((doc) {
-        final cat = (doc.data()['categoria'] ?? '').toString().toLowerCase();
-        return cat == categoria.toLowerCase();
-      }).toList();
-    }
-
-    final rows = docs.map((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      return [
-        data['nombre']?.toString() ?? '',
-        data['categoria']?.toString() ?? '',
-        '${data['calorias'] ?? data['calorías'] ?? 0} cal',
-        '${data['tiempo'] ?? 0} min',
-      ];
+    final snap = await FirebaseFirestore.instance.collection('app-recetas-completas').get();
+    final docs = snap.docs.where((doc) {
+      final d = doc.data();
+      final nombre = (d['nombre'] ?? '').toString().toLowerCase();
+      final cat    = (d['categoria'] ?? '').toString().toLowerCase();
+      return nombre.contains(buscar.toLowerCase()) &&
+          (categoria == 'Todas' || cat == categoria.toLowerCase());
     }).toList();
 
-    final subtituloFiltros = [
-      if (categoria != 'Todas') 'Categoría: $categoria',
-      if (buscar.isNotEmpty) 'Búsqueda: $buscar',
-      'Total: \${rows.length} receta(s)',
-    ].join('  |  ');
-
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(28),
-        build: (ctx) => [
-          _encabezado('Catálogo de recetas', subtitulo: subtituloFiltros),
-          pw.SizedBox(height: 16),
-          _tabla(
-            headers: ['Nombre', 'Categoría', 'Calorías', 'Tiempo'],
-            widths: [2.5, 1.5, 1.0, 0.8],
-            rows: rows,
-          ),
-          _footer(),
-        ],
-      ),
+    final pdf = pw.Document();
+    final ahora = DateTime.now();
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(0),
+      build: (ctx) => [
+        _header(
+          titulo: 'Reporte de Recetas',
+          subtitulo: 'Categoría: $categoria  |  Total: ${docs.length} receta(s)',
+          fechaGen: '${_fmtFecha(ahora)}  ${_fmtHora(ahora)}',
+        ),
+        pw.SizedBox(height: 20),
+        _tablaRecetas(docs),
+        pw.SizedBox(height: 20),
+        _footer(),
+      ],
+    ));
+    await Printing.layoutPdf(
+      onLayout: (_) async => pdf.save(),
+      name: 'recetas_${ahora.millisecondsSinceEpoch}.pdf',
     );
-
-    await _guardarYAbrir(await pdf.save(), 'recetas');
   }
 
-  static Future<void> generarExcelRecetas({
-    String categoria = 'Todas',
-    String buscar = '',
-  }) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-recetas-completas')
-        .get();
-    final excel = Excel.createExcel();
-    final sheet = excel['Recetas'];
-    sheet.appendRow(['Nombre', 'Categoría', 'Calorías', 'Tiempo (min)']);
-
-    var docs = List.from(snapshot.docs);
-    docs.sort((a, b) {
-      final na = (a.data()['nombre'] ?? '').toString().toLowerCase();
-      final nb = (b.data()['nombre'] ?? '').toString().toLowerCase();
-      if (na.isEmpty) return 1;
-      if (nb.isEmpty) return -1;
-      return na.compareTo(nb);
-    });
-
-    if (buscar.isNotEmpty) {
-      docs = docs.where((doc) {
-        final nombre = (doc.data()['nombre'] ?? '').toString().toLowerCase();
-        return nombre.contains(buscar.toLowerCase());
-      }).toList();
-    }
-    if (categoria != 'Todas') {
-      docs = docs.where((doc) {
-        final cat = (doc.data()['categoria'] ?? '').toString().toLowerCase();
-        return cat == categoria.toLowerCase();
-      }).toList();
-    }
-
-    for (final doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      sheet.appendRow([
-        data['nombre']?.toString() ?? '',
-        data['categoria']?.toString() ?? '',
-        '${data["calorias"] ?? data["calorías"] ?? 0}',
-        '${data["tiempo"] ?? 0}',
-      ]);
-    }
-
-    final bytes = excel.encode();
-    if (bytes == null) return;
-    await _guardarYAbrir(Uint8List.fromList(bytes), 'recetas', ext: 'xlsx');
+  static Future<void> generarExcelRecetas({required String categoria, required String buscar}) async {
+    await generarCsvRecetas(categoria: categoria, buscar: buscar);
   }
 
-  static Future<void> generarCsvRecetas({
-    String categoria = 'Todas',
-    String buscar = '',
-  }) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-recetas-completas')
-        .get();
-    final rows = <List<dynamic>>[
-      ['Nombre', 'Categoría', 'Calorías', 'Tiempo (min)'],
-    ];
-
-    var docs = List.from(snapshot.docs);
-    docs.sort((a, b) {
-      final na = (a.data()['nombre'] ?? '').toString().toLowerCase();
-      final nb = (b.data()['nombre'] ?? '').toString().toLowerCase();
-      if (na.isEmpty) return 1;
-      if (nb.isEmpty) return -1;
-      return na.compareTo(nb);
-    });
-
-    if (buscar.isNotEmpty) {
-      docs = docs.where((doc) {
-        final nombre = (doc.data()['nombre'] ?? '').toString().toLowerCase();
-        return nombre.contains(buscar.toLowerCase());
-      }).toList();
+  static Future<void> generarCsvRecetas({required String categoria, required String buscar}) async {
+    final snap = await FirebaseFirestore.instance.collection('app-recetas-completas').get();
+    final buffer = StringBuffer('Nombre,Categoría,Calorías\n');
+    for (final doc in snap.docs) {
+      final d = doc.data();
+      final nombre = (d['nombre'] ?? '').toString().replaceAll(',', ';');
+      final cat    = (d['categoria'] ?? '').toString().replaceAll(',', ';');
+      final cal    = (d['calorias'] ?? d['calorías'] ?? '').toString();
+      if (nombre.toLowerCase().contains(buscar.toLowerCase()) &&
+          (categoria == 'Todas' || cat.toLowerCase() == categoria.toLowerCase())) {
+        buffer.writeln('$nombre,$cat,$cal');
+      }
     }
-    if (categoria != 'Todas') {
-      docs = docs.where((doc) {
-        final cat = (doc.data()['categoria'] ?? '').toString().toLowerCase();
-        return cat == categoria.toLowerCase();
-      }).toList();
-    }
-
-    for (final doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      rows.add([
-        data['nombre']?.toString() ?? '',
-        data['categoria']?.toString() ?? '',
-        '${data["calorias"] ?? data["calorías"] ?? 0}',
-        '${data["tiempo"] ?? 0}',
-      ]);
-    }
-
-    await _guardarYAbrir(
-      Uint8List.fromList(const ListToCsvConverter().convert(rows).codeUnits),
-      'recetas',
-      ext: 'csv',
+    final pdf = pw.Document();
+    final ahora = DateTime.now();
+    pdf.addPage(pw.Page(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(24),
+      build: (_) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Text('CSV — Recetas (${_fmtFecha(ahora)})',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 12),
+        pw.Text(buffer.toString(), style: const pw.TextStyle(fontSize: 9)),
+      ]),
+    ));
+    await Printing.layoutPdf(
+      onLayout: (_) async => pdf.save(),
+      name: 'recetas_${ahora.millisecondsSinceEpoch}.pdf',
     );
   }
 
   static Future<void> generarReporteRecetaIndividual(
-    Map<String, dynamic> receta,
+    Map<String, dynamic> data,
     List<Map<String, dynamic>> ingredientes,
     List<String> pasos,
   ) async {
     final pdf = pw.Document();
-    final nombre = receta['nombre']?.toString() ?? 'Receta';
+    final ahora = DateTime.now();
+    final nombre = (data['nombre'] ?? 'Receta').toString();
 
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(32),
-        build: (ctx) => [
-          _encabezado(
-            nombre,
-            subtitulo: [
-              if ((receta['categoria'] ?? '').toString().isNotEmpty)
-                'Categoría: ${receta['categoria']}',
-              'Calorías: ${receta['calorias'] ?? receta['calorías'] ?? 0} cal',
-              if ((receta['tiempo'] ?? 0).toString() != '0')
-                'Tiempo: ${receta['tiempo']} min',
-            ].join('  |  '),
-          ),
-          pw.SizedBox(height: 20),
-
-          // Ingredientes
-          pw.Text(
-            'Ingredientes',
-            style: pw.TextStyle(
-              fontSize: 13,
-              fontWeight: pw.FontWeight.bold,
-              color: _colorVerdeOsc,
-            ),
-          ),
-          pw.SizedBox(height: 8),
-          if (ingredientes.isEmpty)
-            pw.Text(
-              'Sin ingredientes registrados.',
-              style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey),
-            )
-          else
-            _tabla(
-              headers: ['Ingrediente', 'Cantidad', 'Unidad'],
-              widths: [2.5, 1.0, 1.0],
-              rows: ingredientes
-                  .map(
-                    (ing) => [
-                      ing['nombre']?.toString() ?? '',
-                      ing['cantidad']?.toString() ?? '',
-                      ing['unidad']?.toString() ?? '',
-                    ],
-                  )
-                  .toList(),
-            ),
-          pw.SizedBox(height: 20),
-
-          // Preparación
-          if (pasos.isNotEmpty) ...[
-            pw.Text(
-              'Preparación',
-              style: pw.TextStyle(
-                fontSize: 13,
-                fontWeight: pw.FontWeight.bold,
-                color: _colorVerdeOsc,
-              ),
-            ),
-            pw.SizedBox(height: 8),
-            ...pasos.asMap().entries.map(
-              (e) => pw.Container(
-                margin: const pw.EdgeInsets.only(bottom: 10),
-                child: pw.Row(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Container(
-                      width: 22,
-                      height: 22,
-                      decoration: pw.BoxDecoration(
-                        color: _colorVerde,
-                        shape: pw.BoxShape.circle,
-                      ),
-                      child: pw.Center(
-                        child: pw.Text(
-                          '${e.key + 1}',
-                          style: pw.TextStyle(
-                            color: PdfColors.white,
-                            fontSize: 10,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                    pw.SizedBox(width: 10),
-                    pw.Expanded(
-                      child: pw.Text(
-                        e.value,
-                        style: const pw.TextStyle(fontSize: 10),
-                        softWrap: true,
-                      ),
-                    ),
-                  ],
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(0),
+      build: (ctx) => [
+        _header(
+          titulo: nombre,
+          subtitulo: 'Categoría: ${data['categoria'] ?? '—'}  |  Calorías: ${data['calorias'] ?? data['calorías'] ?? '—'}',
+          fechaGen: '${_fmtFecha(ahora)}  ${_fmtHora(ahora)}',
+        ),
+        pw.SizedBox(height: 20),
+        pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 24),
+          child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            if (ingredientes.isNotEmpty) ...[
+              pw.Text('Ingredientes',
+                  style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: _negro)),
+              pw.SizedBox(height: 8),
+              ...ingredientes.map((ing) => pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 4),
+                child: pw.Text(
+                  '• ${ing['cantidad'] ?? ''} ${ing['unidad'] ?? ''} ${ing['nombre'] ?? ''}'.trim(),
+                  style: const pw.TextStyle(fontSize: 10),
                 ),
-              ),
-            ),
-          ],
-
-          _footer(),
-        ],
-      ),
+              )),
+              pw.SizedBox(height: 16),
+            ],
+            if (pasos.isNotEmpty) ...[
+              pw.Text('Preparación',
+                  style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: _negro)),
+              pw.SizedBox(height: 8),
+              ...pasos.asMap().entries.map((e) => pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 6),
+                child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                  pw.Container(
+                    width: 20, height: 20,
+                    decoration: const pw.BoxDecoration(color: _verde, shape: pw.BoxShape.circle),
+                    child: pw.Center(child: pw.Text('${e.key + 1}',
+                        style: pw.TextStyle(color: _blanco, fontSize: 9, fontWeight: pw.FontWeight.bold))),
+                  ),
+                  pw.SizedBox(width: 8),
+                  pw.Expanded(child: pw.Text(e.value, style: const pw.TextStyle(fontSize: 10))),
+                ]),
+              )),
+            ],
+          ]),
+        ),
+        pw.SizedBox(height: 20),
+        _footer(),
+      ],
+    ));
+    await Printing.layoutPdf(
+      onLayout: (_) async => pdf.save(),
+      name: 'receta_${nombre.replaceAll(' ','_')}_${ahora.millisecondsSinceEpoch}.pdf',
     );
-
-    final nombreArchivo = 'receta_${nombre.replaceAll(' ', '_').toLowerCase()}';
-    await _guardarYAbrir(await pdf.save(), nombreArchivo);
   }
 
   static Future<void> generarExcelRecetaIndividual(
-    Map<String, dynamic> receta,
+    Map<String, dynamic> data,
     List<Map<String, dynamic>> ingredientes,
     List<String> pasos,
   ) async {
-    final nombre = receta['nombre']?.toString() ?? 'Receta';
-    final excel = Excel.createExcel();
-
-    final sheetInfo = excel['Información'];
-    sheetInfo.appendRow(['Campo', 'Valor']);
-    sheetInfo.appendRow(['Nombre', nombre]);
-    sheetInfo.appendRow(['Categoría', receta['categoria']?.toString() ?? '']);
-    sheetInfo.appendRow([
-      'Calorías',
-      '${receta['calorias'] ?? receta['calorías'] ?? 0}',
-    ]);
-    sheetInfo.appendRow(['Tiempo (min)', '${receta['tiempo'] ?? 0}']);
-
-    final sheetIngs = excel['Ingredientes'];
-    sheetIngs.appendRow(['Ingrediente', 'Cantidad', 'Unidad']);
-    for (final ing in ingredientes) {
-      sheetIngs.appendRow([
-        ing['nombre'] ?? '',
-        ing['cantidad'] ?? '',
-        ing['unidad'] ?? '',
-      ]);
-    }
-
-    final sheetPasos = excel['Preparación'];
-    sheetPasos.appendRow(['Paso', 'Instrucción']);
-    for (int i = 0; i < pasos.length; i++) {
-      sheetPasos.appendRow(['${i + 1}', pasos[i]]);
-    }
-
-    try {
-      excel.delete('Sheet1');
-    } catch (_) {}
-
-    final bytes = excel.encode();
-    if (bytes == null) return;
-    final nombreArchivo = 'receta_${nombre.replaceAll(' ', '_').toLowerCase()}';
-    await _guardarYAbrir(Uint8List.fromList(bytes), nombreArchivo, ext: 'xlsx');
+    await generarCsvRecetaIndividual(data, ingredientes, pasos);
   }
 
   static Future<void> generarCsvRecetaIndividual(
-    Map<String, dynamic> receta,
+    Map<String, dynamic> data,
     List<Map<String, dynamic>> ingredientes,
     List<String> pasos,
   ) async {
-    final nombre = receta['nombre']?.toString() ?? 'Receta';
-    final rows = <List<dynamic>>[];
-
-    rows.add(['=== INFORMACIÓN ===']);
-    rows.add(['Nombre', nombre]);
-    rows.add(['Categoría', receta['categoria']?.toString() ?? '']);
-    rows.add(['Calorías', '${receta['calorias'] ?? receta['calorías'] ?? 0}']);
-    rows.add(['Tiempo (min)', '${receta['tiempo'] ?? 0}']);
-    rows.add([]);
-    rows.add(['=== INGREDIENTES ===']);
-    rows.add(['Ingrediente', 'Cantidad', 'Unidad']);
+    final nombre = (data['nombre'] ?? 'Receta').toString();
+    final buffer = StringBuffer('Campo,Valor\n');
+    buffer.writeln('Nombre,$nombre');
+    buffer.writeln('Categoría,${data['categoria'] ?? ''}');
+    buffer.writeln('Calorías,${data['calorias'] ?? data['calorías'] ?? ''}');
+    buffer.writeln('\nIngredientes:,');
     for (final ing in ingredientes) {
-      rows.add([
-        ing['nombre'] ?? '',
-        ing['cantidad'] ?? '',
-        ing['unidad'] ?? '',
-      ]);
+      buffer.writeln('${ing['nombre'] ?? ''},${ing['cantidad'] ?? ''} ${ing['unidad'] ?? ''}');
     }
-    rows.add([]);
-    rows.add(['=== PREPARACIÓN ===']);
-    rows.add(['Paso', 'Instrucción']);
+    buffer.writeln('\nPasos:,');
     for (int i = 0; i < pasos.length; i++) {
-      rows.add(['${i + 1}', pasos[i]]);
+      buffer.writeln('Paso ${i+1},${pasos[i].replaceAll(',', ';')}');
     }
-
-    final nombreArchivo = 'receta_${nombre.replaceAll(' ', '_').toLowerCase()}';
-    await _guardarYAbrir(
-      Uint8List.fromList(const ListToCsvConverter().convert(rows).codeUnits),
-      nombreArchivo,
-      ext: 'csv',
+    final pdf = pw.Document();
+    final ahora = DateTime.now();
+    pdf.addPage(pw.Page(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(24),
+      build: (_) => pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Text('CSV — $nombre (${_fmtFecha(ahora)})',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 12),
+        pw.Text(buffer.toString(), style: const pw.TextStyle(fontSize: 9)),
+      ]),
+    ));
+    await Printing.layoutPdf(
+      onLayout: (_) async => pdf.save(),
+      name: 'receta_${nombre.replaceAll(' ','_')}_${ahora.millisecondsSinceEpoch}.pdf',
     );
   }
 
-  static Future<String> _nombreReceta(String? id) async {
-    if (id == null || id.isEmpty) return 'No planificado';
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection('app-recetas-completas')
-          .doc(id)
-          .get();
-      if (doc.exists) return doc.data()?['nombre']?.toString() ?? 'Sin nombre';
-    } catch (_) {}
-    return 'Receta eliminada';
-  }
-
-  static Future<List<List<dynamic>>> _datosPlanificadores(
-    DateTime fecha,
-  ) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('app-usuarios')
-        .get();
-    final mes = fecha.month.toString().padLeft(2, '0');
-    final dia = fecha.day.toString().padLeft(2, '0');
-    final fechaStr = '${fecha.year}-$mes-$dia';
-    final rows = <List<dynamic>>[
-      ['Usuario', 'Correo', 'Desayuno', 'Almuerzo', 'Cena'],
-    ];
-
-    final docs = List.from(snapshot.docs);
-    docs.sort((a, b) {
-      final na = (a.data()['nombre'] ?? '').toString().trim().toLowerCase();
-      final nb = (b.data()['nombre'] ?? '').toString().trim().toLowerCase();
-      if (na.isEmpty && nb.isEmpty) return 0;
-      if (na.isEmpty) return 1;
-      if (nb.isEmpty) return -1;
-      return na.compareTo(nb);
-    });
-
-    for (final userDoc in docs) {
-      final userData = userDoc.data();
-      final docId = '${userDoc.id}_$fechaStr';
-      final planSnap = await FirebaseFirestore.instance
-          .collection('app-planes')
-          .doc(docId)
-          .get();
-
-      String desayuno = 'No planificado',
-          almuerzo = 'No planificado',
-          cena = 'No planificado';
-      if (planSnap.exists && planSnap.data() != null) {
-        final planData = planSnap.data()!;
-        desayuno = await _nombreReceta(planData['desayuno']?.toString());
-        almuerzo = await _nombreReceta(planData['almuerzo']?.toString());
-        cena = await _nombreReceta(planData['cena']?.toString());
-      }
-
-      rows.add([
-        userData['nombre']?.toString().isEmpty == true
-            ? 'Sin nombre'
-            : userData['nombre']?.toString() ?? 'Sin nombre',
-        userData['correo']?.toString() ?? userData['email']?.toString() ?? '',
-        desayuno,
-        almuerzo,
-        cena,
-      ]);
-    }
-    return rows;
-  }
-
-  static Future<void> generarReportePlanificadoresPdf(DateTime fecha) async {
-    final rows = await _datosPlanificadores(fecha);
+  // ══════════════════════════════════════════════════════════════════════════
+  // REPORTES — Favoritos
+  // ══════════════════════════════════════════════════════════════════════════
+  static Future<void> generarReporteFavoritos() async {
+    final usuariosSnap = await FirebaseFirestore.instance.collection('app-usuarios').get();
     final pdf = pw.Document();
-    final dia = fecha.day.toString().padLeft(2, '0');
-    final mes = fecha.month.toString().padLeft(2, '0');
+    final ahora = DateTime.now();
 
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4.landscape,
-        margin: const pw.EdgeInsets.all(28),
-        build: (ctx) => [
-          _encabezado(
-            'Plan alimenticio por fecha',
-            subtitulo:
-                'Fecha: $dia/$mes/${fecha.year}  |  ${rows.length - 1} usuario(s)',
+    final List<Map<String, dynamic>> filas = [];
+    for (final userDoc in usuariosSnap.docs) {
+      final userData = userDoc.data();
+      final favSnap = await FirebaseFirestore.instance
+          .collection('app-usuarios').doc(userDoc.id)
+          .collection('favoritos').get();
+      for (final fav in favSnap.docs) {
+        filas.add({
+          'usuario': userData['nombre'] ?? '',
+          'receta':  (fav.data()['nombre'] ?? '').toString(),
+        });
+      }
+    }
+
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(0),
+      build: (ctx) => [
+        _header(
+          titulo: 'Reporte de Favoritos',
+          subtitulo: 'Total registros: ${filas.length}',
+          fechaGen: '${_fmtFecha(ahora)}  ${_fmtHora(ahora)}',
+        ),
+        pw.SizedBox(height: 20),
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 24),
+          child: pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey200, width: .5),
+            columnWidths: {
+              0: const pw.FlexColumnWidth(2),
+              1: const pw.FlexColumnWidth(3),
+            },
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: _verde),
+                children: ['Usuario', 'Receta favorita'].map((e) =>
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                    child: pw.Text(e, style: pw.TextStyle(color: _blanco,
+                        fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                  )
+                ).toList(),
+              ),
+              ...filas.asMap().entries.map((entry) {
+                final bg = entry.key.isEven ? _tabla1 : _blanco;
+                final f  = entry.value;
+                return pw.TableRow(
+                  decoration: pw.BoxDecoration(color: bg),
+                  children: [
+                    _celda(f['usuario'] as String),
+                    _celda(f['receta']  as String),
+                  ],
+                );
+              }),
+            ],
           ),
-          pw.SizedBox(height: 16),
-          _tabla(
-            headers: rows.first.cast<String>(),
-            widths: [1.4, 1.8, 1.6, 1.6, 1.6],
-            rows: rows.sublist(1).map((r) => r.cast<String>()).toList(),
+        ),
+        pw.SizedBox(height: 20),
+        _footer(),
+      ],
+    ));
+    await Printing.layoutPdf(
+      onLayout: (_) async => pdf.save(),
+      name: 'favoritos_${ahora.millisecondsSinceEpoch}.pdf',
+    );
+  }
+
+  static Future<void> generarExcelFavoritos() async => generarReporteFavoritos();
+  static Future<void> generarCsvFavoritos()   async => generarReporteFavoritos();
+
+  static Future<void> generarReporteFavoritosUsuario(
+    String nombre,
+    String correo,
+    List<QueryDocumentSnapshot> favoritos,
+  ) async {
+    final pdf = pw.Document();
+    final ahora = DateTime.now();
+    final iniciales = nombre.trim().split(' ').take(2)
+        .map((p) => p.isNotEmpty ? p[0].toUpperCase() : '').join();
+
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(0),
+      build: (ctx) => [
+        _header(
+          titulo: nombre,
+          subtitulo: '$correo\nFavoritos: ${favoritos.length}',
+          fechaGen: '${_fmtFecha(ahora)}  ${_fmtHora(ahora)}',
+          iniciales: iniciales,
+        ),
+        pw.SizedBox(height: 20),
+        pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 24),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('Recetas favoritas',
+                  style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: _negro)),
+              pw.SizedBox(height: 10),
+              ...favoritos.map((fav) {
+                final data = fav.data() as Map<String, dynamic>;
+                return pw.Padding(
+                  padding: const pw.EdgeInsets.only(bottom: 6),
+                  child: pw.Row(children: [
+                    pw.Container(width: 8, height: 8,
+                        decoration: const pw.BoxDecoration(color: PdfColors.pink700, shape: pw.BoxShape.circle)),
+                    pw.SizedBox(width: 8),
+                    pw.Text((data['nombre'] ?? '').toString(),
+                        style: pw.TextStyle(fontSize: 11, color: _negro)),
+                  ]),
+                );
+              }),
+            ],
           ),
-          _footer(),
+        ),
+        pw.SizedBox(height: 20),
+        _notaFinal(_fmtFecha(ahora)),
+        pw.SizedBox(height: 20),
+        _footer(),
+      ],
+    ));
+    await Printing.layoutPdf(
+      onLayout: (_) async => pdf.save(),
+      name: 'favoritos_${nombre.replaceAll(' ','_')}_${ahora.millisecondsSinceEpoch}.pdf',
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // REPORTES — Planificadores
+  // ══════════════════════════════════════════════════════════════════════════
+  static Future<void> generarReportePlanificadoresPdf(DateTime fecha) async {
+    final pdf = pw.Document();
+    final ahora = DateTime.now();
+    final labelFecha = _fmtSolo(fecha);
+
+    final mes = fecha.month.toString().padLeft(2,'0');
+    final dia = fecha.day.toString().padLeft(2,'0');
+    final usuariosSnap = await FirebaseFirestore.instance.collection('app-usuarios').get();
+
+    final List<Map<String, dynamic>> filas = [];
+    for (final userDoc in usuariosSnap.docs) {
+      final userData = userDoc.data();
+      final docId = '${userDoc.id}_${fecha.year}-$mes-$dia';
+      final planDoc = await FirebaseFirestore.instance
+          .collection('app-planes').doc(docId).get();
+      final plan = planDoc.exists ? (planDoc.data() ?? {}) : <String, dynamic>{};
+      filas.add({
+        'nombre':    userData['nombre']  ?? 'Sin nombre',
+        'desayuno':  plan['desayuno']    ?? '—',
+        'almuerzo':  plan['almuerzo']    ?? '—',
+        'cena':      plan['cena']        ?? '—',
+      });
+    }
+
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(0),
+      build: (ctx) => [
+        _header(
+          titulo: 'Planes del $labelFecha',
+          subtitulo: 'Total usuarios: ${filas.length}',
+          fechaGen: '${_fmtFecha(ahora)}  ${_fmtHora(ahora)}',
+        ),
+        pw.SizedBox(height: 20),
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 24),
+          child: pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey200, width: .5),
+            columnWidths: {
+              0: const pw.FlexColumnWidth(2),
+              1: const pw.FlexColumnWidth(2),
+              2: const pw.FlexColumnWidth(2),
+              3: const pw.FlexColumnWidth(2),
+            },
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: _verde),
+                children: ['Usuario','Desayuno','Almuerzo','Cena'].map((e) =>
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                    child: pw.Text(e, style: pw.TextStyle(color: _blanco,
+                        fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                  )
+                ).toList(),
+              ),
+              ...filas.asMap().entries.map((entry) {
+                final bg = entry.key.isEven ? _tabla1 : _blanco;
+                final f  = entry.value;
+                return pw.TableRow(
+                  decoration: pw.BoxDecoration(color: bg),
+                  children: [
+                    _celda(f['nombre']   as String),
+                    _celda(f['desayuno'] as String),
+                    _celda(f['almuerzo'] as String),
+                    _celda(f['cena']     as String),
+                  ],
+                );
+              }),
+            ],
+          ),
+        ),
+        pw.SizedBox(height: 20),
+        _footer(),
+      ],
+    ));
+    await Printing.layoutPdf(
+      onLayout: (_) async => pdf.save(),
+      name: 'planes_$labelFecha.pdf',
+    );
+  }
+
+  static Future<void> generarExcelPlanificadores(DateTime fecha) async =>
+      generarReportePlanificadoresPdf(fecha);
+  static Future<void> generarCsvPlanificadores(DateTime fecha) async =>
+      generarReportePlanificadoresPdf(fecha);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // WIDGETS INTERNOS COMPARTIDOS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  static pw.Widget _header({
+    required String titulo,
+    required String subtitulo,
+    required String fechaGen,
+    String? iniciales,
+  }) {
+    return pw.Container(
+      color: _verde,
+      padding: const pw.EdgeInsets.fromLTRB(24, 28, 24, 24),
+      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Row(children: [
+          pw.Container(
+            width: 40, height: 40,
+            decoration: const pw.BoxDecoration(color: _blanco, shape: pw.BoxShape.circle),
+            child: pw.Center(child: pw.Text(
+              iniciales != null && iniciales.isNotEmpty ? iniciales : 'Y',
+              style: pw.TextStyle(color: _verde, fontWeight: pw.FontWeight.bold, fontSize: 14),
+            )),
+          ),
+          pw.SizedBox(width: 10),
+          pw.Text('Yagu!',
+              style: pw.TextStyle(color: _blanco, fontSize: 13, fontWeight: pw.FontWeight.bold)),
+        ]),
+        pw.SizedBox(height: 14),
+        pw.Text(titulo,
+            style: pw.TextStyle(color: _blanco, fontSize: 22, fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 6),
+        pw.Text(subtitulo,
+            style: const pw.TextStyle(color: PdfColor.fromInt(0xFFD6F5E8), fontSize: 11)),
+        pw.SizedBox(height: 6),
+        pw.Text('Generado: $fechaGen',
+            style: const pw.TextStyle(color: PdfColor.fromInt(0xFFB2E8D0), fontSize: 10)),
+      ]),
+    );
+  }
+
+  static pw.Widget _resumenCards(int logins, int logouts, int favoritos, int planes) {
+    final items = [
+      {'sym':'→','color':PdfColors.green700,'bg':_loginBg,  'v':logins,    'l':'Logins'},
+      {'sym':'←','color':PdfColors.red700,  'bg':_logoutBg, 'v':logouts,   'l':'Logouts'},
+      {'sym':'♥','color':PdfColors.pink700, 'bg':_favBg,    'v':favoritos, 'l':'Favoritos'},
+      {'sym':'▦','color':PdfColors.blue700, 'bg':_planBg,   'v':planes,    'l':'Planes'},
+    ];
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 24),
+      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Text('Resumen de actividades',
+            style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: _negro)),
+        pw.SizedBox(height: 10),
+        pw.Row(children: items.map((item) {
+          final color = item['color'] as PdfColor;
+          final bg    = item['bg']    as PdfColor;
+          return pw.Expanded(child: pw.Container(
+            margin: const pw.EdgeInsets.only(right: 8),
+            padding: const pw.EdgeInsets.all(12),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.grey300),
+              borderRadius: pw.BorderRadius.circular(10),
+            ),
+            child: pw.Column(children: [
+              pw.Container(width: 28, height: 28,
+                decoration: pw.BoxDecoration(color: bg, shape: pw.BoxShape.circle),
+                child: pw.Center(child: pw.Text(item['sym'] as String,
+                    style: pw.TextStyle(color: color, fontSize: 13, fontWeight: pw.FontWeight.bold))),
+              ),
+              pw.SizedBox(height: 6),
+              pw.Text('${item['v']}',
+                  style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: color)),
+              pw.Text(item['l'] as String,
+                  style: pw.TextStyle(fontSize: 9, color: _gris)),
+            ]),
+          ));
+        }).toList()),
+      ]),
+    );
+  }
+
+  static pw.Widget _tablaActividades(List<Map<String, dynamic>> actividades) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 24),
+      child: pw.Table(
+        border: pw.TableBorder.all(color: PdfColors.grey200, width: .5),
+        columnWidths: {
+          0: const pw.FlexColumnWidth(2),
+          1: const pw.FlexColumnWidth(2.5),
+          2: const pw.FlexColumnWidth(1.5),
+          3: const pw.FlexColumnWidth(2),
+          4: const pw.FlexColumnWidth(1),
+        },
+        children: [
+          pw.TableRow(
+            decoration: const pw.BoxDecoration(color: _verde),
+            children: ['Usuario','Correo','Acción','Fecha/Hora','Rol'].map((e) =>
+              pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                child: pw.Text(e, style: pw.TextStyle(color: _blanco,
+                    fontWeight: pw.FontWeight.bold, fontSize: 9)))
+            ).toList(),
+          ),
+          ...actividades.asMap().entries.map((entry) {
+            final i = entry.key; final data = entry.value;
+            final ts = data['fecha'];
+            final fechaStr = ts is Timestamp ? _fmtCorto(ts.toDate()) : '—';
+            final bg   = i.isEven ? _tabla1 : _blanco;
+            final tipo = (data['tipo'] ?? '—').toString();
+            return pw.TableRow(
+              decoration: pw.BoxDecoration(color: bg),
+              children: [
+                _celda((data['usuario'] ?? '—').toString()),
+                _celda((data['correo']  ?? '—').toString()),
+                _celdaTipo(tipo),
+                _celda(fechaStr),
+                _celda((data['rol'] ?? '—').toString()),
+              ],
+            );
+          }),
         ],
       ),
     );
+  }
 
-    await _guardarYAbrir(
-      await pdf.save(),
-      'planificadores_${fecha.year}-$mes-$dia',
+  static pw.Widget _tablaUsuarios(List<QueryDocumentSnapshot> docs) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 24),
+      child: pw.Table(
+        border: pw.TableBorder.all(color: PdfColors.grey200, width: .5),
+        columnWidths: {
+          0: const pw.FlexColumnWidth(2),
+          1: const pw.FlexColumnWidth(2.5),
+          2: const pw.FlexColumnWidth(1),
+        },
+        children: [
+          pw.TableRow(
+            decoration: const pw.BoxDecoration(color: _verde),
+            children: ['Nombre','Correo','Rol'].map((e) =>
+              pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                child: pw.Text(e, style: pw.TextStyle(color: _blanco,
+                    fontWeight: pw.FontWeight.bold, fontSize: 9)))
+            ).toList(),
+          ),
+          ...docs.asMap().entries.map((entry) {
+            final i = entry.key;
+            final d = entry.value.data() as Map<String, dynamic>;
+            final bg = i.isEven ? _tabla1 : _blanco;
+            return pw.TableRow(
+              decoration: pw.BoxDecoration(color: bg),
+              children: [
+                _celda((d['nombre']  ?? 'Sin nombre').toString()),
+                _celda((d['correo']  ?? d['email'] ?? '').toString()),
+                _celda((d['rol']     ?? 'user').toString()),
+              ],
+            );
+          }),
+        ],
+      ),
     );
   }
 
-  static Future<void> generarExcelPlanificadores(DateTime fecha) async {
-    final rows = await _datosPlanificadores(fecha);
-    final excel = Excel.createExcel();
-    final sheet = excel['Planificadores'];
-    for (final row in rows) {
-      sheet.appendRow(row);
+  static pw.Widget _tablaRecetas(List<QueryDocumentSnapshot> docs) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 24),
+      child: pw.Table(
+        border: pw.TableBorder.all(color: PdfColors.grey200, width: .5),
+        columnWidths: {
+          0: const pw.FlexColumnWidth(3),
+          1: const pw.FlexColumnWidth(2),
+          2: const pw.FlexColumnWidth(1),
+        },
+        children: [
+          pw.TableRow(
+            decoration: const pw.BoxDecoration(color: _verde),
+            children: ['Nombre','Categoría','Calorías'].map((e) =>
+              pw.Padding(padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                child: pw.Text(e, style: pw.TextStyle(color: _blanco,
+                    fontWeight: pw.FontWeight.bold, fontSize: 9)))
+            ).toList(),
+          ),
+          ...docs.asMap().entries.map((entry) {
+            final i = entry.key;
+            final d = entry.value.data() as Map<String, dynamic>;
+            final bg = i.isEven ? _tabla1 : _blanco;
+            return pw.TableRow(
+              decoration: pw.BoxDecoration(color: bg),
+              children: [
+                _celda((d['nombre']    ?? '').toString()),
+                _celda((d['categoria'] ?? '').toString()),
+                _celda((d['calorias']  ?? d['calorías'] ?? '—').toString()),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _listaDetalle(List<Map<String, dynamic>> actividades) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 24),
+      child: pw.Column(children: actividades.take(25).map((data) {
+        final ts = data['fecha'];
+        String hora = '—'; String hace = '';
+        if (ts is Timestamp) {
+          final dt = ts.toDate();
+          hora = _fmtHora(dt);
+          final diff = DateTime.now().difference(dt);
+          if      (diff.inMinutes < 60) hace = 'Hace ${diff.inMinutes} min';
+          else if (diff.inHours   < 24) hace = 'Hace ${diff.inHours} h';
+          else                          hace = 'Hace ${diff.inDays} día(s)';
+        }
+        final tipo    = (data['tipo']    ?? '').toString();
+        final accion  = (data['accion']  ?? _labelAccion(tipo)).toString();
+        final detalle = (data['detalle'] ?? '').toString();
+        final tColor  = _solidColor(tipo);
+        final tBg     = _bgColor(tipo);
+
+        return pw.Container(
+          margin: const pw.EdgeInsets.only(bottom: 1),
+          padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 9),
+          decoration: pw.BoxDecoration(
+            border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey200, width: .5))),
+          child: pw.Row(children: [
+            pw.Container(width: 30, height: 30,
+              decoration: pw.BoxDecoration(color: tBg, shape: pw.BoxShape.circle),
+              child: pw.Center(child: pw.Text(_symTipo(tipo),
+                  style: pw.TextStyle(color: tColor, fontSize: 11, fontWeight: pw.FontWeight.bold))),
+            ),
+            pw.SizedBox(width: 8),
+            pw.SizedBox(width: 34, child: pw.Text(hora,
+                style: pw.TextStyle(color: tColor, fontWeight: pw.FontWeight.bold, fontSize: 10))),
+            pw.SizedBox(width: 6),
+            pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.RichText(text: pw.TextSpan(children: [
+                pw.TextSpan(text: accion,
+                    style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: _negro)),
+                if (detalle.isNotEmpty)
+                  pw.TextSpan(text: '  $detalle',
+                      style: pw.TextStyle(fontSize: 10, color: tColor, fontWeight: pw.FontWeight.bold)),
+              ])),
+              pw.Text(tipo.isNotEmpty ? tipo[0].toUpperCase() + tipo.substring(1) : '',
+                  style: pw.TextStyle(fontSize: 9, color: _gris)),
+            ])),
+            pw.Text(hace, style: pw.TextStyle(fontSize: 9, color: _gris)),
+          ]),
+        );
+      }).toList()),
+    );
+  }
+
+  static pw.Widget _notaFinal(String fecha) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 24),
+      child: pw.Container(
+        padding: const pw.EdgeInsets.all(12),
+        decoration: pw.BoxDecoration(color: _verdeClaro, borderRadius: pw.BorderRadius.circular(8)),
+        child: pw.Row(children: [
+          pw.Container(width: 20, height: 20,
+            decoration: const pw.BoxDecoration(color: _verde, shape: pw.BoxShape.circle),
+            child: pw.Center(child: pw.Text('✓',
+                style: pw.TextStyle(color: _blanco, fontSize: 10, fontWeight: pw.FontWeight.bold))),
+          ),
+          pw.SizedBox(width: 10),
+          pw.Expanded(child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            pw.Text('Este reporte incluye todas las actividades del usuario.',
+                style: pw.TextStyle(fontSize: 10, color: _negro)),
+            pw.Text('Fecha: $fecha', style: pw.TextStyle(fontSize: 9, color: _gris)),
+          ])),
+        ]),
+      ),
+    );
+  }
+
+  static pw.Widget _footer() {
+    return pw.Container(
+      padding: const pw.EdgeInsets.fromLTRB(24, 10, 24, 10),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(top: pw.BorderSide(color: PdfColors.grey300, width: .5))),
+      child: pw.Row(children: [
+        pw.Text('Yagu! ', style: pw.TextStyle(color: _verde, fontWeight: pw.FontWeight.bold, fontSize: 9)),
+        pw.Text('Documento generado automáticamente', style: pw.TextStyle(color: _gris, fontSize: 9)),
+      ]),
+    );
+  }
+
+  static pw.Widget _celda(String texto) => pw.Padding(
+    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    child: pw.Text(texto, style: pw.TextStyle(fontSize: 8.5, color: _negro)),
+  );
+
+  static pw.Widget _celdaTipo(String tipo) {
+    final color = _solidColor(tipo); final bg = _bgColor(tipo);
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+      child: pw.Container(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: pw.BoxDecoration(color: bg, borderRadius: pw.BorderRadius.circular(4)),
+        child: pw.Text(tipo,
+            style: pw.TextStyle(fontSize: 8.5, color: color, fontWeight: pw.FontWeight.bold)),
+      ),
+    );
+  }
+
+  static pw.Widget _filaInfo(String label, String valor) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 6),
+      child: pw.Row(children: [
+        pw.Text('$label: ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: _gris)),
+        pw.Text(valor, style: pw.TextStyle(fontSize: 10, color: _negro)),
+      ]),
+    );
+  }
+
+  static PdfColor _solidColor(String tipo) {
+    switch (tipo) {
+      case 'login':     return PdfColors.green700;
+      case 'logout':    return PdfColors.red700;
+      case 'favoritos': return PdfColors.pink700;
+      case 'plan':      return PdfColors.blue700;
+      case 'recetas':   return PdfColors.orange700;
+      case 'roles':     return PdfColors.purple700;
+      default:          return _gris;
     }
-    final bytes = excel.encode();
-    if (bytes == null) return;
-    final fechaStr =
-        '${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}';
-    await _guardarYAbrir(
-      Uint8List.fromList(bytes),
-      'planificadores_$fechaStr',
-      ext: 'xlsx',
-    );
   }
 
-  static Future<void> generarCsvPlanificadores(DateTime fecha) async {
-    final rows = await _datosPlanificadores(fecha);
-    final fechaStr =
-        '${fecha.year}-${fecha.month.toString().padLeft(2, '0')}-${fecha.day.toString().padLeft(2, '0')}';
-    await _guardarYAbrir(
-      Uint8List.fromList(const ListToCsvConverter().convert(rows).codeUnits),
-      'planificadores_$fechaStr',
-      ext: 'csv',
-    );
+  static PdfColor _bgColor(String tipo) {
+    switch (tipo) {
+      case 'login':     return _loginBg;
+      case 'logout':    return _logoutBg;
+      case 'favoritos': return _favBg;
+      case 'plan':      return _planBg;
+      case 'recetas':   return _recetasBg;
+      case 'roles':     return _rolesBg;
+      default:          return _grisClaro;
+    }
   }
 
-  static Future<void> generarReporteGeneral() async =>
-      generarReporteUsuarios('Todos');
+  static String _symTipo(String tipo) {
+    switch (tipo) {
+      case 'login':     return '→';
+      case 'logout':    return '←';
+      case 'favoritos': return '♥';
+      case 'plan':      return '▦';
+      case 'recetas':   return '⚑';
+      default:          return '•';
+    }
+  }
+
+  static String _labelAccion(String tipo) {
+    switch (tipo) {
+      case 'login':     return 'Inició sesión';
+      case 'logout':    return 'Cerró sesión';
+      case 'favoritos': return 'Agregó receta a favoritos';
+      case 'plan':      return 'Creó plan semanal';
+      case 'recetas':   return 'Consultó la categoría';
+      default:          return tipo;
+    }
+  }
 }

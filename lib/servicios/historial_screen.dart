@@ -46,8 +46,10 @@ class _HistorialScreenState extends State<HistorialScreen> {
     final seleccionada = await showDatePicker(
       context: context,
       initialDate: fechaFiltro ?? _hoy,
+      // Solo permite desde el principio de los tiempos hasta HOY
       firstDate: DateTime(2020),
       lastDate: _hoy,
+      locale: const Locale('es', 'ES'),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
           colorScheme: const ColorScheme.light(
@@ -123,27 +125,26 @@ class _HistorialScreenState extends State<HistorialScreen> {
 
           // ── calcular estadísticas globales ───────────────────────────────
           int totalRegistros = todosLosDocs.length;
+          int hoyCount = 0;
           final Set<String> uidsAdmin = {};
           final Set<String> uidsUser  = {};
-          final Set<String> uidsHoy   = {}; // usuarios únicos con actividad hoy
 
           final hoy = _hoy;
 
           for (final doc in todosLosDocs) {
             final data = doc.data() as Map<String, dynamic>;
-            final uid = (data['uid'] ?? '').toString();
-            final rol = (data['rol'] ?? '').toString();
-            final ts  = data['fecha'];
+            final ts = data['timestamp'];
             if (ts is Timestamp) {
               final d = ts.toDate();
               final dNorm = DateTime(d.year, d.month, d.day);
-              if (dNorm == hoy && uid.isNotEmpty) uidsHoy.add(uid);
+              if (dNorm == hoy) hoyCount++;
             }
+            final uid = (data['uid'] ?? '').toString();
+            final rol = (data['rol'] ?? '').toString();
             if (uid.isNotEmpty) {
               if (rol == 'admin') uidsAdmin.add(uid); else uidsUser.add(uid);
             }
           }
-          final int hoyCount = uidsHoy.length;
 
           // ── aplicar filtros ───────────────────────────────────────────────
           // Agrupar por usuario (para la lista de tarjetas)
@@ -156,7 +157,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
             final rol     = (data['rol']     ?? '').toString();
             final correo  = (data['correo']  ?? '').toString();
             final tipo    = (data['tipo']    ?? '').toString();
-            final ts      = data['fecha'];
+            final ts      = data['timestamp'];
 
             if (uid.isEmpty) continue;
 
@@ -188,7 +189,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
             final usuario = (data['usuario'] ?? '').toString();
             final rol     = (data['rol']     ?? '').toString();
             final tipo    = (data['tipo']    ?? '').toString();
-            final ts      = data['fecha'];
+            final ts      = data['timestamp'];
 
             if (uid.isEmpty) continue;
             if (!usuario.toLowerCase().contains(buscar)) continue;
@@ -235,47 +236,42 @@ class _HistorialScreenState extends State<HistorialScreen> {
               // ── filtro acción (chips con iconos) ──────────────────────────
               _filtroAccionChips(),
 
+              // ── fecha seleccionada (si hay) ────────────────────────────────
+              if (fechaFiltro != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 0),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today, size: 14, color: Color(0xFF2D9E73)),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Mostrando: ${_labelFecha(fechaFiltro!)}',
+                        style: const TextStyle(color: Color(0xFF2D9E73), fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () => setState(() => fechaFiltro = null),
+                        child: const Text('Quitar filtro', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                ),
 
-              // ── encabezado lista (tappable para abrir datepicker) ────────
+              // ── encabezado lista ──────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
                 child: Row(
                   children: [
-                    GestureDetector(
-                      onTap: _seleccionarFecha,
-                      child: Row(
-                        children: [
-                          Icon(Icons.calendar_month, color: _verde, size: 18),
-                          const SizedBox(width: 6),
-                          Text(
-                            fechaFiltro != null ? _labelFecha(fechaFiltro!) : 'Hoy',
-                            style: TextStyle(
-                              color: _verde,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                              decoration: TextDecoration.underline,
-                              decorationColor: _verde,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(Icons.arrow_drop_down, color: _verde, size: 18),
-                          if (fechaFiltro != null) ...[
-                            const SizedBox(width: 6),
-                            GestureDetector(
-                              onTap: () => setState(() => fechaFiltro = null),
-                              child: const Icon(Icons.close, color: Colors.grey, size: 15),
-                            ),
-                          ],
-                        ],
-                      ),
+                    Icon(Icons.calendar_month, color: _verde, size: 18),
+                    const SizedBox(width: 6),
+                    Text(
+                      fechaFiltro != null ? _labelFecha(fechaFiltro!) : 'Hoy',
+                      style: TextStyle(color: _verde, fontWeight: FontWeight.bold, fontSize: 15),
                     ),
                     const Spacer(),
-                    Flexible(
-                      child: Text(
-                        '${actividadesFiltradas.length} actividades',
-                        style: const TextStyle(color: Colors.grey, fontSize: 13),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                    Text(
+                      '${actividadesFiltradas.length} actividades',
+                      style: const TextStyle(color: Colors.grey, fontSize: 13),
                     ),
                   ],
                 ),
