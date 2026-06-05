@@ -1,16 +1,16 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'detalle_receta_screen.dart';
-import '../servicios/historial_servicio.dart';
-
+import 'package:flutter/material.dart';// Librería de Flutter para la construcción de interfaces gráficas
+import 'package:cloud_firestore/cloud_firestore.dart';// Permite interactuar con la base de datos Firestore de Firebase para leer y escribir datos relacionados con el plan de comidas del usuario.
+import 'package:firebase_auth/firebase_auth.dart';// Permite obtener el usuario autenticado mediante Firebase Authentication, necesario para cargar y guardar el plan de comidas específico de cada usuario.
+import 'detalle_receta_screen.dart';// Pantalla de detalle de una receta, a la que se accede al seleccionar una receta planificada en el plan de comidas. Permite al usuario ver la información completa de la receta y realizar acciones como eliminarla del plan o cambiarla por otra receta.
+import '../servicios/historial_servicio.dart';// Servicio personalizado encargado de registrar las acciones del usuario relacionadas con el plan de comidas, como agregar o eliminar recetas del plan. Permite llevar un historial de las modificaciones realizadas en el plan para futuras referencias o análisis.
+// Pantalla principal del plan de comidas, donde el usuario puede planificar sus comidas diarias seleccionando recetas para desayuno, almuerzo, cena, snacks y bebidas. Permite navegar entre diferentes días para planificar con anticipación o revisar planes pasados. El usuario puede agregar, cambiar o eliminar recetas en cada sección del plan, y se muestra un resumen calórico total del día basado en las recetas seleccionadas.
 class PlanScreen extends StatefulWidget {
   const PlanScreen({super.key});
 
   @override
   State<PlanScreen> createState() => _PlanScreenState();
 }
-
+// Estado de la pantalla de plan de comidas, que maneja la lógica para cargar y guardar el plan del usuario, seleccionar recetas para cada sección del plan, calcular el total calórico del día y mantener el estado al navegar entre días. Utiliza un ScrollController para el carrusel de días y mantiene un caché local del plan cargado para mejorar la experiencia del usuario.
 class _PlanScreenState extends State<PlanScreen>
     with AutomaticKeepAliveClientMixin {
   @override
@@ -62,19 +62,19 @@ class _PlanScreenState extends State<PlanScreen>
     final hoyNorm = DateTime(hoy.year, hoy.month, hoy.day);
     return hoyNorm.add(Duration(days: index - _offsetBase));
   }
-
+// Inicializa el estado de la pantalla cargando el plan de comidas para la fecha seleccionada. Se llama al método _cargarPlan para obtener los datos del plan desde Firestore y actualizar la interfaz. También se configura el ScrollController para posicionar el carrusel de días en la fecha actual.
   @override
   void initState() {
     super.initState();
     _cargarPlan();
   }
-
+// Limpia los recursos utilizados por el ScrollController al destruir la pantalla para evitar fugas de memoria. Es importante llamar a _scrollDias.dispose() para liberar los recursos asociados al controlador de desplazamiento cuando la pantalla ya no esté en uso.
   @override
   void dispose() {
     _scrollDias.dispose();
     super.dispose();
   }
-
+// Método para cargar el plan de comidas del usuario para la fecha seleccionada desde Firestore. Se utiliza el _docId generado a partir del userId y la fecha para obtener el documento correspondiente en la colección 'app-planes'. Si el documento existe, se almacena su data en _planCache; si no existe o hay un error, se establece _planCache como un mapa vacío. Durante la carga, se muestra un indicador de progreso y se actualiza la interfaz al finalizar.
   Future<void> _cargarPlan() async {
     if (_userId == null) return;
     setState(() => _cargandoPlan = true);
@@ -98,7 +98,7 @@ class _PlanScreenState extends State<PlanScreen>
       }
     }
   }
-
+// Método para guardar una receta seleccionada en el plan de comidas del usuario para la fecha actual. Recibe el tipo de comida (desayuno, almuerzo, cena, snack1, etc.) y el ID de la receta seleccionada. Actualiza el _planCache localmente para reflejar el cambio en la interfaz de forma inmediata, y luego guarda la información en Firestore utilizando el _docId correspondiente. Si el usuario no está autenticado, no realiza ninguna acción. También registra la acción en el historial del usuario mediante HistorialService.
   Future<void> _guardarEnPlan(String tipoComida, String recetaId) async {
     if (_userId == null) return;
     setState(() {
@@ -122,7 +122,7 @@ class _PlanScreenState extends State<PlanScreen>
   tipo: 'plan',
 );
   }
-
+// Método para eliminar una receta del plan de comidas del usuario para la fecha actual. Recibe el tipo de comida del que se desea eliminar la receta. Actualiza el _planCache localmente para reflejar el cambio en la interfaz de forma inmediata, y luego elimina la información correspondiente en Firestore utilizando el _docId y el tipo de comida como clave. Si el usuario no está autenticado, no realiza ninguna acción. También registra la acción en el historial del usuario mediante HistorialService.
   Future<void> _eliminarDelPlan(String tipoComida) async {
     if (_userId == null) return;
     setState(() {
@@ -140,7 +140,7 @@ class _PlanScreenState extends State<PlanScreen>
 );
     } catch (_) {}
   }
-
+// Método para seleccionar una receta para una sección del plan de comidas. Recibe el tipo de comida y las categorías permitidas para filtrar las recetas disponibles. Navega a la pantalla _SelectorRecetaScreen, donde el usuario puede elegir una receta del catálogo que cumpla con las categorías especificadas. Al regresar de la selección, si se obtuvo un resultado válido, se llama a _guardarEnPlan para guardar la receta seleccionada en el plan del usuario.
   Future<void> _seleccionarReceta(
     String tipoComida,
     List<String> categoriasPermitidas,
@@ -158,7 +158,7 @@ class _PlanScreenState extends State<PlanScreen>
       await _guardarEnPlan(tipoComida, resultado['id']!);
     }
   }
-
+// Método para calcular el total de calorías del plan de comidas del día actual. Recorre cada sección del plan (desayuno, almuerzo, cena, snacks, bebidas) y obtiene el ID de la receta seleccionada para cada sección. Luego, consulta Firestore para obtener los detalles de cada receta y sumar las calorías totales. Si no hay recetas seleccionadas o ocurre un error al obtener los datos, se considera que esa sección aporta 0 calorías. El resultado final es el total calórico del día basado en las recetas seleccionadas en el plan.
   Future<int> _calcularCaloriasTotales() async {
     if (_planCache == null) return 0;
     int total = 0;
@@ -195,7 +195,7 @@ class _PlanScreenState extends State<PlanScreen>
     }
     return total;
   }
-
+// Método auxiliar para obtener las categorías permitidas según el tipo de comida. Recibe el tipo de comida (desayuno, almuerzo, cena, snack1, etc.) y devuelve una lista de categorías que se deben usar para filtrar las recetas disponibles al seleccionar una receta para esa sección del plan. Esto permite que, por ejemplo, al seleccionar una receta para el desayuno solo se muestren recetas categorizadas como "Desayuno", mientras que para los snacks se muestren recetas categorizadas como "Snacks".
   List<String> _categoriasParaTipo(String tipo) {
     switch (tipo) {
       case 'desayuno':
@@ -216,7 +216,7 @@ class _PlanScreenState extends State<PlanScreen>
         return [];
     }
   }
-
+// Construye la interfaz de la pantalla de plan de comidas, que incluye un encabezado con el título y la fecha seleccionada, un carrusel horizontal para navegar entre días, un resumen calórico total del día y secciones para cada tipo de comida (desayuno, almuerzo, cena, snacks y bebidas). Cada sección muestra la receta seleccionada o un placeholder si no hay receta, y permite agregar o cambiar la receta. Si el plan está cargando, se muestra un indicador de progreso en lugar del contenido.
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -275,7 +275,7 @@ class _PlanScreenState extends State<PlanScreen>
       ),
     );
   }
-
+// Construye el encabezado de la pantalla de plan de comidas, que muestra el título "Plan de Comidas" y la fecha seleccionada en un formato amigable. Si la fecha seleccionada es el día actual, se muestra "Hoy" seguido del mes y día. Si no es hoy, se muestra la fecha completa con día, mes y año. Además, si la fecha seleccionada no es hoy, se muestra un botón "Hoy" que permite al usuario volver rápidamente a la fecha actual. El encabezado tiene un diseño limpio con tipografía destacada para el título y un estilo más sutil para la fecha.
   Widget _buildHeader() {
     final hoy = DateTime.now();
     final esHoy = _fechaSeleccionada.year == hoy.year &&
@@ -364,7 +364,7 @@ class _PlanScreenState extends State<PlanScreen>
       ),
     );
   }
-
+// Construye el carrusel horizontal de días que permite al usuario navegar entre diferentes fechas para planificar o revisar su plan de comidas. Muestra los días de la semana y el número del día en un formato compacto. El día seleccionado se resalta con un fondo naranja, mientras que el día actual se resalta con un color verde. Al tocar un día, se actualiza la fecha seleccionada y se carga el plan correspondiente a esa fecha.
   Widget _buildCarruselDias() {
     const dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
     final hoy = DateTime.now();
@@ -448,7 +448,7 @@ class _PlanScreenState extends State<PlanScreen>
       ),
     );
   }
-
+// Construye el resumen calórico total del día basado en las recetas seleccionadas en el plan de comidas. Utiliza un FutureBuilder para calcular las calorías totales de forma asíncrona llamando al método _calcularCaloriasTotales. Si no hay datos o el total es 0, no muestra nada. Si hay un total calórico, muestra un contenedor con un ícono de fuego y el texto "Total del día: X cal", donde X es el total calculado. El contenedor tiene un diseño destacado con fondo verde claro y borde verde.
   Widget _buildResumenCalorico() {
     return FutureBuilder<int>(
       future: _calcularCaloriasTotales(),
@@ -484,7 +484,7 @@ class _PlanScreenState extends State<PlanScreen>
       },
     );
   }
-
+// Construye la sección de comida para un tipo específico (desayuno, almuerzo, cena). Recibe el tipo de comida, el título a mostrar, el ícono, los colores para el diseño y el subtítulo descriptivo. Muestra la receta seleccionada para esa sección o un placeholder si no hay receta. Permite agregar o cambiar la receta mediante un botón que abre el selector de recetas. Si hay una receta seleccionada, muestra una tarjeta con la información de la receta y un botón para eliminarla del plan.
   Widget _buildSeccionComida(
     String tipo,
     String titulo,
@@ -586,7 +586,7 @@ class _PlanScreenState extends State<PlanScreen>
       ),
     );
   }
-
+// Construye la sección de snacks y bebidas, que incluye un encabezado con el título "Snacks y Bebidas" y un botón para expandir o contraer la sección. Al expandir, muestra subsecciones para snacks y bebidas, cada una con su propio conjunto de slots para agregar recetas. Permite agregar o eliminar recetas para cada slot, y muestra la información de las recetas seleccionadas en tarjetas dentro de cada subsección.
   Widget _buildSeccionSnacksBebidas() {
     return Container(
       decoration: BoxDecoration(
@@ -723,7 +723,7 @@ class _PlanScreenState extends State<PlanScreen>
       ),
     );
   }
-
+// Método auxiliar para construir la cuadrícula de slots para snacks o bebidas. Recibe una lista de claves que representan cada slot (snack1, snack2, bebida1, etc.), los colores para el diseño y una etiqueta para mostrar en el placeholder. Para cada slot, verifica si hay una receta seleccionada en el _planCache; si hay una receta, muestra una tarjeta con la información de la receta y un botón para eliminarla del plan. Si no hay receta, muestra un placeholder que invita al usuario a agregar una receta para ese slot.
   Widget _buildSlotsGrid({
     required List<String> claves,
     required Color color,
@@ -768,7 +768,7 @@ class _PlanScreenState extends State<PlanScreen>
     );
   }
 }
-
+// Widget que representa una tarjeta de receta dentro del plan de comidas. Muestra la información de la receta obtenida desde Firestore, incluyendo el nombre, imagen, calorías y tiempo de preparación. Permite al usuario tocar la tarjeta para ver los detalles de la receta en una nueva pantalla, y también incluye un botón para eliminar la receta del plan. Si la receta no se encuentra o hay un error al cargarla, muestra un placeholder indicando que la receta no fue encontrada.
 class _TarjetaRecetaPlan extends StatelessWidget {
   final String recetaId;
   final VoidCallback onEliminar;
@@ -941,7 +941,7 @@ class _TarjetaRecetaPlan extends StatelessWidget {
       },
     );
   }
-
+// Método auxiliar para mostrar un placeholder de imagen cuando no se puede cargar la imagen de la receta. Muestra un contenedor con un fondo de color claro y un ícono de restaurante en el centro, utilizando el color de acento proporcionado.
   Widget _imgPlaceholder(Color color) => Container(
         width: 80,
         height: 80,
@@ -949,7 +949,7 @@ class _TarjetaRecetaPlan extends StatelessWidget {
         child: Icon(Icons.restaurant, size: 28, color: color),
       );
 }
-
+// Widget que representa un placeholder vacío para las secciones de comida que aún no tienen una receta seleccionada. Muestra un contenedor con un fondo de color claro, un borde del mismo color y un ícono de agregar junto con un texto que invita al usuario a planificar esa sección del plan de comidas. Al tocar el placeholder, se ejecuta la función onTap para abrir el selector de recetas correspondiente.
 class _PlaceholderVacio extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
@@ -960,7 +960,7 @@ class _PlaceholderVacio extends StatelessWidget {
     required this.onTap,
     this.color = const Color(0xFF2D9E73),
   });
-
+// Construye la interfaz del placeholder vacío, que incluye un ícono de agregar y un texto descriptivo. El contenedor tiene un diseño limpio con un fondo de color claro y un borde del mismo color, utilizando el color proporcionado para mantener la coherencia visual con el resto de la sección.
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -996,7 +996,7 @@ class _PlaceholderVacio extends StatelessWidget {
     );
   }
 }
-
+// Widget que representa la pantalla de selección de recetas para un tipo específico de comida. Permite al usuario buscar entre las recetas disponibles en Firestore, filtrando por categorías permitidas según el tipo de comida. Muestra una lista de recetas que coinciden con la búsqueda y las categorías, y permite al usuario seleccionar una receta para agregarla al plan de comidas.
 class _SelectorRecetaScreen extends StatefulWidget {
   final String tipoComida;
   final List<String> categoriasPermitidas;
@@ -1009,7 +1009,7 @@ class _SelectorRecetaScreen extends StatefulWidget {
   @override
   State<_SelectorRecetaScreen> createState() => _SelectorRecetaScreenState();
 }
-
+// Estado de la pantalla de selección de recetas. Maneja la lógica de búsqueda, filtrado por categorías y selección de recetas. Utiliza un StreamBuilder para mostrar las recetas disponibles en tiempo real desde Firestore, y permite al usuario buscar por nombre de receta. Al seleccionar una receta, se devuelve la información de la receta seleccionada a la pantalla anterior para agregarla al plan de comidas.
 class _SelectorRecetaScreenState extends State<_SelectorRecetaScreen> {
   static const Color _verde = Color(0xFF2D9E73);
   String _busqueda = '';
@@ -1022,7 +1022,7 @@ class _SelectorRecetaScreenState extends State<_SelectorRecetaScreen> {
     return widget.categoriasPermitidas
         .any((c) => c.toLowerCase() == categoria.toLowerCase());
   }
-
+// Limpia el controlador de texto al desechar el widget para evitar fugas de memoria.
   @override
   void dispose() {
     _ctrl.dispose();
@@ -1043,7 +1043,7 @@ class _SelectorRecetaScreenState extends State<_SelectorRecetaScreen> {
     };
     return titulos[widget.tipoComida] ?? 'Elegir receta';
   }
-
+// Construye la interfaz de la pantalla de selección de recetas, que incluye un campo de búsqueda y una lista de recetas filtradas por la búsqueda y las categorías permitidas. Permite al usuario seleccionar una receta para agregarla al plan de comidas, o limpiar la búsqueda para mostrar todas las recetas disponibles.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1252,7 +1252,7 @@ class _SelectorRecetaScreenState extends State<_SelectorRecetaScreen> {
       ),
     );
   }
-
+// Método auxiliar para mostrar un placeholder de imagen cuando no se puede cargar la imagen de la receta. Muestra un contenedor con un fondo de color claro y un ícono de restaurante en el centro, utilizando el color de acento proporcionado.
   Widget _placeholder() => Container(
         width: 80,
         height: 80,

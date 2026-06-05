@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'login_page.dart';
-import '../servicios/historial_servicio.dart';
-
+import 'package:flutter/material.dart';// Pantalla que permite a los administradores gestionar los usuarios registrados en la aplicación, incluyendo la capacidad de buscar usuarios, filtrar por rol (admin o user), y cambiar el rol de un usuario entre admin y user. Utiliza Firestore para almacenar y recuperar la información de los usuarios, y Firebase Authentication para gestionar la autenticación y los roles de los usuarios.
+import 'package:cloud_firestore/cloud_firestore.dart';// Librería para trabajar con Firestore, la base de datos en la nube de Firebase, que se utiliza para almacenar y recuperar la información de los usuarios registrados en la aplicación.
+import 'package:firebase_auth/firebase_auth.dart';// Librería para trabajar con Firebase Authentication, que se utiliza para gestionar la autenticación de usuarios y obtener el ID del usuario actual para asociar las acciones de gestión de usuarios con su cuenta.
+import 'login_page.dart';// Pantalla de inicio de sesión, a la que se redirige a los administradores si se les quitan los permisos de admin mientras están autenticados, para que puedan iniciar sesión nuevamente con una cuenta que tenga permisos de administrador.
+import '../servicios/historial_servicio.dart';// Servicio personalizado para registrar las acciones del usuario en un historial, utilizado para registrar cuándo un administrador cambia el rol de un usuario, lo que permite llevar un seguimiento de las acciones de gestión de usuarios realizadas por los administradores en la aplicación.
+// Pantalla que permite a los administradores gestionar los usuarios registrados en la aplicación, incluyendo la capacidad de buscar usuarios, filtrar por rol (admin o user), y cambiar el rol de un usuario entre admin y user. Utiliza Firestore para almacenar y recuperar la información de los usuarios, y Firebase Authentication para gestionar la autenticación y los roles de los usuarios.
 class GestionarUsuariosScreen extends StatefulWidget {
   const GestionarUsuariosScreen({super.key});
 
@@ -11,7 +11,7 @@ class GestionarUsuariosScreen extends StatefulWidget {
   State<GestionarUsuariosScreen> createState() =>
       _GestionarUsuariosScreenState();
 }
-
+// Estado de la pantalla GestionarUsuariosScreen, que maneja la lógica para buscar usuarios, filtrar por rol, ordenar la lista de usuarios, y confirmar los cambios de rol. Incluye un StreamBuilder para escuchar los cambios en Firestore y actualizar la lista de usuarios en tiempo real, y métodos para mostrar diálogos de confirmación antes de cambiar el rol de un usuario.
 class _GestionarUsuariosScreenState extends State<GestionarUsuariosScreen> {
   static const Color _verde        = Color(0xFF2D9E73);
   static const Color _verdeClaro   = Color(0xFFE8F7F1);
@@ -44,7 +44,7 @@ class _GestionarUsuariosScreenState extends State<GestionarUsuariosScreen> {
     });
     return lista;
   }
-
+// Método para mostrar un diálogo de confirmación antes de cambiar el rol de un usuario. Si el usuario confirma el cambio, se actualiza el rol del usuario en Firestore, se registra la acción en el historial del administrador, y si el usuario cuyo rol fue cambiado es el mismo que el administrador actual y se le quitaron los permisos de admin, se cierra la sesión y se redirige a la pantalla de inicio de sesión.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -180,7 +180,7 @@ class _GestionarUsuariosScreenState extends State<GestionarUsuariosScreen> {
       ),
     );
   }
-
+// Widget que muestra un marcador de posición para la imagen de la receta en caso de que no se pueda cargar la imagen real. El marcador de posición es un contenedor gris con un ícono de comida, que indica visualmente que no hay una imagen disponible para esa receta.
   Widget _buildHeader(BuildContext context) {
     return Container(
       width: double.infinity,
@@ -255,7 +255,7 @@ class _GestionarUsuariosScreenState extends State<GestionarUsuariosScreen> {
       ),
     );
   }
-
+// Método para mostrar un diálogo de confirmación antes de cambiar el rol de un usuario. Si el usuario confirma el cambio, se actualiza el rol del usuario en Firestore, se registra la acción en el historial del administrador, y si el usuario cuyo rol fue cambiado es el mismo que el administrador actual y se le quitaron los permisos de admin, se cierra la sesión y se redirige a la pantalla de inicio de sesión.
   Widget _buildFiltro({
     required IconData icono,
     required Color color,
@@ -297,7 +297,7 @@ class _GestionarUsuariosScreenState extends State<GestionarUsuariosScreen> {
       ),
     );
   }
-
+// Widget que muestra un marcador de posición para la imagen de la receta en caso de que no se pueda cargar la imagen real. El marcador de posición es un contenedor gris con un ícono de comida, que indica visualmente que no hay una imagen disponible para esa receta.
   Widget _buildVacio(String mensaje) {
     return Center(
       child: Column(
@@ -311,7 +311,7 @@ class _GestionarUsuariosScreenState extends State<GestionarUsuariosScreen> {
       ),
     );
   }
-
+// Widget que muestra un marcador de posición para la imagen de la receta en caso de que no se pueda cargar la imagen real. El marcador de posición es un contenedor gris con un ícono de comida, que indica visualmente que no hay una imagen disponible para esa receta.
   Future<void> _confirmarCambioRol(
     BuildContext context,
     String docId,
@@ -396,7 +396,7 @@ class _GestionarUsuariosScreenState extends State<GestionarUsuariosScreen> {
     }
   }
 }
-
+// Widget que muestra un marcador de posición para la imagen de la receta en caso de que no se pueda cargar la imagen real. El marcador de posición es un contenedor gris con un ícono de comida, que indica visualmente que no hay una imagen disponible para esa receta.
 class _UsuarioCard extends StatelessWidget {
   final String docId;
   final Map<String, dynamic> data;
@@ -433,7 +433,7 @@ class _UsuarioCard extends StatelessWidget {
     required this.data,
     required this.onRolChanged,
   });
-
+// Widget que muestra un marcador de posición para la imagen de la receta en caso de que no se pueda cargar la imagen real. El marcador de posición es un contenedor gris con un ícono de comida, que indica visualmente que no hay una imagen disponible para esa receta.
   @override
   Widget build(BuildContext context) {
     final String nombre = data['nombre'] ?? '';

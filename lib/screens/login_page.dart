@@ -1,19 +1,19 @@
-import 'dart:math';
-import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:http/http.dart' as http;
-import 'package:programovil/screens/app_main_screen.dart';
-import 'admin_screen.dart';
-import '../servicios/historial_servicio.dart';
-
+import 'dart:math';// Librería para generar números aleatorios, utilizada para crear códigos OTP en el proceso de recuperación de contraseña.
+import 'dart:convert';// Librería para codificar y decodificar datos en formato JSON, utilizada para enviar los parámetros necesarios a la API de EmailJS al solicitar el envío del correo de recuperación de contraseña.
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas, utilizada para crear la pantalla de inicio de sesión y registro de usuarios, así como los diálogos modales para recuperación de contraseña.
+import 'package:firebase_auth/firebase_auth.dart';// Librería para la autenticación de usuarios con Firebase, utilizada para manejar el inicio de sesión, registro y recuperación de contraseña de los usuarios en la aplicación.
+import 'package:cloud_firestore/cloud_firestore.dart';// Librería para trabajar con Firestore, la base de datos en la nube de Firebase, utilizada para almacenar y recuperar información de los usuarios, como su rol y fecha de último acceso, así como para registrar las acciones del usuario en un historial.
+import 'package:http/http.dart' as http;// Librería para realizar solicitudes HTTP, utilizada para enviar la solicitud a la API de EmailJS para el envío del correo de recuperación de contraseña.
+import 'package:programovil/screens/app_main_screen.dart';// Pantalla principal de la aplicación a la que se navega después de un inicio de sesión exitoso, tanto para usuarios regulares como para administradores.
+import 'admin_screen.dart';// Pantalla de administración a la que se navega después de un inicio de sesión exitoso si el usuario tiene el rol de administrador, con funcionalidades específicas para la gestión de la aplicación.
+import '../servicios/historial_servicio.dart';// Servicio personalizado para registrar las acciones del usuario en un historial, utilizado para registrar cuándo un usuario inicia sesión o registra una cuenta, lo que permite llevar un seguimiento de sus interacciones con la aplicación.
+// Pantalla de inicio de sesión y registro de usuarios, que permite a los usuarios acceder a su cuenta o crear una nueva cuenta. Incluye campos para ingresar el correo electrónico y la contraseña, así como validaciones para asegurar que los datos ingresados sean correctos. También ofrece la opción de recuperar la contraseña mediante un proceso de verificación por correo electrónico utilizando EmailJS, y registra las acciones del usuario en un historial para seguimiento.
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
-
+// Estado de la pantalla de inicio de sesión y registro, que maneja la lógica para el proceso de autenticación, registro de nuevos usuarios, recuperación de contraseña, y navegación a las pantallas correspondientes según el rol del usuario. Utiliza Firebase Authentication para gestionar la autenticación de usuarios, Firestore para almacenar información adicional del usuario y registrar acciones en un historial, y EmailJS para enviar correos de recuperación de contraseña.
 class _LoginPageState extends State<LoginPage>
     with SingleTickerProviderStateMixin {
   static const Color _verde     = Color(0xFF2D9E73);
@@ -42,7 +42,7 @@ class _LoginPageState extends State<LoginPage>
 
   final _regFormKey = GlobalKey<FormState>();
   late final AnimationController _animCtrl;
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   @override
   void initState() {
     super.initState();
@@ -51,7 +51,7 @@ class _LoginPageState extends State<LoginPage>
       duration: const Duration(milliseconds: 400),
     );
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   @override
   void dispose() {
     _animCtrl.dispose();
@@ -64,12 +64,12 @@ class _LoginPageState extends State<LoginPage>
     codigoOTPController.dispose();
     super.dispose();
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   void _toggleRegistro() {
     setState(() => registrando = !registrando);
     registrando ? _animCtrl.forward() : _animCtrl.reverse();
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   Future<void> _guardarUsuario(User user, {String nombre = ''}) async {
     final docRef = FirebaseFirestore.instance
         .collection('app-usuarios').doc(user.uid);
@@ -84,7 +84,7 @@ class _LoginPageState extends State<LoginPage>
       });
     }
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   Future<void> acceder() async {
     final email    = correoCtrl.text.trim();
     final password = passCtrl.text.trim();
@@ -124,7 +124,7 @@ class _LoginPageState extends State<LoginPage>
       if (mounted) setState(() => loginCargando = false);
     }
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   Future<void> _crearCuenta() async {
     if (!_regFormKey.currentState!.validate()) return;
     setState(() => regCargando = true);
@@ -154,7 +154,7 @@ class _LoginPageState extends State<LoginPage>
       if (mounted) setState(() => regCargando = false);
     }
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   Future<void> _enviarCorreoReal(String emailUsuario) async {
     final random = Random();
     _codigoGenerado = (100000 + random.nextInt(900000)).toString();
@@ -180,7 +180,7 @@ class _LoginPageState extends State<LoginPage>
       throw Exception('Error: ${response.body}');
     }
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   void _modalRecuperarContra() {
     final correoParaRecuperar = correoCtrl.text.trim();
     if (correoParaRecuperar.isEmpty ||
@@ -285,7 +285,7 @@ class _LoginPageState extends State<LoginPage>
       ),
     );
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -380,7 +380,7 @@ class _LoginPageState extends State<LoginPage>
       ),
     );
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   Widget _panelLogin() {
     return Column(
       key: const ValueKey('login'),
@@ -430,7 +430,7 @@ class _LoginPageState extends State<LoginPage>
       ],
     );
   }
-
+//  Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   Widget _panelRegistro() {
     return Form(
       key: _regFormKey,
@@ -495,7 +495,7 @@ class _LoginPageState extends State<LoginPage>
       ),
     );
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   InputDecoration _buildInput(String hint, IconData icono) {
     return InputDecoration(
       hintText: hint,
@@ -519,7 +519,7 @@ class _LoginPageState extends State<LoginPage>
               const BorderSide(color: Colors.redAccent, width: 1.5)),
     );
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   void _snack(String msg, {bool esError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
@@ -529,7 +529,7 @@ class _LoginPageState extends State<LoginPage>
       margin: const EdgeInsets.all(16),
     ));
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   Widget _botonPrincipal(
       {required VoidCallback onPressed,
       required String texto,
@@ -556,7 +556,7 @@ class _LoginPageState extends State<LoginPage>
       ),
     );
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   Widget _botonSecundario(
       {required VoidCallback onPressed, required String texto}) {
     return SizedBox(
@@ -576,7 +576,7 @@ class _LoginPageState extends State<LoginPage>
       ),
     );
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   Widget _divisorSeparador() {
     return Row(children: [
       Expanded(child: Divider(color: Colors.grey[300])),
@@ -588,7 +588,7 @@ class _LoginPageState extends State<LoginPage>
       Expanded(child: Divider(color: Colors.grey[300])),
     ]);
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   void _modalAvisoFinal(String email) {
     showDialog(
       context: context,

@@ -1,16 +1,16 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'detalle_receta_screen.dart';
-import 'favoritos_provider.dart';
-import 'app_main_screen.dart';
-
+import 'package:flutter/material.dart';// Pantalla principal de la aplicación que muestra una lista de recetas, con la capacidad de filtrar por categoría y buscar por nombre. Utiliza Firestore para obtener las recetas en tiempo real, y permite navegar a los detalles de cada receta, así como a otras secciones de la aplicación como el perfil del usuario y la pantalla de exploración.
+import 'package:firebase_auth/firebase_auth.dart';// Librería para trabajar con Firebase Authentication, que se utiliza para gestionar la autenticación de usuarios y obtener el ID del usuario actual para personalizar la experiencia en la pantalla principal, como mostrar su nombre en el saludo.
+import 'package:cloud_firestore/cloud_firestore.dart';// Librería para trabajar con Firestore, la base de datos en la nube de Firebase, que se utiliza para almacenar y recuperar las recetas, categorías y otros datos necesarios para mostrar en la pantalla principal.
+import 'detalle_receta_screen.dart';// Pantalla que muestra el detalle de una receta específica, incluyendo sus ingredientes, pasos de preparación, y otros detalles relevantes. Se navega a esta pantalla al seleccionar una receta en la pantalla principal, y utiliza Firestore para obtener los datos completos de la receta seleccionada.
+import 'favoritos_provider.dart';// Pantalla que muestra la lista de recetas favoritas del usuario, con la capacidad de agregar o quitar recetas de favoritos. Utiliza Firestore para almacenar y recuperar las recetas favoritas del usuario, y un InheritedNotifier para gestionar el estado de los favoritos en toda la aplicación. Se puede navegar a esta pantalla desde el perfil del usuario o desde otras secciones de la aplicación donde se muestren recetas.
+import 'app_main_screen.dart';// Pantalla principal de la aplicación que contiene una barra de navegación inferior para acceder a las diferentes secciones de la aplicación, incluyendo la pantalla principal (HomeScreen), la pantalla de exploración (ExplorarScreen), la pantalla de favoritos (FavoritosScreen) y el perfil del usuario (PerfilScreen). La pantalla HomeScreen es una de las secciones accesibles desde esta barra de navegación, y muestra una lista de recetas con opciones de filtrado y búsqueda.
+// Pantalla principal de la aplicación que muestra una lista de recetas, con la capacidad de filtrar por categoría y buscar por nombre. Utiliza Firestore para obtener las recetas en tiempo real, y permite navegar a los detalles de cada receta, así como a otras secciones de la aplicación como el perfil del usuario y la pantalla de exploración.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
-
+// Estado de la pantalla HomeScreen, que maneja la lógica para filtrar las recetas por categoría, buscar por nombre, cargar las categorías desde Firestore, y navegar a los detalles de cada receta. Incluye un StreamBuilder para escuchar los cambios en Firestore y actualizar la lista de recetas en tiempo real, y métodos para manejar la interacción del usuario con el buscador y las categorías.
 class _HomeScreenState extends State<HomeScreen>
     with AutomaticKeepAliveClientMixin {
   @override
@@ -46,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen>
     _carruselController.dispose();
     super.dispose();
   }
-
+// Método para mostrar un diálogo de selección de fecha, que permite al usuario elegir una fecha para filtrar las recetas por su fecha de creación o actualización. El diálogo muestra un calendario y botones para cancelar o confirmar la selección, y devuelve la fecha seleccionada al cerrar el diálogo.
   Future<void> _cargarCategorias() async {
     try {
       final snap = await FirebaseFirestore.instance.collection('app-Categorías').get();
@@ -64,14 +64,14 @@ class _HomeScreenState extends State<HomeScreen>
       if (mounted) setState(() => _categorias = ['Todo', ...nombres]);
     } catch (_) {}
   }
-
+// Método para limpiar el texto del buscador y restablecer la búsqueda a una cadena vacía, lo que hace que se muestren todas las recetas sin filtrar por nombre. Se llama a este método cuando el usuario presiona el botón de limpiar en el campo de búsqueda, y actualiza el estado para reflejar los cambios en la interfaz.
   void _limpiarBusqueda() { _searchController.clear(); setState(() => _busqueda = ''); }
-
+// Método para manejar la navegación a la pantalla de detalles de una receta específica. Recibe el ID de la receta seleccionada, y utiliza Navigator.push para navegar a la pantalla DetalleRecetaScreen, pasando el ID de la receta como argumento para que la pantalla de detalles pueda cargar y mostrar la información completa de esa receta.
   void _onExplorarTap() {
     Navigator.push(context, MaterialPageRoute(
         builder: (_) => const _ExplorarGridScreen()));
   }
-
+// Método para manejar la navegación al perfil del usuario. Busca el estado de la pantalla principal (AppMainScreenState) en el árbol de widgets, y si lo encuentra, actualiza su estado para cambiar la sección seleccionada a la del perfil del usuario (índice 3). Esto permite que el usuario acceda rápidamente a su perfil desde la pantalla principal.
   void _onPerfilTap() {
     final m = context.findAncestorStateOfType<AppMainScreenState>();
     if (m != null) m.setState(() => m.selectedIndex = 3);
@@ -138,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen>
       default:            return '🍴';
     }
   }
-
+// Método build que construye la interfaz de usuario de la pantalla, incluyendo un AppBar con el nombre del usuario y un botón para seleccionar la fecha, y un cuerpo que muestra una tabla con las actividades del usuario filtradas por la fecha seleccionada. Utiliza un StreamBuilder para escuchar los cambios en Firestore y actualizar la tabla en tiempo real.
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -166,7 +166,7 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
-
+// Widget que construye el encabezado de la pantalla, que incluye un saludo personalizado con el nombre del usuario y un botón para acceder al perfil del usuario. El encabezado tiene un diseño atractivo con colores y estilos de texto, y utiliza un GestureDetector para manejar la interacción del usuario al tocar el botón del perfil.
   Widget _buildEncabezado() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -205,7 +205,7 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
-
+//  Widget que construye el buscador de recetas, que incluye un campo de texto para ingresar el término de búsqueda y un botón para limpiar el campo. El buscador tiene un diseño atractivo con colores y estilos de texto, y utiliza un TextEditingController para manejar el texto ingresado por el usuario, así como un FocusNode para gestionar el enfoque del campo de texto.
   Widget _buildBuscador() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -236,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
-
+// Widget que construye un banner promocional para la sección de exploración de recetas, que incluye una imagen de fondo, un texto llamativo y un botón para acceder a la pantalla de exploración. El banner tiene un diseño atractivo con colores y estilos de texto, y utiliza un Stack para superponer los elementos visuales, así como un GestureDetector para manejar la interacción del usuario al tocar el botón de exploración.
   Widget _buildBannerExplorar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -286,7 +286,7 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
-
+// Widget que construye el título de una sección, que incluye un indicador visual (una barra vertical) y un texto con estilo. El título tiene un diseño atractivo con colores y estilos de texto, y se utiliza para separar visualmente las diferentes secciones de la pantalla principal, como la sección de categorías o la sección de recetas rápidas.
   Widget _buildTituloSeccion(String titulo, Color accentColor) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -300,7 +300,7 @@ class _HomeScreenState extends State<HomeScreen>
       ]),
     );
   }
-
+// Widget que construye una cuadrícula de ingredientes seleccionables y un botón de confirmación. Permite al usuario seleccionar los ingredientes que tiene disponibles, y luego confirmar su selección para mostrar recetas que se pueden preparar con esos ingredientes. Utiliza un GridView.builder para generar dinámicamente los chips de ingredientes disponibles, y un ElevatedButton para confirmar la selección de ingredientes.
   Widget _buildCategorias() {
     return SizedBox(
       height: 44,
@@ -347,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
-
+// Widget que construye el encabezado de la sección de recetas rápidas, que incluye un indicador visual y un texto con estilo. El encabezado tiene un diseño atractivo con colores y estilos de texto, y se utiliza para separar visualmente la sección de recetas rápidas de las demás secciones de la pantalla principal.
   Widget _buildHeaderRecetasRapidas(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -379,7 +379,7 @@ class _HomeScreenState extends State<HomeScreen>
       ),
     );
   }
-
+// Widget que construye un carrusel horizontal de recetas obtenidas desde Firestore, filtradas por la categoría seleccionada y el término de búsqueda ingresado por el usuario. Utiliza un StreamBuilder para escuchar los cambios en la colección de recetas en Firestore, y muestra las recetas en tarjetas personalizadas con su imagen, nombre, calorías, tiempo de preparación y categoría. Permite al usuario navegar a la pantalla de detalles de cada receta al tocar su tarjeta.
   Widget _buildCarruselDesdeFirestore() {
     return SizedBox(
       height: 210,
@@ -449,7 +449,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 }
-
+// Widget que construye una tarjeta personalizada para mostrar la información de una receta, incluyendo su imagen, nombre, calorías, tiempo de preparación y categoría. La tarjeta tiene un diseño atractivo con colores y estilos de texto, y utiliza un Stack para superponer un botón de favorito en la esquina superior derecha. Permite al usuario marcar o desmarcar la receta como favorita al tocar el botón de favorito, y muestra un emoji de categoría como badge en la esquina superior izquierda.
 class _RecetaCard extends StatefulWidget {
   final Map<String, String> receta;
   final String badgeEmoji;
@@ -457,7 +457,7 @@ class _RecetaCard extends StatefulWidget {
   @override
   State<_RecetaCard> createState() => _RecetaCardState();
 }
-
+// Estado de la tarjeta de receta, que maneja la lógica para mostrar la información de la receta, marcar o desmarcar como favorita, y mostrar un placeholder si la imagen no está disponible. Utiliza el estado de favoritos proporcionado por FavoritosProvider para determinar si la receta es favorita o no, y actualiza el icono del botón de favorito en consecuencia.
 class _RecetaCardState extends State<_RecetaCard> {
   static const Color _mostaza = Color(0xFFF5A623);
   static const Color _cafe    = Color(0xFF8B5E3C);
@@ -477,7 +477,7 @@ class _RecetaCardState extends State<_RecetaCard> {
       default:            return const Color(0xFF546E7A);
     }
   }
-
+// Método build que construye la interfaz de usuario de la tarjeta de receta, mostrando la imagen de la receta (o un placeholder si no está disponible), el nombre de la receta, las calorías, el tiempo de preparación, y un botón para marcar o desmarcar como favorita. Utiliza un Stack para superponer el botón de favorito en la esquina superior derecha, y muestra un badge con un emoji de categoría en la esquina superior izquierda.
   @override
   Widget build(BuildContext context) {
     final favState  = FavoritosProvider.of(context);
@@ -550,7 +550,7 @@ class _RecetaCardState extends State<_RecetaCard> {
       ]),
     );
   }
-
+// Widget que construye un placeholder para la imagen de la receta, que se muestra cuando la imagen no está disponible o no se puede cargar. El placeholder tiene un diseño simple con un fondo de color y un ícono de comida, y se utiliza para mantener la consistencia visual de las tarjetas de recetas incluso cuando no se pueden mostrar las imágenes.
   Widget _placeholder() => Container(
     width: 155, height: 115,
     decoration: const BoxDecoration(color: Color(0xFFFFF0DC),
@@ -559,13 +559,13 @@ class _RecetaCardState extends State<_RecetaCard> {
         color: Color(0xFFF5A623).withOpacity(0.5)),
   );
 }
-
+// Pantalla de exploración de recetas, que muestra una cuadrícula de recetas obtenidas desde Firestore, filtradas por categoría y búsqueda. Permite al usuario navegar a la pantalla de detalles de cada receta al tocar su tarjeta, y utiliza un StreamBuilder para escuchar los cambios en la colección de recetas en Firestore y actualizar la cuadrícula en tiempo real.
 class _ExplorarGridScreen extends StatefulWidget {
   const _ExplorarGridScreen();
   @override
   State<_ExplorarGridScreen> createState() => _ExplorarGridScreenState();
 }
-
+// Pantalla de exploración de recetas, que muestra una cuadrícula de recetas obtenidas desde Firestore, filtradas por categoría y búsqueda. Permite al usuario navegar a la pantalla de detalles de cada receta al tocar su tarjeta, y utiliza un StreamBuilder para escuchar los cambios en la colección de recetas en Firestore y actualizar la cuadrícula en tiempo real.
 class _ExplorarGridScreenState extends State<_ExplorarGridScreen> {
   static const Color _verde    = Color(0xFF2D9E73);
   static const Color _verdeOsc = Color(0xFF1B5E20);
@@ -794,14 +794,14 @@ class _ExplorarGridScreenState extends State<_ExplorarGridScreen> {
         color: const Color(0xFFF5A623).withOpacity(0.5))),
   );
 }
-
+// Pantalla que muestra todas las recetas en una lista, con un campo de búsqueda para filtrar las recetas por nombre. Utiliza un StreamBuilder para escuchar los cambios en la colección de recetas en Firestore y actualizar la lista en tiempo real, y permite al usuario navegar a la pantalla de detalles de cada receta al tocar su tarjeta.
 class _VerTodasRecetasScreen extends StatefulWidget {
   final Color verde;
   const _VerTodasRecetasScreen({required this.verde});
   @override
   State<_VerTodasRecetasScreen> createState() => _VerTodasRecetasScreenState();
 }
-
+// Estado de la pantalla de ver todas las recetas, que maneja la lógica para mostrar la lista de recetas obtenidas desde Firestore, filtrar por búsqueda, y navegar a la pantalla de detalles de cada receta. Utiliza un StreamBuilder para escuchar los cambios en la colección de recetas en Firestore y actualizar la lista en tiempo real, y muestra un indicador de carga mientras se obtienen los datos.
 class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
   static const Color _mostaza = Color(0xFFF5A623);
   static const Color _cafe    = Color(0xFF8B5E3C);
@@ -951,7 +951,7 @@ class _VerTodasRecetasScreenState extends State<_VerTodasRecetasScreen> {
       ]),
     );
   }
-
+// Widget que construye un placeholder para la imagen de la receta en la lista de todas las recetas, que se muestra cuando la imagen no está disponible o no se puede cargar. El placeholder tiene un diseño simple con un fondo de color y un ícono de comida, y se utiliza para mantener la consistencia visual de las tarjetas de recetas incluso cuando no se pueden mostrar las imágenes.
   Widget _imgPlaceholder() => Container(
     width: 90, height: 90,
     decoration: const BoxDecoration(color: Color(0xFFFFF0DC),

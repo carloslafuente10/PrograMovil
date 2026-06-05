@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'ingredient_progress_provider.dart';
-import 'recipe_service.dart';
-import '../cocina_pasos_screen.dart';
-
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
+import 'package:provider/provider.dart';// Permite la gestión de estado mediante el patrón Provider.
+import 'ingredient_progress_provider.dart';// Proveedor encargado de calcular el progreso de ingredientes disponibles.
+import 'recipe_service.dart';// Servicio para consultar información de recetas y pasos de preparación.
+import '../cocina_pasos_screen.dart';// Pantalla que muestra los pasos de preparación de la receta.
+//Pantalla que muestra los ingredientes de una receta y permite
+//verificar si el usuario cuenta con los ingredientes necesarios.
 class IngredientsScreen extends StatelessWidget {
   final String recipeId;
   final String recipeTitle;
@@ -18,7 +19,7 @@ class IngredientsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
+    return ChangeNotifierProvider(// Inicializa el proveedor que controla el progreso de ingredientes.
       create: (_) => IngredientProgressProvider(),
       child: _IngredientsBody(
         recipeId: recipeId,
@@ -29,6 +30,7 @@ class IngredientsScreen extends StatelessWidget {
   }
 }
 
+// Contenido principal de la pantalla de ingredientes.
 class _IngredientsBody extends StatelessWidget {
   final String recipeId;
   final String recipeTitle;
@@ -42,6 +44,7 @@ class _IngredientsBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Escucha los cambios del progreso para actualizar la interfaz.
     final provider = context.watch<IngredientProgressProvider>();
 
     return Scaffold(
@@ -67,12 +70,13 @@ class _IngredientsBody extends StatelessWidget {
     );
   }
 }
-
+// Encabezado que muestra el progreso de ingredientes.
 class _ProgressHeader extends StatelessWidget {
   final double ratio;
   const _ProgressHeader({required this.ratio});
 
   @override
+  // Muestra el porcentaje de ingredientes disponibles y una barra de progreso visual.
   Widget build(BuildContext context) {
     final percent = (ratio * 100).round();
     final colorScheme = Theme.of(context).colorScheme;
@@ -103,7 +107,7 @@ class _ProgressHeader extends StatelessWidget {
     );
   }
 }
-
+// Widget que representa cada ingrediente con una casilla de verificación para marcarlo como disponible o no.
 class _IngredientTile extends StatefulWidget {
   final RecipeIngredient ingredient;
   final List<RecipeIngredient> allIngredients;
@@ -117,11 +121,12 @@ class _IngredientTile extends StatefulWidget {
   @override
   State<_IngredientTile> createState() => _IngredientTileState();
 }
-
+// Estado del widget de ingrediente que maneja la selección y actualización del progreso.
 class _IngredientTileState extends State<_IngredientTile> {
   bool _isDone = false;
 
   @override
+  // Construye una casilla de verificación para cada ingrediente, permitiendo al usuario marcarlo como disponible o no, y actualizando el progreso en consecuencia.
   Widget build(BuildContext context) {
     final provider = context.read<IngredientProgressProvider>();
 
@@ -140,7 +145,7 @@ class _IngredientTileState extends State<_IngredientTile> {
     );
   }
 }
-
+// Botón que permite iniciar la navegación a la pantalla de pasos de preparación si el usuario tiene suficientes ingredientes disponibles.
 class _CookingButton extends StatelessWidget {
   final bool isReady;
   final String recipeId;
@@ -152,6 +157,7 @@ class _CookingButton extends StatelessWidget {
   });
 
   @override
+  // Construye un botón que se habilita solo cuando el usuario tiene suficientes ingredientes (80% o más) para iniciar la navegación a los pasos de preparación.
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -194,7 +200,7 @@ class _CookingButton extends StatelessWidget {
       ],
     );
   }
-
+// Función que maneja la navegación a la pantalla de pasos de preparación, verificando primero que existan pasos disponibles para la receta.
   Future<void> _navigateToSteps(BuildContext context) async {
     // 1. Verificación inmediata en consola
     print("--- INICIANDO NAVEGACIÓN ---");

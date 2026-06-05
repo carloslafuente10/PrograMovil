@@ -1,13 +1,13 @@
-import 'dart:async';
-import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
-import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:flutter_tts/flutter_tts.dart';
+import 'dart:async';// Proporciona herramientas para programación asíncrona como Future, Stream y Timer.
+import 'dart:convert';// Permite convertir datos entre objetos Dart y formato JSON.
+import 'package:flutter/material.dart';// Librería principal de Flutter para construir interfaces gráficas.
+import 'package:cloud_firestore/cloud_firestore.dart';// Permite acceder y gestionar datos almacenados en Firebase Firestore.
+import 'package:flutter_dotenv/flutter_dotenv.dart';// Carga variables de entorno desde un archivo .env para configuraciones sensibles.
+import 'package:http/http.dart' as http;// Permite realizar solicitudes HTTP a APIs y servicios externos.
+import 'package:speech_to_text/speech_to_text.dart' as stt;// Proporciona funcionalidades de reconocimiento de voz para convertir audio en texto.
+import 'package:flutter_tts/flutter_tts.dart';// Permite convertir texto en voz mediante síntesis de voz.
 
-// ═══════════════════════════════════════════════════════════════════════════
+
 // VoiceTransitionScreen — Pantalla de transición + Asistente NID integrado
 //
 // FLUJO COMBINADO:
@@ -24,7 +24,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 //   speech_to_text: ^6.6.0
 //   flutter_tts:    ^4.0.2
 //   cloud_firestore, http, flutter_dotenv  ← ya están en el proyecto
-// ═══════════════════════════════════════════════════════════════════════════
+
 
 class VoiceTransitionScreen extends StatefulWidget {
   const VoiceTransitionScreen({super.key});
@@ -126,9 +126,9 @@ class _VoiceTransitionScreenState extends State<VoiceTransitionScreen>
   _EstadoFondo _estadoFondo = _EstadoFondo.presentacion;
   Timer? _transicionTimer;
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  
   // SYSTEM PROMPT — POLÍTICA ZERO-HALLUCINATION + FORMATO TTS
-  // ═══════════════════════════════════════════════════════════════════════════
+  
   static const String _systemPromptTemplate = """
 Eres NID, asistente culinario de voz de la Cordillera. Responde SOLO con datos del siguiente registro. Tu conocimiento externo está desactivado.
 
@@ -657,7 +657,7 @@ FORMATO TTS: prosa fluida, sin asteriscos, guiones decorativos, corchetes, emoji
     return v;
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  
   // TOGGLE MICRÓFONO — Blindado para Flutter Web (Edge / Chrome)
   //
   // PROBLEMAS RESUELTOS:
@@ -678,7 +678,7 @@ FORMATO TTS: prosa fluida, sin asteriscos, guiones decorativos, corchetes, emoji
   //   [4] _speech.initialize() se re-llama en cada tap aunque ya fue
   //       inicializado — inofensivo pero genera logs. Se agrega guard
   //       _sttInicializado para evitarlo.
-  // ═══════════════════════════════════════════════════════════════════════════
+
 
   /// Semáforo: evita re-inicializar el plugin STT en cada tap.
   bool _sttInicializado = false;
@@ -970,9 +970,9 @@ FORMATO TTS: prosa fluida, sin asteriscos, guiones decorativos, corchetes, emoji
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  
   // _consultarAgenteExterno — Fallback acotado (sin alucinaciones)
-  // ═══════════════════════════════════════════════════════════════════════════
+ 
   Future<String?> _consultarAgenteExterno(String preguntaUsuario) async {
     const String systemFallback =
         "Eres NID, el asistente culinario de voz de PrograMovil, con esencia cibernética andina. "
@@ -1778,9 +1778,9 @@ FORMATO TTS: prosa fluida, sin asteriscos, guiones decorativos, corchetes, emoji
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+
 // _EstadoFondo — Máquina de estados para los 3 fondos webp de NID
-// ═══════════════════════════════════════════════════════════════════════════
+
 enum _EstadoFondo {
   presentacion, // Reposo             → assets/images/nid_presentacion.webp
   transicion,   // Flash 250 ms       → assets/images/nid_transicion.webp
@@ -1788,9 +1788,9 @@ enum _EstadoFondo {
   hablando,     // TTS activo         → assets/images/nid_hablando.webp
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+
 // _AndeanPatternPainter — patrón geométrico andino (rombos tipo wiphala)
-// ═══════════════════════════════════════════════════════════════════════════
+
 class _AndeanPatternPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {

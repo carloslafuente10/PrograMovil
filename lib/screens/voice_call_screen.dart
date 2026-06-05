@@ -1,11 +1,11 @@
-import 'dart:async';
-import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
-import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:flutter_tts/flutter_tts.dart';
+import 'dart:async'; // Librerías de Dart para manejo de tareas asíncronas y conversión de datos JSON.
+import 'dart:convert';//// Librerías de Dart para manejo de tareas asíncronas y conversión de datos JSON.
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
+import 'package:cloud_firestore/cloud_firestore.dart';//Permite la conexión y consulta de datos almacenados en Firebase Firestore.
+import 'package:flutter_dotenv/flutter_dotenv.dart';//permite cargar variables de entorno desde un archivo .env.
+import 'package:http/http.dart' as http;//librería para realizar solicitudes HTTP a servicios o APIs externas.
+import 'package:speech_to_text/speech_to_text.dart' as stt;// Permite convertir la voz del usuario en texto.
+import 'package:flutter_tts/flutter_tts.dart';// Permite convertir texto en voz mediante síntesis de voz.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // VoiceCallScreen — Asistente de voz NID

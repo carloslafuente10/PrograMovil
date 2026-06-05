@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';// Permite la conexión y consulta de datos en Firebase Firestore.
 
 class RecipeService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;

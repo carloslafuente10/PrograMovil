@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';// Librería de Flutter para la construcción de interfaces gráficas.
+import 'package:cloud_firestore/cloud_firestore.dart';// Permite interactuar con la base de datos Firestore de Firebase para obtener los datos de las recetas e ingredientes.
 
 // ─── Modelo interno ───────────────────────────────────────────────────────────
 class _IngAdmin {
@@ -32,7 +32,7 @@ class VerRecetaAdminScreen extends StatefulWidget {
   @override
   State<VerRecetaAdminScreen> createState() => _VerRecetaAdminScreenState();
 }
-
+// Pantalla que muestra los detalles de una receta en modo solo lectura para administradores, incluyendo ingredientes y pasos de preparación.
 class _VerRecetaAdminScreenState extends State<VerRecetaAdminScreen> {
   static const Color _verde = Color(0xFF2D9E73);
   static const Color _verdeClaro = Color(0xFFE8F7F1);

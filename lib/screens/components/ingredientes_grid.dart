@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';// Librería de Flutter para la construcción de interfaces gráficas
 
+// Widget que permite seleccionar ingredientes y confirmar la selección.
 class IngredientesGrid extends StatelessWidget {
   final List<String> ingredientesPrimordiales;
   final List<String> ingredientesSeleccionados;
@@ -17,12 +18,12 @@ class IngredientesGrid extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) {  // Construye una cuadrícula de ingredientes seleccionables y un botón de confirmación.
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
         children: [
-          GridView.builder(
+          GridView.builder( // Genera dinámicamente los chips de ingredientes disponibles.
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -47,7 +48,7 @@ class IngredientesGrid extends StatelessWidget {
               );
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 12), // Botón para confirmar los ingredientes seleccionados.
           ElevatedButton.icon(
             onPressed: ingredientesSeleccionados.isNotEmpty ? onConfirmar : null,
             icon: const Icon(Icons.restaurant),

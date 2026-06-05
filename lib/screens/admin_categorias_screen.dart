@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:flutter/material.dart';// Librería de Flutter para la construcción de interfaces gráficas
+import 'package:cloud_firestore/cloud_firestore.dart';// Permite la conexión y consulta de datos en Firebase Firestore.
+// Pantalla de administración de categorías de recetas, donde se pueden agregar, editar o eliminar categorías.
 class AdminCategoriasScreen extends StatelessWidget {
   const AdminCategoriasScreen({super.key});
 
@@ -9,6 +9,7 @@ class AdminCategoriasScreen extends StatelessWidget {
   static const Color _fondo = Color(0xFFF5F6FA);
 
   @override
+  // Construye la interfaz de la pantalla de administración de categorías, mostrando una lista de categorías existentes y un botón para agregar nuevas categorías.
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _fondo,
@@ -148,7 +149,7 @@ class AdminCategoriasScreen extends StatelessWidget {
       ),
     );
   }
-
+// Función que muestra un diálogo para agregar o editar una categoría, dependiendo de si se proporciona un ID de documento existente.
   static void _mostrarDialogo(
     BuildContext context,
     String? docId,
@@ -157,7 +158,7 @@ class AdminCategoriasScreen extends StatelessWidget {
     const Color verde = Color(0xFF2D9E73);
     final ctrl = TextEditingController(text: nombreActual ?? '');
     final esEdicion = docId != null;
-
+// Construye un diálogo que permite al usuario ingresar el nombre de una categoría, con opciones para cancelar o guardar los cambios, y maneja la lógica de actualización o creación en Firebase Firestore.
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -226,7 +227,7 @@ class AdminCategoriasScreen extends StatelessWidget {
     );
   }
 }
-
+// Widget que representa una tarjeta individual de categoría, mostrando su nombre y opciones para editar o eliminar la categoría.
 class _CategoriaCard extends StatelessWidget {
   final String nombre;
   final String docId;
@@ -234,7 +235,7 @@ class _CategoriaCard extends StatelessWidget {
 
   static const Color _verde = Color(0xFF2D9E73);
   static const Color _verdeClaro = Color(0xFFE8F7F1);
-
+// Lista de iconos predefinidos para representar visualmente las categorías, asignados de forma cíclica según el índice de la categoría.
   static const List<IconData> _iconos = [
     Icons.breakfast_dining_rounded,
     Icons.lunch_dining_rounded,
@@ -245,7 +246,7 @@ class _CategoriaCard extends StatelessWidget {
     Icons.cake_rounded,
     Icons.soup_kitchen_rounded,
   ];
-
+// Constructor que inicializa los campos necesarios para representar una categoría, incluyendo su nombre, ID de documento en Firestore y su índice para la asignación de iconos.
   const _CategoriaCard({
     required this.nombre,
     required this.docId,
@@ -253,6 +254,7 @@ class _CategoriaCard extends StatelessWidget {
   });
 
   @override
+  // Construye la tarjeta visual de la categoría, mostrando su nombre, un icono representativo y botones para editar o eliminar la categoría, con estilos personalizados para cada acción.
   Widget build(BuildContext context) {
     final icono = _iconos[index % _iconos.length];
     return Material(
@@ -329,7 +331,7 @@ class _CategoriaCard extends StatelessWidget {
       ),
     );
   }
-
+// Función que muestra un diálogo de confirmación antes de eliminar una categoría, asegurando que el usuario confirme su intención de eliminar la categoría seleccionada.
   void _confirmarEliminar(BuildContext context) {
     showDialog(
       context: context,

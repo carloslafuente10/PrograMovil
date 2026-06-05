@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../servicios/notificaciones_servicio.dart';
-import 'crear_receta_usuario_screen.dart';
-import 'admin_recetas_pendientes_screen.dart';
-import 'mis_recetas_screen.dart';
-import 'app_main_screen.dart';
+import 'package:flutter/material.dart';// Librería de Flutter para la construcción de interfaces gráficas
+import 'package:firebase_auth/firebase_auth.dart';// Permite obtener el usuario autenticado mediante Firebase Authentication.
+import 'package:cloud_firestore/cloud_firestore.dart';// Permite interactuar con la base de datos Firestore de Firebase para leer y escribir datos relacionados con las notificaciones.
+import '../servicios/notificaciones_servicio.dart';// Servicio personalizado encargado de gestionar y consultar las notificaciones.
+import 'crear_receta_usuario_screen.dart';// Pantalla para crear o editar una receta personalizada del usuario, que se muestra al intentar reenviar una receta rechazada para su revisión. Permite al usuario modificar la receta original y enviarla nuevamente para aprobación.
+import 'admin_recetas_pendientes_screen.dart';// Pantalla que muestra las recetas pendientes de revisión para el administrador, a la que se puede acceder desde una notificación de nueva receta por revisar. Permite al administrador aprobar o rechazar las recetas enviadas por los usuarios.
+import 'mis_recetas_screen.dart';// Pantalla que muestra las recetas personales del usuario, desde la cual se puede acceder a la pantalla de detalle de una receta personalizada. Se utiliza para mostrar el detalle de una receta rechazada y permitir al usuario editarla y reenviarla para su revisión.
+import 'app_main_screen.dart';// Pantalla principal de la aplicación, a la que se redirige al usuario después de aprobar una receta para mostrarla en el catálogo. Se utiliza para actualizar la vista del catálogo después de que una receta personalizada es aprobada y se agrega al catálogo general.
 
 // Pantalla de notificaciones para admin y usuario
 class NotificacionesScreen extends StatefulWidget {
@@ -15,7 +15,7 @@ class NotificacionesScreen extends StatefulWidget {
   @override
   State<NotificacionesScreen> createState() => _NotificacionesScreenState();
 }
-
+// Pantalla que muestra las notificaciones del usuario o administrador, con la opción de filtrar solo las no leídas. Permite al usuario ver el detalle de cada notificación y realizar acciones según el tipo de notificación (ver receta pendiente, ver motivo de rechazo, etc.). Para el administrador, muestra las notificaciones relacionadas con nuevas recetas por revisar.
 class _NotificacionesScreenState extends State<NotificacionesScreen> {
   static const Color _verde = Color(0xFF2D9E73);
   bool _soloNoLeidas = false;

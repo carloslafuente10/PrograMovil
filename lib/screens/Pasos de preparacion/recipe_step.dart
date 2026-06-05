@@ -1,4 +1,4 @@
-class RecipeStep {
+class RecipeStep {// Modelo que representa un paso individual dentro de una receta.
   final int order;
   final String instruction;
 

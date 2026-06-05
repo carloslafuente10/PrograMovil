@@ -1,5 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';// Permite acceder y gestionar documentos y colecciones almacenadas en Firebase Firestore.
+import 'package:firebase_auth/firebase_auth.dart';// Permite obtener información del usuario autenticado mediante Firebase Authentication.
 
 // Tipos de notificación que maneja el sistema
 class TipoNotificacion {

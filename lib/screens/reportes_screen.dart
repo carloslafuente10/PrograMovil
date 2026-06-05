@@ -1,16 +1,16 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../servicios/pdf_servicios.dart';
-import 'reportes_planificadores.dart';
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
+import 'package:cloud_firestore/cloud_firestore.dart';// Permite la conexión y consulta de datos en Firebase Firestore.
+import '../servicios/pdf_servicios.dart';// Servicio encargado de generar reportes en formato PDF, Excel o CSV a partir de los datos almacenados en Firestore.
+import 'reportes_planificadores.dart';//Pantalla específica para mostrar los reportes relacionados con el planificador de comidas de los usuarios.
 
-
+// Pantalla principal de reportes para el administrador, que permite visualizar y exportar información sobre usuarios, recetas, favoritos y planes de comidas. Incluye funcionalidades de búsqueda, filtrado y generación de reportes en diferentes formatos (PDF, Excel, CSV) para cada sección.
 class ReportesScreen extends StatefulWidget {
   const ReportesScreen({super.key});
 
   @override
   State<ReportesScreen> createState() => _ReportesScreenState();
 }
-
+// Estado del widget ReportesScreen, que maneja la lógica de selección de sección, búsqueda, filtrado y generación de reportes. Incluye métodos auxiliares para formatear fechas, generar IDs únicos, cambiar la fecha seleccionada y mostrar detalles de recetas.
 class _ReportesScreenState extends State<ReportesScreen> {
   static const Color _verde = Color(0xFF2D9E73);
   static const Color _verdeOsc = Color(0xFF1B5E20);
@@ -49,7 +49,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
     [Color(0xFF4527A0), Color(0xFFEDE7F6)],
     [Color(0xFF00695C), Color(0xFFE0F2F1)],
   ];
-
+// Método auxiliar para obtener una paleta de colores basada en el UID del usuario. Calcula un hash del UID y lo utiliza para seleccionar una paleta de colores predefinida, que se utiliza para personalizar la apariencia de los elementos relacionados con ese usuario en la interfaz.
   static List<Color> _paletaPara(String seed) {
     int hash = 0;
     for (final c in seed.codeUnits) {
@@ -57,7 +57,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
     }
     return _paletas[hash % _paletas.length];
   }
-
+// Método auxiliar para formatear la fecha seleccionada en un formato legible. Convierte la fecha en una cadena que muestra el día, el mes (en formato abreviado) y el año, utilizando un arreglo de nombres de meses para obtener la representación textual del mes.
   List<QueryDocumentSnapshot> _ordenarDocs(
     List<QueryDocumentSnapshot> lista,
     String campo,
@@ -75,13 +75,13 @@ class _ReportesScreenState extends State<ReportesScreen> {
     });
     return lista;
   }
-
+// Método auxiliar para formatear la fecha seleccionada en un formato legible. Convierte la fecha en una cadena que muestra el día, el mes (en formato abreviado) y el año, utilizando un arreglo de nombres de meses para obtener la representación textual del mes.
   @override
   void initState() {
     super.initState();
     cargarCategorias();
   }
-
+// Método auxiliar para generar un ID de documento único para el plan de comidas de un usuario en una fecha específica. Combina el UID del usuario con la fecha formateada en un formato específico (YYYY-MM-DD) para crear un identificador que se utiliza para almacenar y recuperar el plan de comidas de ese usuario en esa fecha desde Firestore.
   @override
   void dispose() {
     buscarCtrl.dispose();
@@ -89,7 +89,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
     buscarRecetaCtrl.dispose();
     super.dispose();
   }
-
+// Método auxiliar para cargar las categorías de comida desde Firestore. Consulta la colección de categorías, extrae los nombres de las categorías (excluyendo la categoría "Todas") y actualiza el estado del widget para incluir estas categorías en el filtro de búsqueda de recetas.
   Future<void> cargarCategorias() async {
     final snapshot = await FirebaseFirestore.instance
         .collection('app-Categorías')
@@ -100,7 +100,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
         .toList();
     setState(() => categorias = ['Todas', ...nombres]);
   }
-
+// Método auxiliar para cambiar la fecha seleccionada sumando o restando una cantidad de días. Permite navegar entre fechas adyacentes para visualizar los planes de comidas de diferentes días.
   Widget _chipSeccion({
     required String label,
     required String valor,
@@ -163,7 +163,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       ),
     );
   }
-
+// Método auxiliar para mostrar un selector de fecha al usuario. Utiliza el widget showDatePicker de Flutter para permitir al usuario elegir una fecha específica, y actualiza la fecha seleccionada en el estado del widget cuando el usuario confirma su selección.
   Widget _dropdown<T>({
     required T value,
     required List<DropdownMenuItem<T>> items,
@@ -187,7 +187,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       ),
     );
   }
-
+// Método auxiliar para construir un widget que representa una fila de información con un ícono, un título y un valor. Utilizado para mostrar detalles específicos de usuarios o recetas en los reportes.
   Widget _botonReporte(VoidCallback onPressed) {
     return ElevatedButton.icon(
       onPressed: onPressed,
@@ -204,7 +204,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       ),
     );
   }
-
+// Método auxiliar para construir un widget que representa un ítem en una lista, con un widget leading (generalmente un ícono o imagen), un título y un subtítulo. Utilizado para mostrar usuarios, recetas o favoritos en los reportes.
   Widget _buscador({
     required TextEditingController ctrl,
     required String valor,
@@ -234,7 +234,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       onChanged: onChanged,
     );
   }
-
+// Método auxiliar para construir un widget que representa una fila de información con un ícono, un título y un valor. Utilizado para mostrar detalles específicos de usuarios o recetas en los reportes.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1003,7 +1003,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       ],
     );
   }
-
+// ── Método auxiliar para formatear la fecha seleccionada en un formato legible. Convierte la fecha en una cadena que muestra el día, el mes (en formato abreviado) y el año, utilizando un arreglo de nombres de meses para obtener la representación textual del mes.
   Widget _metricaTile(
     String label,
     IconData icono,
@@ -1184,7 +1184,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       ],
     );
   }
-
+// ── Método auxiliar para construir un widget que representa una tarjeta de resumen con un ícono, un número total y un título. Utilizado para mostrar métricas clave como el número total de usuarios, recetas o favoritos en los reportes.
   Widget _cardResumen(
     String titulo,
     IconData icono,
@@ -1223,7 +1223,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       },
     );
   }
-
+// ── Método auxiliar para construir un widget que representa un ítem en una lista, con un widget leading (generalmente un ícono o imagen), un título y un subtítulo. Utilizado para mostrar usuarios, recetas o favoritos en los reportes.
   Widget _itemLista({
     required Widget leading,
     required String titulo,
@@ -1273,7 +1273,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       ),
     );
   }
-
+// ── Método auxiliar para construir un widget que representa un título de sección. Utilizado para separar visualmente las diferentes secciones de los reportes, como "Recetas" o "Favoritos por usuario".
   Widget _titulo(String texto) {
     return Row(
       children: [
@@ -1288,7 +1288,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       ],
     );
   }
-
+// ── Método auxiliar para construir un widget que representa una fila de información con un ícono, un título y un valor. Utilizado para mostrar detalles específicos de usuarios o recetas en los reportes.
   Widget _infoFila(IconData icono, String label, String valor) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -1311,7 +1311,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       ),
     );
   }
-
+// ── Método auxiliar para formatear la fecha seleccionada en un formato legible. Convierte la fecha en una cadena que muestra el día, el mes (en formato abreviado) y el año, utilizando un arreglo de nombres de meses para obtener la representación textual del mes.
   String _formatFecha(DateTime dt) {
     const meses = [
       'Ene',
@@ -1609,7 +1609,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       ),
     );
   }
-
+// Método auxiliar para cargar y formatear la lista de ingredientes de una receta. Toma la lista cruda de ingredientes (que puede tener formatos variados) y devuelve una lista de mapas con nombre, cantidad y unidad formateados. Intenta obtener el nombre del ingrediente desde el campo 'nombre' del mapa, y si no está presente, busca en la colección 'ingredientes_maestros' usando el 'ingrediente_id'. Esto permite mostrar un nombre legible incluso si la receta solo tiene el ID del ingrediente.
   Future<List<Map<String, dynamic>>> _cargarIngredientes(
     List<dynamic> rawIngs,
   ) async {
@@ -1644,7 +1644,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
     }
     return result;
   }
-
+// Método auxiliar para cargar y ordenar la lista de pasos de una receta. Dado que los pasos pueden estar almacenados en diferentes formatos o ubicaciones dentro de Firestore, esta función intenta varias estrategias para obtenerlos. Primero busca 'pasos_ordenados' o 'pasos' directamente en el documento de la receta. Si no los encuentra, intenta cargar un documento específico en 'steps-recetas' con el mismo ID, y si eso falla, hace una consulta buscando por 'receta_id'. Finalmente, ordena los pasos por su campo 'orden' y devuelve solo las instrucciones como una lista de strings.
   Future<List<String>> _cargarPasos(
     String docId,
     Map<String, dynamic> data,
@@ -1683,7 +1683,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
         .where((s) => s.isNotEmpty)
         .toList();
   }
-
+// ── Métodos auxiliares para construir widgets específicos de la UI ───────────────────────────────
   Widget _badge(IconData icono, String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1708,7 +1708,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       ),
     );
   }
-
+// Método auxiliar para construir un widget que representa un subtítulo de sección. Similar al título pero con un tamaño de fuente más pequeño y un peso ligeramente menor, utilizado para encabezados dentro del detalle de recetas como "Ingredientes" o "Preparación".
   Widget _subtitulo(String texto) {
     return Text(
       texto,

@@ -1,17 +1,18 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../servicios/notificaciones_servicio.dart';
-import 'components/notificacion_campana.dart';
-
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
+import 'package:cloud_firestore/cloud_firestore.dart';// Permite la interacción con la base de datos Firestore de Firebase.
+import 'package:firebase_auth/firebase_auth.dart';// Permite la autenticación de usuarios mediante Firebase Authentication.
+import '../servicios/notificaciones_servicio.dart';// Servicio encargado de gestionar las notificaciones para los usuarios.
+import 'components/notificacion_campana.dart';// Widget que muestra una campana de notificaciones con contador de mensajes no leídos.
+// Pantalla de administración de recetas pendientes, donde el administrador puede revisar, aprobar o rechazar las recetas enviadas por los usuarios.
 class AdminRecetasPendientesScreen extends StatefulWidget {
   const AdminRecetasPendientesScreen({super.key});
 
   @override
+  // Crea el estado mutable para la pantalla de administración de recetas pendientes, permitiendo la gestión de pestañas y la actualización de la interfaz según el estado de las recetas.
   State<AdminRecetasPendientesScreen> createState() =>
       _AdminRecetasPendientesScreenState();
 }
-
+// Estado mutable de la pantalla de administración de recetas pendientes, que controla la navegación entre pestañas y la visualización de recetas según su estado (pendiente, aprobada, rechazada).
 class _AdminRecetasPendientesScreenState
     extends State<AdminRecetasPendientesScreen>
     with SingleTickerProviderStateMixin {
@@ -19,18 +20,21 @@ class _AdminRecetasPendientesScreenState
   late TabController _tabController;
 
   @override
+  // Inicializa el controlador de pestañas para gestionar la navegación entre las diferentes categorías de recetas (pendientes, aprobadas, rechazadas) y asegura su correcta disposición al destruir el widget.
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
+  // Libera los recursos utilizados por el controlador de pestañas cuando el widget es destruido, evitando posibles fugas de memoria.
   void dispose() {
     _tabController.dispose();
     super.dispose();
   }
 
   @override
+  // Construye la interfaz de la pantalla de administración de recetas pendientes, mostrando una barra de navegación con pestañas para filtrar las recetas por estado y una campana de notificaciones para alertar al administrador sobre nuevas recetas por revisar.
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
@@ -71,7 +75,7 @@ class _AdminRecetasPendientesScreenState
     );
   }
 }
-
+// Widget que muestra una lista de recetas filtradas por su estado (pendiente, aprobada, rechazada) y permite al administrador revisar los detalles de cada receta pendiente para tomar decisiones de aprobación o rechazo.
 class _ListaRecetas extends StatelessWidget {
   final String estado;
   final Color color;
@@ -80,6 +84,7 @@ class _ListaRecetas extends StatelessWidget {
   const _ListaRecetas({required this.estado, required this.color});
 
   @override
+  // Construye una lista de recetas obtenidas en tiempo real desde Firestore, filtradas por su estado, y muestra un mensaje o ícono cuando no hay recetas disponibles para el estado seleccionado.
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -196,7 +201,7 @@ class _ListaRecetas extends StatelessWidget {
       },
     );
   }
-
+// Función que muestra un modal con los detalles completos de una receta pendiente, permitiendo al administrador revisar la información antes de tomar una decisión de aprobación o rechazo.
   void _mostrarDetalle(BuildContext context, String docId, Map<String, dynamic> data) {
     showModalBottomSheet(
       context: context,
@@ -210,7 +215,7 @@ class _ListaRecetas extends StatelessWidget {
     );
   }
 }
-
+// Widget que muestra un modal con los detalles completos de una receta pendiente, permitiendo al administrador revisar la información antes de tomar una decisión de aprobación o rechazo.
 class _DetallePendienteSheet extends StatefulWidget {
   final String docId;
   final Map<String, dynamic> receta;
@@ -223,13 +228,14 @@ class _DetallePendienteSheet extends StatefulWidget {
   });
 
   @override
+  // Crea el estado mutable para el modal de detalles de receta pendiente, permitiendo la gestión del proceso de aprobación o rechazo y la actualización de la interfaz según las acciones del administrador.
   State<_DetallePendienteSheet> createState() => _DetallePendienteSheetState();
 }
-
+// Estado mutable del modal de detalles de receta pendiente, que controla el proceso de aprobación o rechazo y la actualización de la interfaz según las acciones del administrador.
 class _DetallePendienteSheetState extends State<_DetallePendienteSheet> {
   static const Color _verde = Color(0xFF2D9E73);
   bool _procesando = false;
-
+// Función que marca como leídas las notificaciones relacionadas con la receta pendiente que se está revisando, asegurando que el administrador no reciba alertas redundantes sobre la misma receta después de haberla revisado.
   Future<void> _marcarNotifLeidaPorRecipeId(String recipeId) async {
     try {
       final adminEmail = FirebaseAuth.instance.currentUser?.email ?? '';
@@ -249,6 +255,7 @@ class _DetallePendienteSheetState extends State<_DetallePendienteSheet> {
   }
 
   @override
+  // Construye la interfaz del modal de detalles de receta pendiente, mostrando toda la información relevante de la receta y proporcionando botones para aprobar o rechazar la receta, con estilos personalizados para cada acción.
   Widget build(BuildContext context) {
     final nombre       = widget.receta['nombre'] ?? 'Sin título';
     final ingredientes = widget.receta['ingredientes'] as List? ?? [];
@@ -257,7 +264,7 @@ class _DetallePendienteSheetState extends State<_DetallePendienteSheet> {
     final tiempo       = widget.receta['tiempo']?.toString() ?? '0';
     final categoria    = widget.receta['categoria'] ?? '';
     final imgUrl       = widget.receta['imagen'] ?? '';
-
+// Construye la interfaz del modal de detalles de receta pendiente, mostrando toda la información relevante de la receta y proporcionando botones para aprobar o rechazar la receta, con estilos personalizados para cada acción.
     return DraggableScrollableSheet(
       initialChildSize: 0.92, minChildSize: 0.5, maxChildSize: 0.96,
       builder: (_, scrollCtrl) => Container(
@@ -401,7 +408,7 @@ class _DetallePendienteSheetState extends State<_DetallePendienteSheet> {
       ),
     );
   }
-
+// Widget que muestra un ícono de ingrediente genérico cuando no se proporciona una imagen válida para el ingrediente en la receta pendiente.
   Future<void> _aprobarReceta(BuildContext context) async {
     if (_procesando) return;
     setState(() => _procesando = true);
@@ -463,7 +470,7 @@ class _DetallePendienteSheetState extends State<_DetallePendienteSheet> {
       }
     }
   }
-
+// Función que muestra un diálogo de confirmación antes de rechazar una receta pendiente, solicitando al administrador que proporcione un motivo para el rechazo, y luego procesa la acción de rechazo actualizando el estado de la receta y notificando al usuario correspondiente.
   void _mostrarDialogoRechazo(BuildContext context) {
     if (_procesando) return;
     final motivoCtrl = TextEditingController();
@@ -522,7 +529,7 @@ class _DetallePendienteSheetState extends State<_DetallePendienteSheet> {
       ),
     );
   }
-
+// Función que muestra un diálogo de confirmación antes de rechazar una receta pendiente, solicitando al administrador que proporcione un motivo para el rechazo, y luego procesa la acción de rechazo actualizando el estado de la receta y notificando al usuario correspondiente.
   Future<void> _rechazarReceta(BuildContext context, String motivo) async {
     if (_procesando) return;
     setState(() => _procesando = true);
@@ -570,7 +577,7 @@ class _DetallePendienteSheetState extends State<_DetallePendienteSheet> {
     }
   }
 }
-
+// Widget que muestra un ícono de ingrediente genérico cuando no se proporciona una imagen válida para el ingrediente en la receta pendiente.
 class _Stat extends StatelessWidget {
   final IconData icon; final String label; final Color color;
   const _Stat(this.icon, this.label, this.color);

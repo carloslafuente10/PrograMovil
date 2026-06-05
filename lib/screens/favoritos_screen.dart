@@ -1,12 +1,12 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'favoritos_provider.dart';
-import 'detalle_receta_screen.dart';
-import '../servicios/historial_servicio.dart';
-
+import 'package:flutter/material.dart';// Pantalla que muestra la lista de recetas favoritas del usuario, con la capacidad de agregar o quitar recetas de favoritos. Utiliza Firestore para almacenar y recuperar las recetas favoritas del usuario, y un InheritedNotifier para gestionar el estado de los favoritos en toda la aplicación.
+import 'package:cloud_firestore/cloud_firestore.dart'; // Librería para trabajar con Firestore, la base de datos en la nube de Firebase, que se utiliza para almacenar y recuperar las recetas favoritas del usuario.
+import 'favoritos_provider.dart';// Proveedor de estado para gestionar la lista de recetas favoritas del usuario, incluyendo la autenticación y las operaciones para agregar o quitar favoritos.
+import 'detalle_receta_screen.dart';// Pantalla que muestra el detalle de una receta específica, incluyendo sus ingredientes, pasos de preparación, calorías, tiempo de cocción, etc. Se utiliza para mostrar la información completa de una receta cuando el usuario selecciona una receta de la lista de favoritos.
+import '../servicios/historial_servicio.dart';// Servicio personalizado para registrar las acciones del usuario en un historial, utilizado para registrar cuándo un usuario agrega o quita una receta de favoritos, lo que permite llevar un seguimiento de sus interacciones con la aplicación.
+// Pantalla que muestra la lista de recetas favoritas del usuario, con la capacidad de agregar o quitar recetas de favoritos. Utiliza Firestore para almacenar y recuperar las recetas favoritas del usuario, y un InheritedNotifier para gestionar el estado de los favoritos en toda la aplicación.
 class FavoritosScreen extends StatelessWidget {
   const FavoritosScreen({super.key});
-
+// Pantalla principal que muestra la lista de recetas favoritas del usuario. Utiliza el FavoritosProvider para acceder al estado de los favoritos y mostrar la información correspondiente. Permite al usuario navegar al detalle de cada receta favorita, y también eliminar recetas de la lista de favoritos.
   @override
   Widget build(BuildContext context) {
     final favState = FavoritosProvider.of(context);
@@ -79,7 +79,7 @@ class FavoritosScreen extends StatelessWidget {
     );
   }
 }
-
+// Widget que representa una tarjeta individual de receta favorita en la lista de favoritos. Muestra la imagen, nombre, calorías, tiempo de cocción y categoría de la receta, y permite al usuario navegar al detalle de la receta o eliminarla de favoritos.
 class _FavoritoTile extends StatelessWidget {
   final Map<String, dynamic> receta;
   final FavoritosState favState;
@@ -296,7 +296,7 @@ class _FavoritoTile extends StatelessWidget {
       ),
     );
   }
-
+// Método para mostrar un diálogo de confirmación antes de eliminar una receta de favoritos. Si el usuario confirma la eliminación, se registra la acción en el historial del usuario utilizando el servicio de historial, y se llama al método toggle del estado de favoritos para eliminar la receta tanto en memoria como en Firestore.
   void _confirmarEliminar(BuildContext context) {
     showDialog(
       context: context,
@@ -337,7 +337,7 @@ class _FavoritoTile extends StatelessWidget {
       ),
     );
   }
-
+// Widget que muestra un marcador de posición para la imagen de la receta en caso de que no se pueda cargar la imagen real. El marcador de posición es un contenedor gris con un ícono de comida, que indica visualmente que no hay una imagen disponible para esa receta.
   Widget _placeholder() => Container(
     width: 90,
     height: 80,

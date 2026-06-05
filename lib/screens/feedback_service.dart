@@ -4,16 +4,14 @@
 // que a veces rompen entre versiones.
 
 import 'dart:convert'; // Para jsonEncode y jsonDecode
-import 'package:http/http.dart' as http;
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;// Para hacer peticiones HTTP a la API de Gemini
+import 'package:cloud_firestore/cloud_firestore.dart';// Para guardar el feedback procesado en Firestore, en la colección "sugerencias".
 
 class FeedbackService {
 
-  // ─── CONFIGURACIÓN ────────────────────────────────────────────────────────
+  // configuracion
 
-  // TU API KEY de Google AI Studio (aistudio.google.com)
-  // ⚠️ En producción real esto va en variables de entorno o Firebase Remote Config.
-  // Para el proyecto universitario así está bien, pero anótalo en la defensa.
+  
   static const String _apiKey = 'AIzaSyDXMO7kdFZ-1_WxgBwK8QpgaArHJnA3j_A';
 
   // Endpoint de Gemini 2.0 Flash.

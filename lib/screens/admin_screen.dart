@@ -1,15 +1,15 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'login_page.dart';
-import 'admin_recetas_screen.dart';
-import 'admin_categorias_screen.dart';
-import 'reportes_screen.dart';
-import 'admin_recetas_pendientes_screen.dart';
-import 'components/notificacion_campana.dart';
-import 'gestionar_usuarios_screen.dart';
-import '../servicios/historial_servicio.dart';
-import 'historial_screen.dart';
-
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
+import 'package:firebase_auth/firebase_auth.dart';// Librería de Firebase para la autenticación de usuarios.
+import 'login_page.dart';// Pantalla de inicio de sesión a la que se redirige al cerrar sesión.
+import 'admin_recetas_screen.dart';// Pantalla para gestionar las recetas del catálogo.
+import 'admin_categorias_screen.dart';// Pantalla para gestionar las categorías de recetas.
+import 'reportes_screen.dart';// Pantalla para visualizar reportes y estadísticas de la aplicación.
+import 'admin_recetas_pendientes_screen.dart';// Pantalla para revisar y aprobar recetas enviadas por los usuarios.
+import 'components/notificacion_campana.dart';// Componente visual que muestra una campana de notificaciones con contador de mensajes no leídos, utilizado en la barra superior del panel de administración.
+import 'gestionar_usuarios_screen.dart';// Pantalla para administrar los usuarios de la aplicación, incluyendo roles y permisos.
+import '../servicios/historial_servicio.dart';// Servicio personalizado encargado de registrar y consultar el historial de actividades y acciones realizadas por los usuarios en la aplicación, utilizado para llevar un registro de las acciones del administrador.
+import 'historial_screen.dart';// Pantalla que muestra el historial de actividades y acciones realizadas por los usuarios, permitiendo al administrador revisar eventos pasados y monitorear la actividad dentro de la aplicación.
+// Pantalla principal del panel de administración, que proporciona acceso a diferentes secciones para gestionar recetas, categorías, usuarios y revisar reportes e historial de actividades.
 class AdminScreen extends StatelessWidget {
   const AdminScreen({super.key});
 
@@ -18,7 +18,7 @@ class AdminScreen extends StatelessWidget {
   static const Color _verdeClaro = Color(0xFFE8F7F1);
   static const Color _mostaza    = Color(0xFFF5A623);
   static const Color _fondo      = Color(0xFFF5F6FA);
-
+// Función de extensión para ajustar la opacidad de un color, facilitando la creación de variantes más claras o más transparentes del mismo color.
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -236,7 +236,7 @@ class AdminScreen extends StatelessWidget {
               ),
             ),
           ),
-
+// Sección principal con tarjetas de acceso a diferentes funcionalidades del panel de administración, como gestión de recetas, categorías, usuarios, reportes e historial.
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(14, 20, 14, 20),
@@ -309,14 +309,14 @@ class AdminScreen extends StatelessWidget {
     );
   }
 }
-
+// Widget que muestra una tarjeta individual para cada sección de administración en la pantalla principal del panel de administración, incluyendo un ícono representativo, título, subtítulo descriptivo y una acción al presionar la tarjeta para navegar a la sección correspondiente.
 class _AdminCard extends StatelessWidget {
   final String titulo;
   final String subtitulo;
   final IconData icono;
   final Color color;
   final VoidCallback onTap;
-
+// Función de extensión para ajustar la opacidad de un color, facilitando la creación de variantes más claras o más transparentes del mismo color.
   const _AdminCard({
     required this.titulo,
     required this.subtitulo,
@@ -324,7 +324,7 @@ class _AdminCard extends StatelessWidget {
     required this.color,
     required this.onTap,
   });
-
+// Función de extensión para ajustar la opacidad de un color, facilitando la creación de variantes más claras o más transparentes del mismo color.
   @override
   Widget build(BuildContext context) {
     return Material(

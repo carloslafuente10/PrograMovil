@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../servicios/notificaciones_servicio.dart';
-import '../servicios/historial_servicio.dart';
-
+import 'package:flutter/material.dart';// Flutter para construcción de UI y manejo de estados.
+import 'package:flutter/services.dart';// Flutter para construcción de UI y manejo de estados.
+import 'package:cloud_firestore/cloud_firestore.dart';// Firebase para autenticación y base de datos.
+import 'package:firebase_auth/firebase_auth.dart';// Firebase para autenticación y base de datos.
+import '../servicios/notificaciones_servicio.dart';// Servicios para enviar notificaciones a los administradores cuando un usuario envía una receta a revisión.
+import '../servicios/historial_servicio.dart';// Pantalla para crear o editar recetas personales por parte de los usuarios, con validaciones, guardado en Firestore y envío a revisión para posible publicación en el catálogo general. Incluye manejo de estados como borrador, guardada, pendiente, rechazada y copias de recetas existentes.
+// El formulario se divide en 3 pasos: información básica, ingredientes y pasos de preparación, con un indicador de progreso y validaciones en cada paso. Al guardar o enviar a revisión, se actualiza el historial del usuario y se notifica a los administradores.
 class _IngredienteSeleccionado {
   final String id;
   final String nombre;
@@ -31,7 +31,7 @@ class _IngredienteSeleccionado {
         'es_primordial': esPrimordial,
       };
 }
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
 class CrearRecetaUsuarioScreen extends StatefulWidget {
   final Map<String, dynamic>? recetaExistente;
   final String? recetaPersonalId;
@@ -48,7 +48,7 @@ class CrearRecetaUsuarioScreen extends StatefulWidget {
   State<CrearRecetaUsuarioScreen> createState() =>
       _CrearRecetaUsuarioScreenState();
 }
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
 class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     with TickerProviderStateMixin {
   static const Color _verde = Color(0xFF2D9E73);
@@ -75,7 +75,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   String _estadoOriginal = 'borrador';
   bool _fueEditado = false;
   bool _intentoAvanzar = false;
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
   @override
   void initState() {
     super.initState();
@@ -221,7 +221,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
 
     if (_pasosCtrl.isEmpty) _pasosCtrl.add(TextEditingController());
   }
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
   @override
   void dispose() {
     _pageCtrl.dispose();
@@ -233,7 +233,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     for (final c in _pasosCtrl) c.dispose();
     super.dispose();
   }
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
   bool get _esReenvio =>
       (_estadoOriginal == 'rechazada' || _estadoOriginal == 'rechazada_editada') &&
       _fueEditado;
@@ -248,11 +248,11 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
   bool get _ingredientesValidos => _ingredientes.isNotEmpty;
   bool get _pasosValidos => _pasosCtrl.any((c) => c.text.trim().isNotEmpty);
   bool get _todoValido => _infoValida && _ingredientesValidos && _pasosValidos;
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
   void _marcarEditado() {
     if (!_fueEditado) setState(() => _fueEditado = true);
   }
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
   void _irAPagina(int pagina) {
     if (pagina > _paginaActual) {
       setState(() => _intentoAvanzar = true);
@@ -267,7 +267,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     _pageCtrl.animateToPage(pagina,
         duration: const Duration(milliseconds: 350), curve: Curves.easeInOut);
   }
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
   void _mostrarSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg), backgroundColor: const Color(0xFFE53935),
@@ -275,7 +275,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.all(16)));
   }
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
   void _mostrarSnackVerde(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg), backgroundColor: _verde,
@@ -310,7 +310,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     }
     return payload;
   }
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
   Future<void> _guardarReceta() async {
     if (_guardando) return;
     setState(() => _guardando = true);
@@ -568,7 +568,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
           const Padding(padding: EdgeInsets.symmetric(horizontal: 16),
             child: Center(child: SizedBox(width: 18, height: 18,
                 child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))))
-        // ✅ FIX COPIAS: en modo copia no mostramos el botón Guardar del AppBar
+        //  FIX COPIAS: en modo copia no mostramos el botón Guardar del AppBar
         else if (!widget.esCopia)
           TextButton(
             onPressed: _guardarReceta,
@@ -577,7 +577,7 @@ class _CrearRecetaUsuarioScreenState extends State<CrearRecetaUsuarioScreen>
     );
   }
 }
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
 class _StepIndicator extends StatelessWidget {
   final int paso;
   final bool infoValida, ingredientesValidos, pasosValidos;
@@ -633,7 +633,7 @@ class _StepIndicator extends StatelessWidget {
         }).toList())));
   }
 }
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
 class _PaginaInfo extends StatefulWidget {
   final TextEditingController nombreCtrl, caloriasCtrl, tiempoCtrl, imagenCtrl, subcategoriaCtrl;
   final int porciones;
@@ -653,7 +653,7 @@ class _PaginaInfo extends StatefulWidget {
   @override
   State<_PaginaInfo> createState() => _PaginaInfoState();
 }
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
 class _PaginaInfoState extends State<_PaginaInfo> {
   static const Color _verde = Color(0xFF2D9E73);
   static const List<String> _categorias = [
@@ -674,7 +674,7 @@ class _PaginaInfoState extends State<_PaginaInfo> {
     setState(() => _imagenValida = widget.imagenCtrl.text.trim().startsWith('http'));
     widget.onChanged();
   }
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -755,7 +755,7 @@ class _PaginaInfoState extends State<_PaginaInfo> {
       ]));
   }
 }
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
 class _PaginaIngredientes extends StatefulWidget {
   final List<_IngredienteSeleccionado> ingredientes;
   final VoidCallback onChanged;
@@ -766,7 +766,7 @@ class _PaginaIngredientes extends StatefulWidget {
   @override
   State<_PaginaIngredientes> createState() => _PaginaIngredientesState();
 }
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
 class _PaginaIngredientesState extends State<_PaginaIngredientes> {
   static const Color _verde = Color(0xFF2D9E73);
   static const Color _verdeClaro = Color(0xFFE8F7F1);
@@ -795,7 +795,7 @@ class _PaginaIngredientesState extends State<_PaginaIngredientes> {
     'gramos','mililitros','litros','kilogramos',
     'al gusto','c/n',
   ];
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
   @override
   void initState() { super.initState(); _searchCtrl.addListener(_buscar); }
   @override
@@ -821,7 +821,7 @@ class _PaginaIngredientesState extends State<_PaginaIngredientes> {
       });
     } catch (_) { if (mounted) setState(() => _buscando = false); }
   }
-
+// Modelo que representa un paso individual dentro de una receta, con un número de orden y una instrucción. Incluye métodos para convertir desde un Map (proveniente de Firestore) y para parsear un documento completo que contiene un array de pasos ordenados, retornando la lista ya ordenada por el campo 'orden'.
   void _agregarIngredientePersonalizado() {
     final nombreCtrl     = TextEditingController(text: _searchCtrl.text.trim());
     final fotoCtrl       = TextEditingController();
@@ -932,7 +932,7 @@ class _PaginaIngredientesState extends State<_PaginaIngredientes> {
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
           ])));
   }
-
+// El método _agregarIngrediente toma un Map que representa un ingrediente (con campos como 'id', 'nombre', 'imagen' o 'foto') y lo agrega a la lista de ingredientes seleccionados si no está ya presente. Luego limpia el campo de búsqueda, borra los resultados y notifica el cambio al widget padre.
   void _agregarIngrediente(Map<String, dynamic> ing) {
     if (widget.ingredientes.any((i) => i.id == ing['id'])) return;
     final imgUrl = (ing['imagen']?.toString() ?? '').isNotEmpty
@@ -945,7 +945,7 @@ class _PaginaIngredientesState extends State<_PaginaIngredientes> {
   }
 
   void _eliminar(int idx) { widget.ingredientes.removeAt(idx); widget.onChanged(); setState(() {}); }
-
+// El método build muestra un campo de búsqueda para ingredientes, una lista de resultados que se actualiza a medida que el usuario escribe, y la lista de ingredientes seleccionados. Si el usuario escribe algo que no está en los resultados, se muestra una opción para agregarlo como ingrediente personalizado. Cada ingrediente seleccionado se muestra en una tarjeta con su nombre, imagen (si está disponible) y un botón para eliminarlo. Al hacer tap en la tarjeta, se abre un diálogo para editar los detalles del ingrediente.
   @override
   Widget build(BuildContext context) {
     final tecladoAbierto = MediaQuery.of(context).viewInsets.bottom > 0;
@@ -1018,7 +1018,7 @@ class _PaginaIngredientesState extends State<_PaginaIngredientes> {
     ]);
   }
 }
-
+// Widget que representa una tarjeta individual para un ingrediente seleccionado, mostrando su nombre, imagen (si está disponible) y permitiendo editar su cantidad, unidad y marcarlo como primordial. Al hacer tap en la tarjeta, se abre un diálogo para editar estos detalles. También incluye un botón para eliminar el ingrediente de la lista.
 class _IngredienteCard extends StatefulWidget {
   final _IngredienteSeleccionado ing;
   final List<String> unidades;
@@ -1028,7 +1028,7 @@ class _IngredienteCard extends StatefulWidget {
   @override
   State<_IngredienteCard> createState() => _IngredienteCardState();
 }
-
+// Widget que representa una tarjeta individual para un ingrediente seleccionado, mostrando su nombre, imagen (si está disponible) y permitiendo editar su cantidad, unidad y marcarlo como primordial. Al hacer tap en la tarjeta, se abre un diálogo para editar estos detalles. También incluye un botón para eliminar el ingrediente de la lista.
 class _IngredienteCardState extends State<_IngredienteCard> {
   static const Color _verde = Color(0xFF2D9E73);
 
@@ -1171,7 +1171,7 @@ class _IngredienteCardState extends State<_IngredienteCard> {
       ),
     );
   }
-
+// Una función para formatear la cantidad de un ingrediente, intentando convertir decimales comunes a fracciones legibles (1/4, 1/3, 1/2, etc.) y mostrando solo el entero si no hay parte decimal significativa.
   String _formatCantidad(String raw) {
     final d = double.tryParse(raw);
     if (d == null) return raw;
@@ -1187,7 +1187,7 @@ class _IngredienteCardState extends State<_IngredienteCard> {
     if (frac != null) return '$entero $frac';
     return d.toStringAsFixed(1);
   }
-
+// Un widget que muestra un ingrediente seleccionado en la lista, con su cantidad, unidad, imagen y opciones para editar o eliminar.
   @override
   Widget build(BuildContext context) {
     final cantidadTexto = _formatCantidad(widget.ing.cantidad);
@@ -1238,7 +1238,7 @@ class _IngredienteCardState extends State<_IngredienteCard> {
           ]))));
   }
 }
-
+// Un pequeño widget para mostrar la imagen de un ingrediente en la lista de resultados de búsqueda, con un placeholder si no es válida.
 class _MiniImagen extends StatelessWidget {
   final String url; final double size;
   const _MiniImagen({required this.url, required this.size});
@@ -1253,7 +1253,7 @@ class _MiniImagen extends StatelessWidget {
   Widget _placeholder() => Container(width: size, height: size, color: const Color(0xFFE8F7F1),
       child: const Center(child: Icon(Icons.egg_alt_rounded, color: Color(0xFF2D9E73), size: 20)));
 }
-
+// PÁGINA 3: PASOS
 class _PaginaPasos extends StatefulWidget {
   final List<TextEditingController> pasosCtrl;
   final VoidCallback onChanged;
@@ -1261,7 +1261,7 @@ class _PaginaPasos extends StatefulWidget {
   @override
   State<_PaginaPasos> createState() => _PaginaPasosState();
 }
-
+// La página donde se muestran los pasos de la receta, con funcionalidad para agregar, eliminar y reordenar.
 class _PaginaPasosState extends State<_PaginaPasos> {
   static const Color _verde = Color(0xFF2D9E73);
   void _agregarPaso() { widget.pasosCtrl.add(TextEditingController()); widget.onChanged(); setState(() {}); }
@@ -1278,7 +1278,7 @@ class _PaginaPasosState extends State<_PaginaPasos> {
     widget.pasosCtrl[destino] = temp;
     widget.onChanged(); setState(() {});
   }
-
+// La página donde se muestran los pasos de la receta, con funcionalidad para agregar, eliminar y reordenar.
   @override
   Widget build(BuildContext context) {
     return Column(children: [
@@ -1309,7 +1309,7 @@ class _PaginaPasosState extends State<_PaginaPasos> {
     ]);
   }
 }
-
+// Un card que representa un paso en la receta, con su número, campo de texto para la descripción y botones para subir/bajar/eliminar.
 class _PasoCard extends StatelessWidget {
   final int numero; final TextEditingController ctrl;
   final bool puedeSubir, puedeBajar, puedeEliminar;
@@ -1350,7 +1350,7 @@ class _PasoCard extends StatelessWidget {
       ]));
   }
 }
-
+// Un botón pequeño con un ícono, usado para las acciones de subir/bajar/eliminar en los pasos.
 class _MicroBtn extends StatelessWidget {
   final IconData icon; final Color color; final VoidCallback onTap;
   const _MicroBtn(this.icon, this.color, this.onTap);
@@ -1359,7 +1359,7 @@ class _MicroBtn extends StatelessWidget {
       icon: Icon(icon, color: color, size: 18), padding: const EdgeInsets.all(4),
       constraints: const BoxConstraints());
 }
-
+// La barra inferior que muestra los botones de acción según la página actual, estado de la receta y validación.
 class _BottomBarCopia extends StatelessWidget {
   final bool guardando;
   final VoidCallback onGuardarCopia;
@@ -1378,7 +1378,7 @@ class _BottomBarCopia extends StatelessWidget {
     required this.onAnterior,
     required this.onSiguiente,
   });
-
+// La barra inferior para el flujo de guardado en copias, con un botón central prominente en la última página.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1420,7 +1420,7 @@ class _BottomBarCopia extends StatelessWidget {
     );
   }
 }
-
+// La barra inferior que muestra los botones de acción según la página actual, estado de la receta y validación.
 class _BottomBar extends StatelessWidget {
   final int pagina;
   final bool todoValido, guardando, esReenvio, fueEditado;
@@ -1439,7 +1439,7 @@ class _BottomBar extends StatelessWidget {
     required this.cantIngredientes,
     required this.onGuardarBorrador, required this.onGuardarReceta,
     required this.onEnviarRevision, required this.onAnterior, required this.onSiguiente});
-
+// La barra inferior que muestra los botones de acción según la página actual, estado de la receta y validación.
   @override
   Widget build(BuildContext context) {
     final bool esBorrador  = estadoOriginal == 'borrador' || estadoOriginal == '';
@@ -1506,12 +1506,12 @@ class _BottomBar extends StatelessWidget {
       ]));
   }
 }
-
+// Un diálogo para confirmar el envío o reenvío a revisión, con un mensaje adaptado según la acción.
 class _DialogConfirmar extends StatelessWidget {
   final String nombre;
   final bool esReenvio;
   const _DialogConfirmar({required this.nombre, this.esReenvio = false});
-
+// Un diálogo simple para confirmar el envío o reenvío a revisión, con un mensaje adaptado según la acción.
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -1546,7 +1546,7 @@ class _DialogConfirmar extends StatelessWidget {
       ]);
   }
 }
-
+// Un widget simple para mostrar el título de cada sección, con opción de marcarlo como obligatorio y mostrar errores.
 class _Label extends StatelessWidget {
   final String texto; final bool obligatorio; final bool error;
   const _Label(this.texto, {this.obligatorio = false, this.error = false});
@@ -1560,7 +1560,7 @@ class _Label extends StatelessWidget {
         Text(' *', style: TextStyle(color: error ? Colors.red[700] : Colors.red[400], fontSize: 12)),
     ]));
 }
-
+// Un campo de texto con borde y un ícono al inicio, ideal para campos como el nombre de la receta o el tiempo de preparación.
 class _Campo extends StatelessWidget {
   final TextEditingController ctrl;
   final String hint; final IconData icono;
@@ -1577,7 +1577,7 @@ class _Campo extends StatelessWidget {
           prefixIcon: Icon(icono, color: const Color(0xFF2D9E73), size: 18),
           border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 14))));
 }
-
+// Un pequeño selector de porciones con botones de suma y resta.
 class _SelectorPorciones extends StatelessWidget {
   final int valor; final void Function(int) onChanged;
   const _SelectorPorciones({required this.valor, required this.onChanged});
@@ -1592,7 +1592,7 @@ class _SelectorPorciones extends StatelessWidget {
       _BtnPorcion(Icons.add_rounded, () => onChanged((valor + 1).clamp(1, 99))),
     ]));
 }
-
+// Botones pequeños para el selector de porciones.
 class _BtnPorcion extends StatelessWidget {
   final IconData icon; final VoidCallback onTap;
   const _BtnPorcion(this.icon, this.onTap);
@@ -1601,13 +1601,13 @@ class _BtnPorcion extends StatelessWidget {
       icon: Icon(icon, color: const Color(0xFF2D9E73), size: 20),
       padding: const EdgeInsets.all(10), constraints: const BoxConstraints());
 }
-
+// Un campo de texto con etiqueta superior, ideal para el nombre de la receta.
 class _CampoTexto extends StatelessWidget {
   final TextEditingController ctrl;
   final String label;
   final String hint;
   const _CampoTexto({required this.ctrl, required this.label, required this.hint});
-
+// Un campo de texto con etiqueta superior, ideal para ingredientes y pasos.
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

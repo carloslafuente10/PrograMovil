@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'favoritos_provider.dart';
-import 'cocina_pasos_screen.dart';
-import 'crear_receta_usuario_screen.dart';
-import '../servicios/historial_servicio.dart';
-
+import 'package:flutter/material.dart';// Pantalla que muestra el detalle de una receta, incluyendo ingredientes, pasos, y opciones para editar o copiar la receta. Utiliza Firestore para cargar los datos de la receta y permite ajustar las porciones, marcar ingredientes disponibles y navegar a la pantalla de cocina.
+import 'package:cloud_firestore/cloud_firestore.dart';// Librería para trabajar con Firestore, la base de datos en la nube de Firebase, que se utiliza para almacenar y recuperar los datos de las recetas.
+import 'package:firebase_auth/firebase_auth.dart';// Librería para trabajar con Firebase Authentication, que se utiliza para obtener información del usuario actual, como su UID, para funcionalidades relacionadas con recetas personales y favoritos.
+import 'favoritos_provider.dart';// Proveedor que maneja la lógica relacionada con los favoritos del usuario, como agregar o eliminar recetas de la lista de favoritos. Se utiliza en esta pantalla para permitir al usuario marcar o desmarcar la receta como favorita.
+import 'cocina_pasos_screen.dart';// Pantalla que muestra los pasos de una receta de manera secuencial, con la capacidad de marcar cada paso como completado. Se utiliza para guiar al usuario durante el proceso de cocinado, mostrando los pasos cargados desde Firestore en la pantalla de detalle de la receta.
+import 'crear_receta_usuario_screen.dart';// Pantalla que permite a los usuarios crear o editar sus propias recetas, con campos para el nombre, ingredientes, pasos, categoría, porciones, tiempo de preparación, calorías y una imagen. Se utiliza en la pantalla de detalle de la receta para permitir a los usuarios editar recetas personales o copiar recetas públicas como base para su propia creación.
+import '../servicios/historial_servicio.dart';// Servicio que maneja la lógica relacionada con el historial de actividades del usuario, como agregar una nueva entrada al historial cuando el usuario cocina una receta. Se utiliza en la pantalla de detalle de la receta para registrar la actividad de cocinar la receta en el historial del usuario.
+// Widget que muestra el detalle de una receta, incluyendo ingredientes, pasos, y opciones para editar o copiar la receta. Utiliza Firestore para cargar los datos de la receta y permite ajustar las porciones, marcar ingredientes disponibles y navegar a la pantalla de cocina.
 class _IngredienteCompleto {
   final String id;
   final double cantidad;
@@ -25,7 +25,7 @@ class _IngredienteCompleto {
     this.es_primordial = false, // <-- 2. La incluimos en el constructor
   });
 }
-
+// Pantalla que muestra el detalle de una receta, incluyendo ingredientes, pasos, y opciones para editar o copiar la receta. Utiliza Firestore para cargar los datos de la receta y permite ajustar las porciones, marcar ingredientes disponibles y navegar a la pantalla de cocina.
 class DetalleRecetaScreen extends StatefulWidget {
   // 1. Declaramos ambas variables como campos de la clase
   final String recetaId;
@@ -43,7 +43,7 @@ class DetalleRecetaScreen extends StatefulWidget {
   @override
   State<DetalleRecetaScreen> createState() => _DetalleRecetaScreenState();
 }
-
+// Estado de la pantalla DetalleRecetaScreen, que maneja la lógica para cargar los datos de la receta desde Firestore, ajustar las porciones, marcar ingredientes disponibles, y navegar a la pantalla de cocina. Incluye un método para calcular la cantidad ajustada de cada ingrediente según las porciones seleccionadas, y otro método para mostrar una mini ventana con los detalles de cada ingrediente al hacer clic en él.
 class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
   late Future<Map<String, dynamic>> _futureDatos;
   int _porciones = 1;
@@ -53,13 +53,13 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
 
   bool _isFirstLoad = true;
   final Color _verde = const Color(0xFF2E7D32);
-
+// Método initState que se ejecuta al iniciar la pantalla, donde se carga la receta desde Firestore utilizando el método _cargarTodo y se almacena en un Future para ser utilizado en un FutureBuilder. También se inicializan las variables relacionadas con las porciones y los ingredientes editables.
   @override
   void initState() {
     super.initState();
     _futureDatos = _cargarTodo();
   }
-
+// Método que calcula la cantidad ajustada de cada ingrediente según las porciones seleccionadas, utilizando la fórmula: cantidad ajustada = cantidad base * (porciones seleccionadas / porciones base). Luego, formatea el resultado para mostrarlo de manera legible, incluyendo abreviaciones de unidades y pluralización correcta.
   String _calcularNumero(double cantidadBase) {
     final double resultado = cantidadBase * _porciones / _porcionesBase;
     final int parteEntera = resultado.floor();
@@ -133,7 +133,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     'porción', 'porciones',
     'unidad', 'unidades',
   };
-
+// Método que pluraliza una palabra según la cantidad, aplicando reglas de pluralización en español. Si la cantidad es menor o igual a 1, devuelve la palabra sin cambios. Si la palabra es invariable (como "ml" o "g"), también devuelve la palabra sin cambios. Para otras palabras, aplica reglas comunes de pluralización, como agregar "s", "es", o cambiar "z" por "ces".
   String _pluralizarPalabra(String palabra, double cantidad) {
     if (cantidad <= 1 || palabra.isEmpty) return palabra;
     final String lower = palabra.toLowerCase();
@@ -143,7 +143,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     if (RegExp(r'[aeiouáéíóú]$').hasMatch(lower)) return '${palabra}s';
     return '${palabra}es';
   }
-
+// Método que pluraliza una palabra de manera segura, teniendo en cuenta la cantidad y aplicando reglas de pluralización en español. Si la cantidad es menor o igual a 1, devuelve la palabra sin cambios. Si la palabra es invariable (como "ml" o "g"), también devuelve la palabra sin cambios. Para otras palabras, aplica reglas comunes de pluralización, como agregar "s", "es", o cambiar "z" por "ces". Además, si la palabra contiene "de", solo pluraliza la parte antes de "de".
   String _pluralizarSeguro(double cantidad, String texto) {
     if (cantidad <= 1 || texto.trim().isEmpty) return texto.trim();
     final String limpio = texto.trim();
@@ -158,7 +158,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     partes[0] = _pluralizarPalabra(partes[0], cantidad);
     return partes.join(' ');
   }
-
+// Método que pluraliza el nombre de un ingrediente según la cantidad, aplicando reglas de pluralización en español. Si la cantidad es menor o igual a 1, devuelve el nombre sin cambios. Si el nombre contiene "de", solo pluraliza la parte antes de "de". Para otras palabras, aplica reglas comunes de pluralización, como agregar "s", "es", o cambiar "z" por "ces".
   String _pluralizarNombre(double cantidad, String nombre) {
     if (cantidad <= 1 || nombre.trim().isEmpty) return nombre.trim();
     final String limpio = nombre.trim();
@@ -170,7 +170,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     partes[0] = _pluralizarPalabra(partes[0], cantidad);
     return partes.join(' ');
   }
-
+// Método que genera el texto descriptivo de un ingrediente, ajustando la cantidad según las porciones seleccionadas y aplicando reglas de formato para unidades y pluralización. Si la cantidad ajustada es mayor o igual a 1000 gramos o mililitros, convierte la unidad a kilogramos o litros respectivamente. Luego, formatea el texto para mostrar la cantidad, unidad y nombre del ingrediente de manera legible.
   String _textoIngrediente(
     double cantidadBase,
     String unidadOriginal,
@@ -200,7 +200,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     }
     return '$numero ${_pluralizarNombre(cantidadActual, nombre)}';
   }
-
+// Método que muestra una mini ventana emergente con los detalles de un ingrediente, incluyendo su foto (o un placeholder si no tiene), su nombre, la cantidad ajustada según las porciones seleccionadas, y un posible sustituto. Se utiliza cuando el usuario hace clic en un ingrediente para obtener más información sobre él.
   Future<Map<String, dynamic>> _cargarTodo() async {
     // Buscar primero en app-recetas-completas, luego en recetas_personales
     var docSnapshot = await FirebaseFirestore.instance
@@ -424,7 +424,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
       ),
     );
   }
-
+// Método que muestra una mini ventana emergente con los detalles de un ingrediente, incluyendo su foto (o un placeholder si no tiene), su nombre, la cantidad ajustada según las porciones seleccionadas, y un posible sustituto. Se utiliza cuando el usuario hace clic en un ingrediente para obtener más información sobre él.
   void _editarIngrediente(int index, _IngredienteCompleto ing) {
     final cantidadCtrl = TextEditingController(text: ing.cantidad.toString());
     final nombreCtrl = TextEditingController(text: ing.nombre);
@@ -471,7 +471,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
       ),
     );
   }
-
+// Método que muestra una mini ventana emergente con los detalles de un ingrediente, incluyendo su foto (o un placeholder si no tiene), su nombre, la cantidad ajustada según las porciones seleccionadas, y un posible sustituto. Se utiliza cuando el usuario hace clic en un ingrediente para obtener más información sobre él.
   void _agregarIngrediente() {
     final nombreCtrl = TextEditingController();
     final cantidadCtrl = TextEditingController();
@@ -701,7 +701,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
       );
     }
   }
-
+// Método que muestra una ventana de confirmación para eliminar la receta, advirtiendo al usuario que esta acción no se puede deshacer. Si el usuario confirma, se elimina la receta de Firestore y se regresa a la pantalla anterior.
   void _confirmarEliminarReceta(BuildContext context, String nombre) {
     showDialog(
       context: context,
@@ -743,7 +743,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
       ),
     );
   }
-
+// Método build que construye la interfaz de usuario de la pantalla de detalle de receta. Utiliza un FutureBuilder para cargar los datos de la receta desde Firestore y mostrar un indicador de carga mientras se obtienen los datos. Una vez cargados, muestra la imagen principal, el nombre de la receta, las calorías ajustadas según las porciones seleccionadas, el tiempo de preparación ajustado, y una lista de ingredientes con checkboxes para marcar los que se tienen disponibles. También incluye un botón para iniciar la cocina si se cumplen las condiciones necesarias.
   @override
   Widget build(BuildContext context) {
     // final favState = FavoritosProvider.of(context);
@@ -1378,7 +1378,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
           );
         },
       ),
-      //a aca
+      // Barra inferior con botón para iniciar la cocina o eliminar la receta (según si el usuario es admin o no). Muestra un indicador de progreso basado en los ingredientes marcados como disponibles, y habilita el botón de cocinar solo si se cumplen las condiciones necesarias.
       bottomNavigationBar: Container(
         padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 12),
         decoration: BoxDecoration(
@@ -1486,6 +1486,7 @@ class _DetalleRecetaScreenState extends State<DetalleRecetaScreen> {
     );
   }
 }
+/// Widget personalizado para los botones de aumentar/disminuir porciones, con un diseño consistente y un ícono centrado.
 
 class _ContadorBtn extends StatelessWidget {
   final IconData icon;
@@ -1508,7 +1509,7 @@ class _ContadorBtn extends StatelessWidget {
     );
   }
 }
-
+// Widget personalizado para mostrar un placeholder de ingrediente cuando no se tiene una foto disponible. Utiliza un ícono genérico y un fondo gris claro para indicar la ausencia de imagen.
 class _IngPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {

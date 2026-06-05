@@ -1,7 +1,8 @@
-﻿import 'package:flutter/material.dart';
-import '../favoritos_provider.dart';
+﻿import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
+import '../favoritos_provider.dart';// Proveedor encargado de gestionar las recetas favoritas del usuario.
 
-
+// Widget que muestra una tarjeta de receta con imagen, información nutricional
+// y opción para agregar o quitar de favoritos.
 class RecetaCardWidget extends StatelessWidget {
  final Map<String, dynamic> receta;
  final Color verde;
@@ -18,13 +19,14 @@ class RecetaCardWidget extends StatelessWidget {
 
  @override
  Widget build(BuildContext context) {
+    // Obtiene el estado global de recetas favoritas.
    final favState = FavoritosProvider.of(context);
    final String nombre = receta['nombre']?.toString() ?? '';
    final esFav = favState.esFavorito(nombre);
    final String img = receta['img']?.toString() ?? '';
    final bool esNetwork = img.startsWith('http');
 
-
+   // Construye la tarjeta visual de la receta.
    return Container(
      decoration: BoxDecoration(
        color: Colors.white,
@@ -40,7 +42,7 @@ class RecetaCardWidget extends StatelessWidget {
      child: Column(
        crossAxisAlignment: CrossAxisAlignment.start,
        children: [
-         // ── IMAGEN Y BOTÓN FAVORITO ──
+         //  IMAGEN Y BOTÓN FAVORITO 
          Stack(
            children: [
              ClipRRect(
@@ -65,6 +67,7 @@ class RecetaCardWidget extends StatelessWidget {
                            ))
                    : _placeholder(),
              ),
+                // Permite agregar o eliminar la receta de favoritos
              Positioned(
                top: 8,
                right: 8,
@@ -89,7 +92,7 @@ class RecetaCardWidget extends StatelessWidget {
          ),
 
 
-         // ── DETALLES Y PORCENTAJE ──
+         //  DETALLES Y PORCENTAJE 
          Expanded(
            child: Padding(
              padding: const EdgeInsets.all(10),
@@ -182,7 +185,7 @@ class RecetaCardWidget extends StatelessWidget {
    );
  }
 
-
+ // Genera una imagen de respaldo cuando la receta no tiene imagen disponible.
  Widget _placeholder() {
    return Container(
      height: 100,

@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-
+import 'package:cloud_firestore/cloud_firestore.dart';// Permite acceder y almacenar información en Firebase Firestore.
+import 'package:firebase_auth/firebase_auth.dart';// Permite obtener información del usuario autenticado mediante Firebase Authentication.
+// Servicio encargado de registrar actividades y acciones realizadas por los usuarios.
 class HistorialService {
 
   static Future<void>

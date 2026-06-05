@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
+import 'package:cloud_firestore/cloud_firestore.dart';// Librería para interactuar con la base de datos Firestore de Firebase, utilizada para cargar los pasos de preparación de las recetas.
+// Pantalla que muestra los pasos de preparación de una receta, permitiendo al usuario navegar entre ellos y mostrando sugerencias de sustitutos para ingredientes comunes.
 const Map<String, String> _sustitutosConfig = {
   'cebolla morada': 'Cebolla blanca',
   'cebolla roja': 'Cebolla blanca',
@@ -14,7 +14,7 @@ const Map<String, String> _sustitutosConfig = {
   'filete de carne': 'Filete de pechuga de pollo',
   'fideo corbata': 'Macarrón',
 };
-
+// Clase principal de la pantalla de pasos de preparación, que recibe el ID de la receta para cargar los pasos correspondientes desde Firestore.
 class CocinaPasosScreen extends StatefulWidget {
   final String recetaId;
   const CocinaPasosScreen({super.key, required this.recetaId});
@@ -22,13 +22,13 @@ class CocinaPasosScreen extends StatefulWidget {
   @override
   State<CocinaPasosScreen> createState() => _CocinaPasosScreenState();
 }
-
+// Estado de la pantalla de pasos de preparación, que maneja la carga de los pasos desde Firestore, el control del PageView para navegar entre los pasos y la lógica para mostrar sugerencias de sustitutos cuando se detectan ingredientes específicos en las instrucciones.
 class _CocinaPasosScreenState extends State<CocinaPasosScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
   List<dynamic> _pasos = [];
   bool _isLoading = true;
-
+// Carga los pasos de preparación desde Firestore al inicializar el estado, buscando en varias colecciones para encontrar los pasos correspondientes al ID de receta proporcionado, y ordenándolos por su número de orden antes de mostrarlos en la interfaz.
   @override
   void initState() {
     super.initState();
@@ -93,13 +93,13 @@ class _CocinaPasosScreenState extends State<CocinaPasosScreen> {
       setState(() => _isLoading = false);
     }
   }
-
+// Limpia los recursos del PageController cuando el widget se elimina para evitar fugas de memoria.
   @override
   void dispose() {
     _pageController.dispose();
     super.dispose();
   }
-
+// Construye la interfaz de la pantalla, mostrando un indicador de carga mientras se obtienen los pasos, un mensaje de error si no se encuentran pasos para el ID dado, o el contenido de los pasos con navegación y sugerencias de sustitutos cuando se detectan ingredientes específicos en las instrucciones.
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -138,7 +138,7 @@ class _CocinaPasosScreenState extends State<CocinaPasosScreen> {
     }
 
     double progreso = (_currentPage + 1) / _pasos.length;
-
+// Construye la interfaz de la pantalla, mostrando un indicador de carga mientras se obtienen los pasos, un mensaje de error si no se encuentran pasos para el ID dado, o el contenido de los pasos con navegación y sugerencias de sustitutos cuando se detectan ingredientes específicos en las instrucciones.
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
@@ -177,7 +177,7 @@ class _CocinaPasosScreenState extends State<CocinaPasosScreen> {
       ),
     );
   }
-
+// Construye una tarjeta para cada paso de preparación, mostrando el número de paso, la instrucción y, si se detecta un ingrediente específico en la instrucción, una sugerencia de sustituto con un diseño destacado para llamar la atención del usuario.
   Widget _buildStepCard(Map<String, dynamic> paso, int numeroPaso) {
     final String instruccion = paso['instruccion'] ?? "Sin instrucción";
 
@@ -280,7 +280,7 @@ class _CocinaPasosScreenState extends State<CocinaPasosScreen> {
       ),
     );
   }
-
+// Construye una tarjeta para cada paso de preparación, mostrando el número de paso, la instrucción y, si se detecta un ingrediente específico en la instrucción, una sugerencia de sustituto con un diseño destacado para llamar la atención del usuario.
   Widget _buildBottomBar() {
     final bool esUltimoPaso = _currentPage >= _pasos.length - 1;
     const Color verde = Color(0xFF2D9E73);
@@ -349,7 +349,7 @@ class _CocinaPasosScreenState extends State<CocinaPasosScreen> {
       ),
     );
   }
-
+// Construye una tarjeta para cada paso de preparación, mostrando el número de paso, la instrucción y, si se detecta un ingrediente específico en la instrucción, una sugerencia de sustituto con un diseño destacado para llamar la atención del usuario.
   void _mostrarExito() {
     showDialog(
       context: context,

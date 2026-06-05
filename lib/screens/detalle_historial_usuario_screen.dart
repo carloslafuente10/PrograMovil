@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:pdf/widgets.dart' as pw;
+import 'package:flutter/material.dart';// Pantalla que muestra el detalle del historial de actividades de un usuario específico, con la capacidad de filtrar por fecha y exportar el reporte en formato PDF. Utiliza Firestore para obtener los datos del historial y la librería pdf para generar el documento a partir de los registros filtrados.
+import 'package:cloud_firestore/cloud_firestore.dart';// Librería para trabajar con Firestore, la base de datos en la nube de Firebase, que se utiliza para almacenar y recuperar los registros del historial de actividades de los usuarios.
+import 'package:pdf/widgets.dart' as pw;// Librería para crear documentos PDF de manera programática, que se utiliza para generar el reporte de actividades del usuario en formato PDF a partir de los datos obtenidos de Firestore.
 
-import 'package:printing/printing.dart';
-import 'package:pdf/pdf.dart';
-
+import 'package:printing/printing.dart';// Librería que facilita la impresión y el compartir documentos PDF generados en Flutter, utilizada para compartir el reporte de actividades del usuario después de ser generado con la librería pdf.
+import 'package:pdf/pdf.dart';// Librería que proporciona constantes y utilidades para trabajar con PDF, como colores y estilos, utilizada en conjunto con la librería pdf para diseñar el reporte de actividades del usuario.
+// Pantalla que muestra el detalle del historial de actividades de un usuario específico, con la capacidad de filtrar por fecha y exportar el reporte en formato PDF. Utiliza Firestore para obtener los datos del historial y la librería pdf para generar el documento a partir de los registros filtrados.
 class DetalleHistorialUsuarioScreen
     extends StatefulWidget {
 
@@ -26,7 +26,7 @@ class DetalleHistorialUsuarioScreen
       createState() =>
           _DetalleHistorialUsuarioScreenState();
 }
-
+// Estado de la pantalla DetalleHistorialUsuarioScreen, que maneja la lógica para seleccionar la fecha, filtrar los registros del historial por esa fecha, generar el reporte en PDF y mostrarlo al usuario. Incluye un StreamBuilder para escuchar los cambios en Firestore y actualizar la lista de actividades en tiempo real.
 class _DetalleHistorialUsuarioScreenState
     extends State<
         DetalleHistorialUsuarioScreen> {
@@ -162,7 +162,7 @@ Future<void> exportarPdf(
 );
 }
 
-
+// Método build que construye la interfaz de usuario de la pantalla, incluyendo un AppBar con el nombre del usuario y un botón para seleccionar la fecha, y un cuerpo que muestra una tabla con las actividades del usuario filtradas por la fecha seleccionada. Utiliza un StreamBuilder para escuchar los cambios en Firestore y actualizar la tabla en tiempo real.
   @override
   Widget build(BuildContext context) {
 

@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../servicios/historial_servicio.dart';
-
+import 'package:flutter/material.dart';// Pantalla que muestra la lista de recetas favoritas del usuario, con la capacidad de agregar o quitar recetas de favoritos. Utiliza Firestore para almacenar y recuperar las recetas favoritas del usuario, y un InheritedNotifier para gestionar el estado de los favoritos en toda la aplicación.
+import 'package:cloud_firestore/cloud_firestore.dart';// Librería para trabajar con Firestore, la base de datos en la nube de Firebase, que se utiliza para almacenar y recuperar las recetas favoritas del usuario.
+import 'package:firebase_auth/firebase_auth.dart';// Librería para trabajar con Firebase Authentication, que se utiliza para gestionar la autenticación de usuarios y obtener el ID del usuario actual para asociar las recetas favoritas con su cuenta.
+import '../servicios/historial_servicio.dart';// Servicio personalizado para registrar las acciones del usuario en un historial, utilizado para registrar cuándo un usuario agrega o quita una receta de favoritos, lo que permite llevar un seguimiento de sus interacciones con la aplicación.
+// Pantalla que muestra la lista de recetas favoritas del usuario, con la capacidad de agregar o quitar recetas de favoritos. Utiliza Firestore para almacenar y recuperar las recetas favoritas del usuario, y un InheritedNotifier para gestionar el estado de los favoritos en toda la aplicación.
 class FavoritosProvider extends InheritedNotifier<FavoritosState> {
   const FavoritosProvider({
     super.key,
@@ -18,7 +18,7 @@ class FavoritosProvider extends InheritedNotifier<FavoritosState> {
     return notifier!;
   }
 }
-
+// Estado de los favoritos del usuario, que gestiona la lista de recetas favoritas, la autenticación del usuario y las operaciones para agregar o quitar recetas de favoritos. Escucha los cambios en la autenticación para cargar los favoritos correspondientes al usuario actual, y proporciona métodos para modificar la lista de favoritos tanto en memoria como en Firestore.
 class FavoritosState extends ChangeNotifier {
   final Map<String, Map<String, dynamic>> _favoritos = {};
   String? _userId;
@@ -64,7 +64,7 @@ class FavoritosState extends ChangeNotifier {
       debugPrint('Error al descargar favoritos: $e');
     }
   }
-
+// Método para agregar o quitar una receta de favoritos. Si la receta ya está en favoritos, se elimina; si no está, se agrega. Además, registra la acción en el historial del usuario utilizando el servicio de historial, y actualiza la base de datos en Firestore para reflejar el cambio.
   Future<void> toggle(Map<String, dynamic> receta) async {
     if (_userId == null) return;
     final nombre = receta['nombre'].toString().trim();

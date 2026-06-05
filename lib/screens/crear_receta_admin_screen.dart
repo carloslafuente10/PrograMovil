@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../servicios/historial_servicio.dart';
-
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
+import 'package:cloud_firestore/cloud_firestore.dart';// Librería para interactuar con Firestore, la base de datos en la nube de Firebase.
+import '../servicios/historial_servicio.dart';// Servicio para registrar acciones en el historial del usuario.
+// Pantalla para que el administrador pueda crear una nueva receta, ingresando información general, ingredientes y pasos de preparación, y guardándola en Firestore para que esté disponible en la aplicación.
 String _pluralizarUnidad(String cantidad, String unidad) {
   if (unidad.isEmpty) return unidad;
   // Invariables: nunca se pluralizan
@@ -49,8 +49,8 @@ String _pluralizarUnidad(String cantidad, String unidad) {
   return plural ? (plurales[base.toLowerCase()] ?? base) : base;
 }
 
-// ── Modelos ───────────────────────────────────────────────────────────────────
-
+// Clases auxiliares para manejar los ingredientes y pasos de la receta dentro del estado de la pantalla, permitiendo almacenar información adicional como si el ingrediente es primordial o si es un ingrediente maestro existente en la base de datos.
+//modelos
 class _IngReceta {
   String ingredienteId; // ID en ingredientes_maestros (o generado si es nuevo)
   String nombre;
@@ -83,7 +83,7 @@ class _IngReceta {
     'es_primordial': esPrimordial,
   };
 }
-
+// Modelo que representa un ingrediente de la receta, con información sobre su cantidad, unidad, si es primordial para la receta y si es un ingrediente maestro existente en la base de datos o uno nuevo creado por el administrador.
 class _Paso {
   String instruccion;
   _Paso({required this.instruccion});
@@ -93,15 +93,16 @@ class _Paso {
   };
 }
 
-// ── Pantalla principal ────────────────────────────────────────────────────────
+// Widget que muestra un mensaje vacío con un ícono, utilizado para indicar que no hay ingredientes o pasos agregados aún.
+//pantalla principal
 
 class CrearRecetaAdminScreen extends StatefulWidget {
   const CrearRecetaAdminScreen({super.key});
-
+// Pantalla para que el administrador pueda crear una nueva receta, ingresando información general, ingredientes y pasos de preparación, y guardándola en Firestore para que esté disponible en la aplicación.
   @override
   State<CrearRecetaAdminScreen> createState() => _CrearRecetaAdminScreenState();
 }
-
+// Estado de la pantalla de creación de receta, que maneja la lógica para cargar ingredientes maestros, agregar ingredientes y pasos, y guardar la receta en Firestore.
 class _CrearRecetaAdminScreenState extends State<CrearRecetaAdminScreen>
     with SingleTickerProviderStateMixin {
   // ── Paleta ──────────────────────────────────────────────────────────────────
@@ -151,14 +152,14 @@ class _CrearRecetaAdminScreenState extends State<CrearRecetaAdminScreen>
     'paquete',
     'rodaja',
   ];
-
+// Lista de unidades de medida disponibles para los ingredientes, utilizada en el selector de unidades al agregar o editar un ingrediente en la receta.
   @override
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 3, vsync: this);
     _cargarMaestros();
   }
-
+// Limpia los controladores y el controlador de pestañas al destruir el estado para evitar fugas de memoria.
   @override
   void dispose() {
     _tabCtrl.dispose();
@@ -170,7 +171,7 @@ class _CrearRecetaAdminScreenState extends State<CrearRecetaAdminScreen>
     _subcategoriaCtrl.dispose();
     super.dispose();
   }
-
+// Método para cargar los ingredientes maestros desde Firestore, ordenados por nombre, y almacenarlos en el estado para ser utilizados al agregar ingredientes a la receta.
   Future<void> _cargarMaestros() async {
     try {
       final snap = await FirebaseFirestore.instance
@@ -260,7 +261,7 @@ class _CrearRecetaAdminScreenState extends State<CrearRecetaAdminScreen>
     if (confirmar != true) return;
     await _guardar();
   }
-
+// Método que maneja la lógica para guardar la receta en Firestore, incluyendo la creación de ingredientes nuevos en la colección de ingredientes maestros si es necesario, y luego guardando la receta completa con sus pasos en las colecciones correspondientes. También registra la acción en el historial del administrador.
   Future<void> _guardar() async {
     setState(() => _guardando = true);
     try {
@@ -326,7 +327,7 @@ class _CrearRecetaAdminScreenState extends State<CrearRecetaAdminScreen>
       }
     }
   }
-
+// Método para mostrar un mensaje emergente (SnackBar) con un mensaje personalizado, y un estilo diferente si es un mensaje de error.
   void _snack(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -419,10 +420,8 @@ class _CrearRecetaAdminScreenState extends State<CrearRecetaAdminScreen>
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════════════
-  // TAB 1: Información general
-  // ══════════════════════════════════════════════════════════════════════════════
-
+ // Construye una tarjeta para cada paso de preparación, mostrando el número de paso, la instrucción y, si se detecta un ingrediente específico en la instrucción, una sugerencia de sustituto con un diseño destacado para llamar la atención del usuario.
+//pantalla de info general
   Widget _TabInfo() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -539,10 +538,8 @@ class _CrearRecetaAdminScreenState extends State<CrearRecetaAdminScreen>
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════════════
-  // TAB 2: Ingredientes
-  // ══════════════════════════════════════════════════════════════════════════════
-
+  // Construye una tarjeta para cada paso de preparación, mostrando el número de paso, la instrucción y, si se detecta un ingrediente específico en la instrucción, una sugerencia de sustituto con un diseño destacado para llamar la atención del usuario.
+  //ingredientes
   Widget _TabIngredientes() {
     return Column(
       children: [
@@ -644,9 +641,8 @@ class _CrearRecetaAdminScreenState extends State<CrearRecetaAdminScreen>
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════════════
-  // TAB 3: Pasos
-  // ══════════════════════════════════════════════════════════════════════════════
+  //pasos
+  // Construye una tarjeta para cada paso de preparación, mostrando el número de paso, la instrucción y, si se detecta un ingrediente específico en la instrucción, una sugerencia de sustituto con un diseño destacado para llamar la atención del usuario.
 
   Widget _TabPasos() {
     return Column(
@@ -702,7 +698,7 @@ class _CrearRecetaAdminScreenState extends State<CrearRecetaAdminScreen>
       ],
     );
   }
-
+// Método para mostrar el editor de paso en un modal, reutilizado tanto para agregar un nuevo paso como para editar uno existente, dependiendo de si se pasa un índice o no. El editor incluye un campo de texto para la instrucción del paso y sugerencias rápidas que el administrador puede tocar para agregarlas al campo de texto.
   void _agregarPaso(BuildContext context) => _mostrarEditorPaso(context, null);
 
   void _editarPaso(BuildContext context, int index) =>
@@ -838,9 +834,8 @@ class _CrearRecetaAdminScreenState extends State<CrearRecetaAdminScreen>
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Modal selector de ingrediente
-// ══════════════════════════════════════════════════════════════════════════════
+// Widget que muestra un mensaje vacío con un ícono, utilizado para indicar que no hay ingredientes o pasos agregados aún.
+//selector de ingrediente maestro o nuevo
 
 class _ModalIngrediente extends StatefulWidget {
   final List<Map<String, dynamic>> maestros;
@@ -858,6 +853,7 @@ class _ModalIngrediente extends StatefulWidget {
   @override
   State<_ModalIngrediente> createState() => _ModalIngredienteState();
 }
+// Estado del modal para seleccionar un ingrediente maestro existente o crear uno nuevo, que incluye un buscador para filtrar los ingredientes maestros por nombre, y un formulario para crear un nuevo ingrediente si no se encuentra uno adecuado en la lista de maestros.
 
 class _ModalIngredienteState extends State<_ModalIngrediente> {
   static const Color _verde = Color(0xFF2D9E73);
@@ -1021,7 +1017,7 @@ class _ModalIngredienteState extends State<_ModalIngrediente> {
       ),
     );
   }
-
+// Widget para construir un campo de texto dentro del sheet de creación de nuevo ingrediente, con un diseño consistente y parámetros para el controlador, etiqueta, sugerencia y si debe enfocarse automáticamente.
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
@@ -1216,6 +1212,7 @@ class _ModalIngredienteState extends State<_ModalIngrediente> {
     );
   }
 }
+// Widget que muestra un ícono genérico para ingredientes sin foto, utilizado en la lista de selección de ingredientes maestros.
 
 class _MiniPlaceholder extends StatelessWidget {
   @override
@@ -1234,10 +1231,8 @@ class _MiniPlaceholder extends StatelessWidget {
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Tarjeta de ingrediente en la lista
-// ══════════════════════════════════════════════════════════════════════════════
-
+//tarjeta de ingredientes de las recets
+// Widget que representa una tarjeta de ingrediente dentro de la lista de ingredientes de la receta, mostrando el nombre del ingrediente, campos editables para la cantidad y unidad, un toggle para marcarlo como primordial, y un botón para eliminarlo de la receta. Si el ingrediente no es maestro, se muestra un badge "Nuevo" para indicar que es un ingrediente creado específicamente para esta receta y no está en la base de datos de ingredientes maestros.
 class _TarjetaIngrediente extends StatelessWidget {
   final _IngReceta ing;
   final List<String> unidades;
@@ -1446,9 +1441,8 @@ class _TarjetaIngrediente extends StatelessWidget {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Tarjeta de paso
-// ══════════════════════════════════════════════════════════════════════════════
+//tarjeta de paso de preparación
+// Widget que representa una tarjeta de paso dentro de la lista de pasos de preparación, mostrando el número del paso, la instrucción, un ícono para arrastrar y reordenar los pasos, y botones para editar o eliminar el paso. Al tocar editar, se abre un modal con un campo de texto para modificar la instrucción del paso, y sugerencias rápidas que el administrador puede agregar al campo de texto con un solo toque.
 
 class _TarjetaPaso extends StatelessWidget {
   final int numero;
@@ -1553,9 +1547,7 @@ class _TarjetaPaso extends StatelessWidget {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Widgets reutilizables
-// ══════════════════════════════════════════════════════════════════════════════
+//  Widget que muestra un campo de texto con un diseño personalizado, utilizado para los campos de nombre, descripción y categoría de la receta, con un ícono representativo y estilos consistentes.
 
 class _Campo extends StatelessWidget {
   final TextEditingController ctrl;
@@ -1596,7 +1588,7 @@ class _Campo extends StatelessWidget {
     ),
   );
 }
-
+// Widget que muestra un texto con un estilo de etiqueta, utilizado para los títulos de las secciones dentro del formulario de creación de receta, como "Ingredientes" o "Pasos de preparación".
 class _Label extends StatelessWidget {
   final String texto;
   const _Label(this.texto);
@@ -1610,7 +1602,7 @@ class _Label extends StatelessWidget {
     ),
   );
 }
-
+// Widget que muestra un contenedor con un ícono de imagen, utilizado como placeholder para la foto de la receta cuando no se ha seleccionado una imagen aún.
 class _PlaceholderImg extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
@@ -1624,7 +1616,7 @@ class _PlaceholderImg extends StatelessWidget {
     ),
   );
 }
-
+// Widget que muestra un mensaje centrado con un ícono, utilizado para indicar que no hay ingredientes o pasos agregados aún en la receta, animando a los administradores a agregar contenido.
 class _VacioMsg extends StatelessWidget {
   final String msg;
   const _VacioMsg(this.msg);
@@ -1647,7 +1639,7 @@ class _VacioMsg extends StatelessWidget {
     ),
   );
 }
-
+// Widget que muestra un botón con un ícono de agregar, utilizado para agregar nuevos ingredientes o pasos a la receta, con un diseño consistente y colores acordes a la paleta de la aplicación.
 class _BotonAgregar extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
@@ -1684,9 +1676,7 @@ class _BotonAgregar extends StatelessWidget {
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Selector de categorías (StreamBuilder desde Firestore)
-// ══════════════════════════════════════════════════════════════════════════════
+// Widget que muestra una lista horizontal de categorías disponibles para las recetas, obtenidas en tiempo real desde Firestore, permitiendo a los administradores seleccionar una categoría para la receta que están creando o editando. La categoría seleccionada se resalta con un color diferente, y al tocar una categoría se actualiza la selección.
 
 class _SelectorCategorias extends StatelessWidget {
   final String seleccionada;
@@ -1773,7 +1763,7 @@ class _SheetField extends StatelessWidget {
   });
 
   static const Color _fondo = Color(0xFFF5F6FA);
-
+// Widget para construir un campo de texto dentro del sheet de creación de nuevo ingrediente, con un diseño consistente y parámetros para el controlador, etiqueta, sugerencia y si debe enfocarse automáticamente.
   @override
   Widget build(BuildContext context) {
     return Column(

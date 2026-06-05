@@ -1,8 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';// Permite acceder y consultar datos almacenados en Firebase Firestore.
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
+import 'package:pdf/pdf.dart';// Proporciona herramientas para la creación y configuración de documentos PDF.
+import 'package:pdf/widgets.dart' as pw;// Permite generar contenido y estructuras dentro de documentos PDF.
+import 'package:printing/printing.dart';// Permite visualizar, compartir e imprimir documentos PDF.
 
 // ── helpers fecha sin intl ────────────────────────────────────────────────────
 String _fmtFecha(DateTime d) {
@@ -32,17 +32,17 @@ const PdfColor _planBg     = PdfColor.fromInt(0xFFDBEAFE);
 const PdfColor _recetasBg  = PdfColor.fromInt(0xFFFFEDD5);
 const PdfColor _rolesBg    = PdfColor.fromInt(0xFFF3E8FF);
 
-// ═════════════════════════════════════════════════════════════════════════════
+
 // CLASE PRINCIPAL — usa el mismo nombre en AMBAS versiones para compatibilidad
-// ═════════════════════════════════════════════════════════════════════════════
+
 // Alias para compatibilidad: PdfService = PdfServicios
 typedef PdfService = PdfServicios;
 
 class PdfServicios {
 
-  // ══════════════════════════════════════════════════════════════════════════
+
   // HISTORIAL — exportar historial general
-  // ══════════════════════════════════════════════════════════════════════════
+  
   static Future<void> exportarHistorialGeneral({
     required BuildContext context,
     required List<Map<String, dynamic>> actividades,
@@ -86,9 +86,9 @@ class PdfServicios {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
+  
   // HISTORIAL — exportar usuario individual
-  // ══════════════════════════════════════════════════════════════════════════
+
   static Future<void> exportarUsuario({
     required BuildContext context,
     required String uid,
@@ -152,9 +152,9 @@ class PdfServicios {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
+
   // REPORTES — Usuarios
-  // ══════════════════════════════════════════════════════════════════════════
+
   static Future<void> generarReporteUsuarios(String filtro) async {
     final snap = await FirebaseFirestore.instance.collection('app-usuarios').get();
     final docs = snap.docs.where((doc) {
@@ -272,9 +272,9 @@ class PdfServicios {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
+ 
   // REPORTES — Recetas
-  // ══════════════════════════════════════════════════════════════════════════
+  
   static Future<void> generarReporteRecetas({
     required String categoria,
     required String buscar,
@@ -454,9 +454,9 @@ class PdfServicios {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
+  
   // REPORTES — Favoritos
-  // ══════════════════════════════════════════════════════════════════════════
+  
   static Future<void> generarReporteFavoritos() async {
     final usuariosSnap = await FirebaseFirestore.instance.collection('app-usuarios').get();
     final pdf = pw.Document();
@@ -588,9 +588,8 @@ class PdfServicios {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
   // REPORTES — Planificadores
-  // ══════════════════════════════════════════════════════════════════════════
+  
   static Future<void> generarReportePlanificadoresPdf(DateTime fecha) async {
     final pdf = pw.Document();
     final ahora = DateTime.now();
@@ -677,9 +676,9 @@ class PdfServicios {
   static Future<void> generarCsvPlanificadores(DateTime fecha) async =>
       generarReportePlanificadoresPdf(fecha);
 
-  // ══════════════════════════════════════════════════════════════════════════
+  
   // WIDGETS INTERNOS COMPARTIDOS
-  // ══════════════════════════════════════════════════════════════════════════
+  
 
   static pw.Widget _header({
     required String titulo,

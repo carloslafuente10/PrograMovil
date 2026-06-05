@@ -1,15 +1,15 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'detalle_historial_usuario_screen.dart';
-import '../servicios/pdf_servicios.dart';
-
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
+import 'package:cloud_firestore/cloud_firestore.dart';// Librería para interactuar con Firestore, la base de datos en la nube de Firebase.
+import 'detalle_historial_usuario_screen.dart';// Pantalla que muestra el detalle del historial de actividades de un usuario específico, con la capacidad de filtrar por fecha y exportar el reporte en formato PDF. Utiliza Firestore para obtener los datos del historial y la librería pdf para generar el documento a partir de los registros filtrados.
+import '../servicios/pdf_servicios.dart';// Servicio personalizado para generar documentos PDF a partir de los datos del historial de actividades de los usuarios, utilizado en la pantalla DetalleHistorialUsuarioScreen para crear el reporte de actividades del usuario en formato PDF.
+// Pantalla que muestra el historial de actividades de los usuarios, con la capacidad de filtrar por fecha, rol y tipo de acción. Utiliza Firestore para obtener los datos del historial en tiempo real, y permite exportar el reporte de actividades filtrado en formato PDF a través de la pantalla DetalleHistorialUsuarioScreen.
 class HistorialScreen extends StatefulWidget {
   const HistorialScreen({super.key});
 
   @override
   State<HistorialScreen> createState() => _HistorialScreenState();
 }
-
+// Estado de la pantalla HistorialScreen, que maneja la lógica para filtrar el historial de actividades por fecha, rol y tipo de acción, y para exportar el reporte de actividades filtrado en formato PDF. Incluye un StreamBuilder para escuchar los cambios en Firestore y actualizar la lista de actividades en tiempo real, y métodos para mostrar diálogos de selección de fecha y para navegar a la pantalla DetalleHistorialUsuarioScreen con los datos filtrados.
 class _HistorialScreenState extends State<HistorialScreen> {
   static const Color _verde = Color(0xFF2D9E73);
 

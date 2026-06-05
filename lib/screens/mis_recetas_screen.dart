@@ -1,17 +1,17 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'crear_receta_usuario_screen.dart';
-import 'detalle_receta_screen.dart';
-import '../servicios/notificaciones_servicio.dart';
-
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
+import 'package:cloud_firestore/cloud_firestore.dart';// Permite la interacción con la base de datos Firestore de Firebase.
+import 'package:firebase_auth/firebase_auth.dart';// Permite la autenticación de usuarios mediante Firebase Authentication.
+import 'crear_receta_usuario_screen.dart';// Pantalla para crear una nueva receta personalizada por el usuario, con campos para ingresar el nombre, categoría, ingredientes, pasos de preparación, tiempo de cocción y una imagen. Utiliza Firestore para guardar la receta en la base de datos y Firebase Storage para almacenar la imagen asociada a la receta.
+import 'detalle_receta_screen.dart';// Pantalla que muestra el detalle de una receta, incluyendo su nombre, categoría, ingredientes, pasos de preparación, tiempo de cocción y una imagen. Permite al usuario editar o eliminar la receta si es suya, y también compartirla con otros usuarios. Utiliza Firestore para obtener los datos de la receta y Firebase Storage para mostrar la imagen asociada.
+import '../servicios/notificaciones_servicio.dart';// Servicio personalizado para enviar notificaciones a los usuarios, utilizado para notificar al usuario cuando su receta ha sido aprobada o rechazada por el administrador, o para enviar recordatorios relacionados con sus recetas. Utiliza Firebase Cloud Messaging para enviar las notificaciones push a los dispositivos de los usuarios.
+// Pantalla principal donde el usuario puede ver sus recetas personales organizadas por estado (guardadas, borradores, copias, publicadas, en revisión y rechazadas). Permite crear nuevas recetas, editar las existentes, y copiar recetas del catálogo para personalizarlas. Utiliza Firestore para obtener las recetas asociadas al usuario autenticado y mostrar su información en una interfaz de tarjetas con opciones para cada receta.
 class MisRecetasScreen extends StatefulWidget {
   const MisRecetasScreen({super.key});
 
   @override
   State<MisRecetasScreen> createState() => _MisRecetasScreenState();
 }
-
+// Estado de la pantalla MisRecetasScreen, que maneja la lógica para mostrar las recetas del usuario organizadas por estado, y proporciona métodos para abrir el buscador de recetas del catálogo y mostrar las opciones de cada receta. Utiliza un TabController para gestionar las pestañas de estados de las recetas, y un StreamBuilder para escuchar los cambios en Firestore y actualizar la lista de recetas en tiempo real.
 class _MisRecetasScreenState extends State<MisRecetasScreen>
     with SingleTickerProviderStateMixin {
   static const Color _verde = Color(0xFF2D9E73);
@@ -62,19 +62,19 @@ class _MisRecetasScreenState extends State<MisRecetasScreen>
       'Lista p/ reenviar',
     ),
   };
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 6, vsync: this);
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -170,7 +170,7 @@ class _MisRecetasScreenState extends State<MisRecetasScreen>
       ),
     );
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   void _abrirBuscadorRecetasDB(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -180,7 +180,7 @@ class _MisRecetasScreenState extends State<MisRecetasScreen>
     );
   }
 }
-
+// Widget que muestra un buscador de recetas del catálogo para que el usuario pueda copiar una receta y personalizarla. Se muestra como un modal bottom sheet con una barra de búsqueda y una lista de recetas filtradas por el texto ingresado. Al seleccionar una receta, se abre la pantalla de detalle de la receta con la opción de copiarla a las recetas personales del usuario.
 class _TabRecetas extends StatelessWidget {
   final String uid;
   final Map<String, dynamic> estadosConfig;
@@ -194,7 +194,7 @@ class _TabRecetas extends StatelessWidget {
     required this.uid, required this.estadosConfig,
     required this.filtro, required this.emptyMsg, required this.emptySubMsg,
   });
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
@@ -249,7 +249,7 @@ class _TabRecetas extends StatelessWidget {
     );
   }
 }
-
+// Widget que muestra un buscador de recetas del catálogo para que el usuario pueda copiar una receta y personalizarla. Se muestra como un modal bottom sheet con una barra de búsqueda y una lista de recetas filtradas por el texto ingresado. Al seleccionar una receta, se abre la pantalla de detalle de la receta con la opción de copiarla a las recetas personales del usuario.
 class _RecetaPersonalCard extends StatelessWidget {
   final String docId;
   final Map<String, dynamic> data;
@@ -341,7 +341,7 @@ class _RecetaPersonalCard extends StatelessWidget {
       ),
     );
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   void _mostrarOpciones(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -351,7 +351,7 @@ class _RecetaPersonalCard extends StatelessWidget {
     );
   }
 }
-
+//
 class _ImgPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
@@ -359,7 +359,7 @@ class _ImgPlaceholder extends StatelessWidget {
     child: const Center(child: Icon(Icons.restaurant_rounded, color: Color(0xFF2D9E73), size: 28)),
   );
 }
-
+// Widget que muestra un buscador de recetas del catálogo para que el usuario pueda copiar una receta y personalizarla. Se muestra como un modal bottom sheet con una barra de búsqueda y una lista de recetas filtradas por el texto ingresado. Al seleccionar una receta, se abre la pantalla de detalle de la receta con la opción de copiarla a las recetas personales del usuario.
 class _OpcionesRecetaSheet extends StatefulWidget {
   final String docId;
   final Map<String, dynamic> data;
@@ -372,7 +372,7 @@ class _OpcionesRecetaSheet extends StatefulWidget {
   @override
   State<_OpcionesRecetaSheet> createState() => _OpcionesRecetaSheetState();
 }
-
+// Widget que muestra un buscador de recetas del catálogo para que el usuario pueda copiar una receta y personalizarla. Se muestra como un modal bottom sheet con una barra de búsqueda y una lista de recetas filtradas por el texto ingresado. Al seleccionar una receta, se abre la pantalla de detalle de la receta con la opción de copiarla a las recetas personales del usuario.
 class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
   static const Color _verde = Color(0xFF2D9E73);
   bool _eliminando = false;
@@ -610,7 +610,7 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
       ),
     );
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   void _verReceta(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -622,7 +622,7 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
       ),
     );
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   Future<void> _confirmarEnvio(BuildContext context) async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -699,7 +699,7 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
             SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
     }
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   Future<void> _confirmarReenvio(BuildContext context) async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -762,7 +762,7 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
             SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
     }
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   Future<void> _confirmarEliminar(BuildContext context) async {
     final enRevision = _estado == 'en_revision';
 
@@ -838,7 +838,7 @@ class _OpcionesRecetaSheetState extends State<_OpcionesRecetaSheet> {
     }
   }
 }
-
+// Widget que muestra un buscador de recetas del catálogo para que el usuario pueda copiar una receta y personalizarla. Se muestra como un modal bottom sheet con una barra de búsqueda y una lista de recetas filtradas por el texto ingresado. Al seleccionar una receta, se abre la pantalla de detalle de la receta con la opción de copiarla a las recetas personales del usuario.
 class _OpcionBtn extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -872,7 +872,7 @@ class _OpcionBtn extends StatelessWidget {
     ),
   );
 }
-
+// Widget que muestra un buscador de recetas del catálogo para que el usuario pueda copiar una receta y personalizarla. Se muestra como un modal bottom sheet con una barra de búsqueda y una lista de recetas filtradas por el texto ingresado. Al seleccionar una receta, se abre la pantalla de detalle de la receta con la opción de copiarla a las recetas personales del usuario.
 class _DetalleRecetaPersonalSheet extends StatefulWidget {
   final Map<String, dynamic> data;
   final String docId;
@@ -884,7 +884,7 @@ class _DetalleRecetaPersonalSheet extends StatefulWidget {
   State<_DetalleRecetaPersonalSheet> createState() =>
       _DetalleRecetaPersonalSheetState();
 }
-
+// Widget que muestra un buscador de recetas del catálogo para que el usuario pueda copiar una receta y personalizarla. Se muestra como un modal bottom sheet con una barra de búsqueda y una lista de recetas filtradas por el texto ingresado. Al seleccionar una receta, se abre la pantalla de detalle de la receta con la opción de copiarla a las recetas personales del usuario.
 class _DetalleRecetaPersonalSheetState extends State<_DetalleRecetaPersonalSheet> {
   static const Color _verde = Color(0xFF2D9E73);
   List<Map<String, dynamic>> _ings = [];
@@ -1080,7 +1080,7 @@ class _DetalleRecetaPersonalSheetState extends State<_DetalleRecetaPersonalSheet
 
     if (mounted) setState(() { _ings = result; _pasos = pasosEncontrados; _cargando = false; });
   }
-
+// Método para mostrar un mensaje emergente (snackbar) con el texto proporcionado, y un indicador de error opcional que cambia el color del mensaje. Se utiliza para proporcionar retroalimentación al usuario durante el proceso de inicio de sesión, registro y recuperación de contraseña.
   @override
   Widget build(BuildContext context) {
     final nombre = widget.data['nombre'] ?? 'Sin título';
@@ -1221,7 +1221,7 @@ class _DetalleRecetaPersonalSheetState extends State<_DetalleRecetaPersonalSheet
     );
   }
 }
-
+// Widget que muestra un buscador de recetas del catálogo para que el usuario pueda copiar una receta y personalizarla. Se muestra como un modal bottom sheet con una barra de búsqueda y una lista de recetas filtradas por el texto ingresado. Al seleccionar una receta, se abre la pantalla de detalle de la receta con la opción de copiarla a las recetas personales del usuario.
 class _Stat extends StatelessWidget {
   final IconData icon; final String label; final Color color;
   const _Stat(this.icon, this.label, this.color);
@@ -1231,7 +1231,7 @@ class _Stat extends StatelessWidget {
     Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.w500)),
   ]);
 }
-
+// Widget que muestra un buscador de recetas del catálogo para que el usuario pueda copiar una receta y personalizarla. Se muestra como un modal bottom sheet con una barra de búsqueda y una lista de recetas filtradas por el texto ingresado. Al seleccionar una receta, se abre la pantalla de detalle de la receta con la opción de copiarla a las recetas personales del usuario.
 class _IngPlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
@@ -1239,13 +1239,13 @@ class _IngPlaceholder extends StatelessWidget {
     child: const Icon(Icons.egg_alt_rounded, color: Color(0xFF2D9E73), size: 18),
   );
 }
-
+// Widget que muestra un buscador de recetas del catálogo para que el usuario pueda copiar una receta y personalizarla. Se muestra como un modal bottom sheet con una barra de búsqueda y una lista de recetas filtradas por el texto ingresado. Al seleccionar una receta, se abre la pantalla de detalle de la receta con la opción de copiarla a las recetas personales del usuario.
 class _BuscadorRecetasDBSheet extends StatefulWidget {
   const _BuscadorRecetasDBSheet();
   @override
   State<_BuscadorRecetasDBSheet> createState() => _BuscadorRecetasDBSheetState();
 }
-
+// Widget que muestra un buscador de recetas del catálogo para que el usuario pueda copiar una receta y personalizarla. Se muestra como un modal bottom sheet con una barra de búsqueda y una lista de recetas filtradas por el texto ingresado. Al seleccionar una receta, se abre la pantalla de detalle de la receta con la opción de copiarla a las recetas personales del usuario.
 class _BuscadorRecetasDBSheetState extends State<_BuscadorRecetasDBSheet> {
   static const Color _verde = Color(0xFF2D9E73);
   final _searchCtrl = TextEditingController();
@@ -1376,7 +1376,7 @@ class _BuscadorRecetasDBSheetState extends State<_BuscadorRecetasDBSheet> {
             SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
     }
   }
-
+// Widget que muestra un buscador de recetas del catálogo para que el usuario pueda copiar una receta y personalizarla. Se muestra como un modal bottom sheet con una barra de búsqueda y una lista de recetas filtradas por el texto ingresado. Al seleccionar una receta, se abre la pantalla de detalle de la receta con la opción de copiarla a las recetas personales del usuario.
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(

@@ -1,28 +1,28 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
 import 'package:flutter/services.dart'; // Necesario para HapticFeedback
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:http/http.dart' as http;
-import 'dart:async';
-import 'dart:convert';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'detalle_receta_screen.dart';
-import 'voice_call_screen.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'components/receta_card_widget.dart';
-import 'voice_transition_screen.dart';
-
+import 'package:cloud_firestore/cloud_firestore.dart';// Librería para interactuar con Firestore, la base de datos en la nube de Firebase.
+import 'package:http/http.dart' as http;// Librería para realizar solicitudes HTTP, utilizada para comunicarse con la API de Grok.
+import 'dart:async';// Librería para manejar operaciones asíncronas, como temporizadores y solicitudes de red.
+import 'dart:convert';// Librería para codificar y decodificar datos JSON, utilizada para procesar las respuestas de la API de Grok.
+import 'package:firebase_auth/firebase_auth.dart';// Librería para manejar la autenticación de usuarios con Firebase, utilizada para obtener información del usuario actual.
+import 'detalle_receta_screen.dart';// Pantalla que muestra el detalle completo de una receta, incluyendo ingredientes y pasos de preparación.
+import 'voice_call_screen.dart';// Pantalla que simula una llamada de voz con A.L.I.C.I.A., la chef virtual, para una experiencia más inmersiva al recibir sugerencias o reportar problemas.
+import 'package:flutter_dotenv/flutter_dotenv.dart';// Librería para cargar variables de entorno desde un archivo .env, utilizada para almacenar la clave de API de Grok de forma segura.
+import 'components/receta_card_widget.dart';// Widget personalizado que muestra una tarjeta de receta con imagen, información nutricional y opción para agregar o quitar de favoritos.
+import 'voice_transition_screen.dart';// Pantalla que muestra una animación de transición de voz, utilizada para mejorar la experiencia visual al iniciar o finalizar una interacción de voz con A.L.I.C.I.A.
+// Pantalla principal de sugerencias y chat con A.L.I.C.I.A., la chef virtual del Mercado Andino. Aquí los usuarios pueden interactuar con A.L.I.C.I.A. para recibir recomendaciones de recetas, reportar problemas o simplemente charlar sobre cocina.
 class SugerenciasChatScreen extends StatefulWidget {
   const SugerenciasChatScreen({super.key});
 
   @override
   State<SugerenciasChatScreen> createState() => _SugerenciasChatScreenState();
 }
-
+// Estado de la pantalla de sugerencias y chat, que maneja la lógica de interacción con A.L.I.C.I.A., la gestión de mensajes, el temporizador para pasos de recetas, y la comunicación con la API de Grok para obtener respuestas inteligentes basadas en el contexto de la conversación.
 class _SugerenciasChatScreenState extends State<SugerenciasChatScreen>
     with TickerProviderStateMixin {
-  // ─────────────────────────────────────────────
+ 
   // VARIABLES DE ESTADO GENERALES
-  // ─────────────────────────────────────────────
+  
   final TextEditingController _controller = TextEditingController();
   final List<Map<String, dynamic>> _mensajes = [];
   bool _opcionSeleccionada = false;
@@ -36,9 +36,9 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen>
   bool _mostrarPasoFinalTimbre = false;
   String _interpretacionIA = "";
 
-  // ─────────────────────────────────────────────
+  
   // VARIABLES DEL FLUJO DE REPORTE (GAMIFICADO)
-  // ─────────────────────────────────────────────
+
   int _pasoReporte = 0;
   bool _bloquearReportes = false;
   String _categoriaReporteActual = "";
@@ -47,9 +47,9 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen>
   final List<String> _fraseArmada = [];
   bool _mostrarCampoLibre = false;
 
-  // ─────────────────────────────────────────────
+  
   // VARIABLES DEL NUEVO WIZARD DE REPORTES (IMAGEN)
-  // ─────────────────────────────────────────────
+  
   /// Paso actual del wizard visual (0-7):
   /// 0 = Selección categoría principal
   /// 1 = Selección subcategoría
@@ -112,27 +112,27 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen>
   late Animation<double> _progressAnimation;
   double _progreso = 0.0;
 
-  // ─────────────────────────────────────────────
+  
   // VARIABLES DEL FLUJO DE AYUDA
-  // ─────────────────────────────────────────────
+  
   String? _categoriaComidaElegida;
   List<String> _ingredientesPrimordiales = [];
   final List<String> _ingredientesSeleccionados = [];
   bool _mostrarGridIngredientes = false;
   bool _bloquearCategorias = false;
 
-  // ─────────────────────────────────────────────
+ 
   // VARIABLES DEL TEMPORIZADOR NATIVO
-  // ─────────────────────────────────────────────
+  
   Timer? _countdownTimer;
   Duration _timerDuration = Duration.zero;
   bool _timerActivo = false;
 
   List<String> _bancoPalabrasDinamico = [];
 
-  // ─────────────────────────────────────────────
+
   // CONFIGURACIÓN GROQ / SYSTEM PROMPT (De tu compañero)
-  // ─────────────────────────────────────────────
+  
   final String _apiKeyGrok = dotenv.env['GROQ_API_KEY'] ?? '';
   final String _systemPrompt = """
 Eres A.L.I.C.I.A., la chef virtual oficial del Mercado Andino.
@@ -194,9 +194,9 @@ Jamás te contradigas diciendo que no cuentas con una receta que ya confirmaste.
     setState(() => _progreso = nuevoValor);
   }
 
-  // ─────────────────────────────────────────────
+  
   // MOTOR DEL TEMPORIZADOR (De tu compañero)
-  // ─────────────────────────────────────────────
+  
   void _iniciarTemporizador(int minutos) {
     _cancelarTemporizador();
     setState(() {
@@ -234,9 +234,9 @@ Jamás te contradigas diciendo que no cuentas con una receta que ya confirmaste.
     if (mounted) setState(() => _timerActivo = false);
   }
 
-  // ─────────────────────────────────────────────
+
   // SANITIZACIÓN DE RECETAS (De tu compañero)
-  // ─────────────────────────────────────────────
+  
   String _sanitizarRecetaParaContexto(Map<String, dynamic> data) {
     final String nombre = (data['nombre'] ?? '').toString().trim();
     final String categoria = (data['categoria'] ?? '').toString().trim();
@@ -301,7 +301,7 @@ Jamás te contradigas diciendo que no cuentas con una receta que ya confirmaste.
     }
     return ctx.toString();
   }
-
+// Método auxiliar para construir el prompt de validación que se enviará a la API de Grok. Este prompt instruye a Grok sobre cómo evaluar la legitimidad de un reporte de error basado en criterios específicos como relación, coherencia y contexto dentro de la aplicación. El prompt es detallado para asegurar que Grok entienda exactamente qué se espera en la respuesta, que debe ser únicamente "VALIDO" o "INVALIDO" sin explicaciones adicionales.
   String _construirPromptValidacion(
     String categoriaReporte,
     String subCategoria,
@@ -357,7 +357,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       return "Se nos ha derramado el caldo... Revisa tu conexión a internet.";
     }
   }
-
+// Método simulado para verificar la existencia de una receta en Firebase. En un escenario real, este método haría una consulta a Firestore para comprobar si la receta existe basándose en el texto proporcionado. Aquí se simula con un retraso y siempre devuelve true para fines de demostración.
   Future<bool> _verificarRecetaEnFirebase(String texto) async {
     try {
       await Future.delayed(const Duration(milliseconds: 600));
@@ -367,7 +367,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       return false;
     }
   }
-
+// Método auxiliar para generar variantes de una categoría de comida. Dado que las categorías en la base de datos pueden tener ligeras variaciones (mayúsculas, minúsculas, singular/plural), esta función toma una categoría base y genera una lista de posibles variantes que podrían coincidir en la consulta a Firestore. Esto aumenta las probabilidades de encontrar recetas relacionadas sin importar cómo esté escrita la categoría en la base de datos.
   List<String> _generarVariantes(String categoria) {
     String base = categoria.trim();
     String singular = base.endsWith('s')
@@ -386,10 +386,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       plural.toLowerCase(),
     ].toSet().toList();
   }
-
-  // ─────────────────────────────────────────────
+ 
   // BÚSQUEDA DE RECETAS (Fusión Porcentajes + Contexto)
-  // ─────────────────────────────────────────────
+  
   Future<void> _buscarRecetasRecomendadas() async {
     if (_categoriaComidaElegida == null || _ingredientesSeleccionados.isEmpty)
       return;
@@ -504,7 +503,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       setState(() => _estaCargando = false);
     }
   }
-
+//  Método para manejar la selección de una opción principal en el menú de A.L.I.C.I.A. Dependiendo de la opción seleccionada (Reporte, Ayuda, Consulta Específica o Sugerencia), este método actualiza el estado de la pantalla para preparar la interacción correspondiente. Esto incluye limpiar mensajes anteriores, configurar flags de espera para detalles o párrafos, y agregar un mensaje inicial de A.L.I.C.I.A. que guíe al usuario sobre qué hacer a continuación. Además, se reinicia el progreso visual y se asegura de que todas las variables relacionadas con reportes o sugerencias anteriores estén reseteadas para evitar conflictos en la nueva interacción.
   void _seleccionarOpcion(String titulo, String descripcion) {
     setState(() {
       _opcionSeleccionada = true;
@@ -561,7 +560,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       _mensajes.add({"rol": "llama", "texto": saludoChef, "tipo": tipoMensaje});
     });
   }
-
+// Método para manejar la selección de una categoría de reporte en el flujo gamificado de reportes. Cuando el usuario selecciona una categoría principal (como "Contenido", "Experiencia" o "Rendimiento"), este método actualiza el estado para bloquear nuevas selecciones, guardar la categoría elegida, y preparar la siguiente etapa del reporte que es la selección de subcategorías específicas. Además, se agrega un mensaje a la conversación que guía al usuario sobre qué hacer a continuación, y se anima el progreso visual para reflejar el avance en el proceso de reporte.
   void _seleccionarCategoriaReporte(String categoria) {
     if (_bloquearReportes) return;
     HapticFeedback.lightImpact();
@@ -602,7 +601,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     });
     _animarProgreso(0.33);
   }
-
+// Método para manejar la selección de una subcategoría de reporte después de que el usuario ha elegido una categoría principal. Este método es crucial para guiar al usuario a través del proceso gamificado de reporte, ya que dependiendo de la subcategoría seleccionada, se actualizará el banco de palabras dinámico que se utilizará para ayudar al usuario a construir su descripción del problema. Además, se actualiza el estado para reflejar la subcategoría elegida, se avanza al siguiente paso del reporte, y se agregan mensajes a la conversación para mantener al usuario informado sobre lo que sigue.
   void _seleccionarSubcategoriaReporte(String subcat) {
     if (_bloquearFlujoReporte) return;
     HapticFeedback.lightImpact();
@@ -674,7 +673,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     });
     _animarProgreso(0.66);
   }
-
+// Método para confirmar la frase construida por el usuario en el proceso de reporte y enviarla para validación a la API de Grok. Este método es el punto culminante del flujo gamificado de reportes, donde se toma la descripción del problema que el usuario ha armado utilizando las burbujas o el campo libre, y se envía a Grok para determinar si es un reporte válido. Dependiendo de la respuesta de Grok, se actualiza la conversación con mensajes apropiados que guían al usuario sobre los siguientes pasos, como revisar el reporte o enviarlo formalmente al equipo administrativo.
   Future<void> _confirmarFraseBancoYEnviar() async {
     final String textoFinal =
         _mostrarCampoLibre && _controller.text.trim().isNotEmpty
@@ -776,7 +775,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       });
     }
   }
-
+// Método para cargar los ingredientes primordiales de las recetas basándose en la categoría de comida elegida por el usuario. Este método realiza una consulta a Firestore para obtener las recetas que coinciden con la categoría seleccionada, y luego extrae los ingredientes marcados como primordiales para presentarlos al usuario. La lógica incluye la generación de variantes de la categoría para asegurar una búsqueda más amplia, y la construcción de un set de ingredientes únicos que luego se muestra en un grid para que el usuario pueda seleccionar cuáles tiene disponibles.
   Future<void> _cargarIngredientesPrimordiales(String categoria) async {
     setState(() => _estaCargando = true);
     try {
@@ -825,9 +824,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     }
   }
 
-  // ─────────────────────────────────────────────
+
   // ENVÍO DE MENSAJES (Fusión Regex Temporizador)
-  // ─────────────────────────────────────────────
+  
   Future<void> _enviarMensaje() async {
     final textoOriginal = _controller.text.trim();
     if (textoOriginal.isEmpty) return;
@@ -893,9 +892,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     }
   }
 
-  // ─────────────────────────────────────────────
+  
   // LÓGICA DE ENVÍO DE REPORTES Y EMAILJS (Tu lógica)
-  // ─────────────────────────────────────────────
+  
   Future<void> _procesarEnvioAlAdmin() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -1254,9 +1253,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     ],
   };
 
-  // ─────────────────────────────────────────────────────────────
+ 
   // Helper: icono string → IconData
-  // ─────────────────────────────────────────────────────────────
+  
   IconData _iconoDesdeString(String nombre) {
     switch (nombre) {
       case "menu_book":
@@ -1282,9 +1281,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
+ 
   // Helper: generar respuesta interpretada de ALICIA
-  // ─────────────────────────────────────────────────────────────
+  
   String _generarRespuestaAlicia() {
     final String cat = _wizardCategoria;
     final String sub = _wizardSubcategoria;
@@ -1570,7 +1569,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
               // con precisión a qué altura del mostrador quieres que inicien.
               SizedBox(height: MediaQuery.of(context).size.height * 0.48),
 
-              // ─────────────────────────────────────────────────────────
+          
               ...categorias.map((cat) {
                 return GestureDetector(
                   onTap: () {
@@ -2481,9 +2480,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
+ 
   // Helper reutilizable para filas de revisión
-  // ─────────────────────────────────────────────────────────────
+ 
   Widget _buildRevisionFila(
     IconData icon,
     Color color,
@@ -3189,9 +3188,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-  // ─────────────────────────────────────────────
+  
   // FUSIÓN: Avatar Animado (De tu compañero) + Burbuja TextFlexible (Tuya)
-  // ─────────────────────────────────────────────
+  
   Widget _buildChatLayout() {
     final bool esReporte = _categoriaActual == "Reporte";
     return Column(
@@ -3318,9 +3317,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-  // ─────────────────────────────────────────────
+
   // UI ARQUITECTURA TÁCTIL (Tus diseños conservados)
-  // ─────────────────────────────────────────────
+
   Widget _buildReporteCategoriasGrid() {
     final List<Map<String, dynamic>> categorias = [
       {
@@ -4047,9 +4046,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-  // ─────────────────────────────────────────────
+
   // UI DEL TEMPORIZADOR NATIVO (De tu compañero)
-  // ─────────────────────────────────────────────
+
   Widget _buildTimerWidget() {
     if (!_timerActivo) return const SizedBox.shrink();
 
@@ -4130,7 +4129,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       ),
     );
   }
-
+// UI DE SELECCIÓN DE CATEGORÍAS E INGREDIENTES (Tus diseños conservados)
   Widget _buildCategoriasGrid() {
     final List<Map<String, dynamic>> cats = [
       {
@@ -4237,7 +4236,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       ),
     );
   }
-
+// UI DE SELECCIÓN DE INGREDIENTES (Tus diseños conservados)
   Widget _buildIngredientesGrid() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -4349,7 +4348,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       ),
     );
   }
-
+// UI DE RESULTADOS DE RECETAS (Tus diseños conservados)
   Widget _buildRecetasGridCards(List<dynamic> recetasData) {
     final recetas = recetasData.cast<Map<String, dynamic>>();
     return Padding(
@@ -4385,7 +4384,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       ),
     );
   }
-
+// UI DE RESULTADOS DE RECETAS (Tus diseños conservados)
   Widget _buildActionBtn(VoidCallback onPres, IconData icon, String label) {
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 12),

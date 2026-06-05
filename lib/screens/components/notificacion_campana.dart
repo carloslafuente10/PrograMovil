@@ -1,9 +1,12 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../../servicios/notificaciones_servicio.dart';
-import '../notificaciones_screen.dart';
+import 'package:flutter/material.dart';//Componentes visuales de Flutter Material Design.
+import 'package:firebase_auth/firebase_auth.dart';//Permite obtener el usuario autenticado mediante Firebase Authentication.
+import '../../servicios/notificaciones_servicio.dart';//Servicio personalizado encargado de gestionar y consultar las notificaciones.
+import '../notificaciones_screen.dart';//Pantalla donde se muestran las notificaciones del usuario o administrador.
+// Widget que muestra una campana de notificaciones con contador de mensajes no leídos.
 
 class NotificacionCampana extends StatelessWidget {
+
+    // Obtiene el usuario autenticado actualmente.
   final bool esAdmin;
   const NotificacionCampana({super.key, required this.esAdmin});
 
@@ -11,7 +14,7 @@ class NotificacionCampana extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const SizedBox.shrink();
-
+// Escucha en tiempo real la cantidad de notificaciones no leídas.
     return StreamBuilder<int>(
       stream: esAdmin
           ? NotificacionesServicio.streamContadorNoLeidasAdmin(user.email ?? '')
@@ -21,7 +24,7 @@ class NotificacionCampana extends StatelessWidget {
         return Stack(
           clipBehavior: Clip.none,
           children: [
-            IconButton(
+            IconButton(// Navega a la pantalla de notificaciones al presionar la campana.
               icon: const Icon(Icons.notifications_outlined, color: Colors.white),
               onPressed: () => Navigator.push(
                 context,
@@ -30,6 +33,7 @@ class NotificacionCampana extends StatelessWidget {
                 ),
               ),
             ),
+             // Muestra el contador cuando existen notificaciones pendientes.
             if (count > 0)
               Positioned(
                 top: 6, right: 6,

@@ -1,17 +1,17 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'home_screen.dart';
-import 'favoritos_screen.dart';
-import 'plan_screen.dart';
-import 'login_page.dart';
-import 'sugerencias_chat_screen.dart';
-import 'mis_recetas_screen.dart';
-import 'package:lottie/lottie.dart';
-import 'components/notificacion_campana.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../servicios/historial_servicio.dart';
-
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
+import 'package:flutter/services.dart'; // Permite el control del sistema, como la navegación y el manejo de la barra de estado.
+import 'package:firebase_auth/firebase_auth.dart';// Proporciona funcionalidades de autenticación de usuarios mediante Firebase.
+import 'home_screen.dart';// Pantalla principal que muestra las recetas y categorías disponibles para el usuario.
+import 'favoritos_screen.dart';// Pantalla que muestra las recetas marcadas como favoritas por el usuario.
+import 'plan_screen.dart';// Pantalla que muestra el plan de comidas semanal del usuario, con opciones para agregar recetas a cada día.
+import 'login_page.dart';// Pantalla de inicio de sesión donde los usuarios pueden autenticarse para acceder a sus cuentas y funcionalidades personalizadas.
+import 'sugerencias_chat_screen.dart';// Pantalla que muestra un chat de sugerencias donde los usuarios pueden interactuar con un asistente virtual para recibir recomendaciones de recetas, consejos de cocina y respuestas a sus preguntas relacionadas con la alimentación y la cocina.
+import 'mis_recetas_screen.dart';// Pantalla que permite a los usuarios crear, editar y gestionar sus propias recetas personalizadas, con opciones para agregar ingredientes, pasos de preparación e imágenes.
+import 'package:lottie/lottie.dart';// Permite la integración de animaciones Lottie para mejorar la experiencia visual de la aplicación, como en el botón de sugerencias.
+import 'components/notificacion_campana.dart';// Componente que muestra una campana de notificaciones con contador de mensajes no leídos, permitiendo a los usuarios acceder rápidamente a sus notificaciones desde cualquier pantalla de la aplicación.
+import 'package:cloud_firestore/cloud_firestore.dart';// Permite la interacción con la base de datos Firestore de Firebase para almacenar y recuperar información relacionada con los usuarios, recetas, planes de comidas y otras funcionalidades de la aplicación.
+import '../servicios/historial_servicio.dart';// Servicio personalizado encargado de registrar acciones importantes del usuario, como inicio de sesión, cierre de sesión y otras interacciones relevantes, para mantener un historial de actividades dentro de la aplicación.
+// Pantalla principal de la aplicación que contiene la navegación entre las secciones de Inicio, Favoritos, Plan y Ajustes, así como un botón flotante para acceder al chat de sugerencias.
 class AppMainScreen extends StatefulWidget {
   const AppMainScreen({super.key});
   static final GlobalKey<AppMainScreenState> globalKey =
@@ -19,7 +19,7 @@ class AppMainScreen extends StatefulWidget {
   @override
   State<AppMainScreen> createState() => AppMainScreenState();
 }
-
+// Estado principal de la pantalla de la aplicación, que maneja la navegación entre las diferentes secciones y el comportamiento del botón flotante, así como el manejo del botón de retroceso para salir de la aplicación.
 class AppMainScreenState extends State<AppMainScreen> {
   int selectedIndex = 0;
 
@@ -27,7 +27,7 @@ class AppMainScreenState extends State<AppMainScreen> {
   static const Color _verdeOsc = Color(0xFF1B5E20);
   static const Color _mostaza  = Color(0xFFF5A623);
   static const Color _cafe     = Color(0xFF8B5E3C);
-
+// Listas estáticas que definen los colores, íconos y etiquetas para cada pestaña de navegación en la parte inferior de la pantalla, facilitando la personalización y el mantenimiento del diseño visual de la aplicación.
   static const List<Color> _tabColors = [
     Color(0xFF1B5E20),
     Color(0xFFD81B60),
@@ -61,7 +61,7 @@ class AppMainScreenState extends State<AppMainScreen> {
   ];
 
   DateTime? _ultimaVezAtras;
-
+// Método que maneja el comportamiento del botón de retroceso en Android, mostrando un mensaje de confirmación para salir de la aplicación si el usuario presiona el botón de retroceso dos veces dentro de un intervalo de 2 segundos, o navegando a la pestaña de inicio si el usuario está en otra pestaña.
   void _manejarAtras() {
     if (selectedIndex != 0) {
       setState(() => selectedIndex = 0);
@@ -82,7 +82,7 @@ class AppMainScreenState extends State<AppMainScreen> {
     }
     SystemNavigator.pop();
   }
-
+// Construye la interfaz principal de la aplicación, incluyendo la barra de navegación inferior con animaciones para el botón flotante y la gestión de las pestañas, así como el manejo del botón de retroceso para salir de la aplicación o navegar a la pestaña de inicio.
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -184,7 +184,7 @@ class AppMainScreenState extends State<AppMainScreen> {
       ),
     );
   }
-
+// Función que construye cada ítem de navegación en la barra inferior, aplicando animaciones y estilos para indicar cuál pestaña está seleccionada, y permitiendo al usuario cambiar entre las diferentes secciones de la aplicación al tocar los íconos correspondientes.
   Widget _buildNavItem(int index) {
     final bool isSelected = selectedIndex == index;
     final color = _tabColors[index];
@@ -230,13 +230,13 @@ class AppMainScreenState extends State<AppMainScreen> {
     );
   }
 }
-
+// Widget que muestra una campana de notificaciones con contador de mensajes no leídos, permitiendo a los usuarios acceder rápidamente a sus notificaciones desde cualquier pantalla de la aplicación.
 class _AjustesScreen extends StatefulWidget {
   const _AjustesScreen();
   @override
   State<_AjustesScreen> createState() => _AjustesScreenState();
 }
-
+// Estado de la pantalla de ajustes, que maneja la visualización de la información del usuario, opciones para editar el perfil y acceder a las recetas personales, así como la integración de la campana de notificaciones para mostrar alertas relevantes al usuario.
 class _AjustesScreenState extends State<_AjustesScreen> {
   static const Color _verde      = Color(0xFF2D9E73);
   static const Color _verdeClaro = Color(0xFFE8F7F1);
@@ -308,7 +308,7 @@ class _AjustesScreenState extends State<_AjustesScreen> {
         ],
       ),
     );
-
+// Validación básica para asegurarse de que el nuevo nombre no esté vacío antes de intentar guardarlo en Firebase Authentication, y mostrar mensajes de éxito o error según corresponda.
     if (nuevoNombre == null || nuevoNombre.isEmpty) return;
     if (!mounted) return;
 
@@ -348,7 +348,7 @@ class _AjustesScreenState extends State<_AjustesScreen> {
       }
     }
   }
-
+// Función que maneja la navegación a la pantalla de ajustes, verificando primero que existan pasos disponibles para la receta.
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -564,12 +564,12 @@ class _AjustesScreenState extends State<_AjustesScreen> {
     );
   }
 }
-
+// Widget que muestra una etiqueta de sección con un pequeño indicador de color, utilizado para separar visualmente las diferentes secciones dentro de la pantalla de ajustes.
 class _SectionLabel extends StatelessWidget {
   final String texto;
   final Color color;
   const _SectionLabel(this.texto, this.color);
-
+// Widget que muestra una etiqueta de sección con un pequeño indicador de color, utilizado para separar visualmente las diferentes secciones dentro de la pantalla de ajustes.
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -583,11 +583,11 @@ class _SectionLabel extends StatelessWidget {
     ]),
   );
 }
-
+// Widget que muestra un contenedor con fondo blanco, bordes redondeados y sombra suave, utilizado para agrupar elementos relacionados dentro de la pantalla de ajustes, como la información del perfil o las opciones de recetas personales.
 class _PerfilCard extends StatelessWidget {
   final List<Widget> children;
   const _PerfilCard({required this.children});
-
+// Widget que muestra un contenedor con fondo blanco, bordes redondeados y sombra suave, utilizado para agrupar elementos relacionados dentro de la pantalla de ajustes, como la información del perfil o las opciones de recetas personales.
   @override
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(
@@ -610,7 +610,7 @@ class _EditableTile extends StatelessWidget {
 
   const _EditableTile({required this.icon, required this.label,
       required this.valor, required this.color, required this.onTap});
-
+// Tile editable con ícono de lápiz, utilizado para mostrar información del perfil que el usuario puede editar al tocar la fila, como el nombre de usuario, con un diseño que incluye un ícono representativo, el valor actual y un indicador visual de que es editable.
   @override
   Widget build(BuildContext context) {
     return InkWell(
@@ -647,7 +647,7 @@ class _EditableTile extends StatelessWidget {
     );
   }
 }
-
+// Tile de información sin acción, utilizado para mostrar datos del perfil que no son editables, como el correo electrónico, con un diseño similar al tile editable pero sin el indicador de edición ni la funcionalidad de toque.
 class _InfoTile extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -685,7 +685,7 @@ class _InfoTile extends StatelessWidget {
     );
   }
 }
-
+// Widget que muestra una tarjeta individual para cada sección de administración en la pantalla principal del panel de administración, incluyendo un ícono representativo, título, subtítulo descriptivo y una acción al presionar la tarjeta para navegar a la sección correspondiente.
 class _ActionTile extends StatelessWidget {
   final IconData icon;
   final String label;

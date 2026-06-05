@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../servicios/pdf_servicios.dart';
-
+import 'package:flutter/material.dart';// Librería de Flutter para la construcción de interfaces gráficas.
+import 'package:cloud_firestore/cloud_firestore.dart';// Permite la conexión y consulta de datos en Firebase Firestore.
+import '../servicios/pdf_servicios.dart';// Servicio encargado de generar reportes en formato PDF, Excel o CSV para los planificadores de comidas.
+// Pantalla que muestra los planes de comidas por fecha para cada usuario registrado en la aplicación. Permite seleccionar una fecha específica y generar un reporte con el plan de comidas de esa fecha en diferentes formatos.
 class ReportesPlanificadoresScreen extends StatefulWidget {
   const ReportesPlanificadoresScreen({super.key});
 
@@ -9,7 +9,7 @@ class ReportesPlanificadoresScreen extends StatefulWidget {
   State<ReportesPlanificadoresScreen> createState() =>
       _ReportesPlanificadoresScreenState();
 }
-
+// Estado de la pantalla de reportes de planificadores. Maneja la lógica de selección de fecha, generación de reportes y visualización de los planes de comidas para cada usuario en la fecha seleccionada. Utiliza un StreamBuilder para mostrar los usuarios registrados en tiempo real desde Firestore, y permite generar reportes en formato PDF, Excel o CSV con el plan de comidas de cada usuario para la fecha seleccionada.
 class _ReportesPlanificadoresScreenState
     extends State<ReportesPlanificadoresScreen> {
 
@@ -31,7 +31,7 @@ class _ReportesPlanificadoresScreenState
     [Color(0xFF4527A0), Color(0xFFEDE7F6)],
     [Color(0xFF00695C), Color(0xFFE0F2F1)],
   ];
-
+// Método auxiliar para obtener una paleta de colores basada en el UID del usuario. Calcula un hash del UID y lo utiliza para seleccionar una paleta de colores predefinida, que se utiliza para personalizar la apariencia de los elementos relacionados con ese usuario en la interfaz.
   static List<Color> _paletaPara(String seed) {
     int hash = 0;
     for (final c in seed.codeUnits) {
@@ -39,7 +39,7 @@ class _ReportesPlanificadoresScreenState
     }
     return _paletas[hash % _paletas.length];
   }
-
+// Método auxiliar para formatear la fecha seleccionada en un formato legible. Convierte la fecha en una cadena que muestra el día, el mes (en formato abreviado) y el año, utilizando un arreglo de nombres de meses para obtener la representación textual del mes.
   String _getFechaFormateada() {
     const meses = ['Ene','Feb','Mar','Abr','May','Jun',
                    'Jul','Ago','Sep','Oct','Nov','Dic'];
@@ -47,16 +47,16 @@ class _ReportesPlanificadoresScreenState
         '${meses[_fechaSeleccionada.month - 1]} '
         '${_fechaSeleccionada.year}';
   }
-
+// Método auxiliar para generar un ID de documento único para el plan de comidas de un usuario en una fecha específica. Combina el UID del usuario con la fecha formateada en un formato específico (YYYY-MM-DD) para crear un identificador que se utiliza para almacenar y recuperar el plan de comidas de ese usuario en esa fecha desde Firestore.
   String _getDocId(String uid, DateTime date) {
     final mes = date.month.toString().padLeft(2, '0');
     final dia = date.day.toString().padLeft(2, '0');
     return '${uid}_${date.year}-$mes-$dia';
   }
-
+// Método auxiliar para cambiar la fecha seleccionada sumando o restando una cantidad de días. Permite navegar entre fechas adyacentes para visualizar los planes de comidas de diferentes días.
   void _cambiarFecha(int dias) =>
       setState(() => _fechaSeleccionada = _fechaSeleccionada.add(Duration(days: dias)));
-
+// Método auxiliar para mostrar un selector de fecha al usuario. Utiliza el widget showDatePicker de Flutter para permitir al usuario elegir una fecha específica, y actualiza la fecha seleccionada en el estado del widget cuando el usuario confirma su selección.
   Future<void> _seleccionarFecha(BuildContext context) async {
     final picked = await showDatePicker(
       context: context,
@@ -72,7 +72,7 @@ class _ReportesPlanificadoresScreenState
     );
     if (picked != null) setState(() => _fechaSeleccionada = picked);
   }
-
+// Método auxiliar para generar un ID de documento único para el plan de comidas de un usuario en una fecha específica. Combina el UID del usuario con la fecha formateada en un formato específico (YYYY-MM-DD) para crear un identificador que se utiliza para almacenar y recuperar el plan de comidas de ese usuario en esa fecha desde Firestore.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -292,7 +292,7 @@ class _ReportesPlanificadoresScreenState
     );
   }
 
-
+// Método auxiliar para construir un widget que representa un slot de comida (desayuno, almuerzo o cena) en el plan de comidas de un usuario. Muestra el ícono correspondiente a la comida, el nombre de la comida (o "Sin planificar" si no hay una receta asignada), y una mini tarjeta con la información de la receta si existe un plan registrado para esa comida en esa fecha.
   Widget _buildComidaSlot(
     Map<String, dynamic> plan,
     String key,
@@ -325,7 +325,7 @@ class _ReportesPlanificadoresScreenState
     );
   }
 }
-
+// Widget que muestra una mini tarjeta con la información de una receta, utilizada para mostrar el plan de comidas de un usuario en la pantalla de reportes. Consulta la información de la receta desde Firestore utilizando el ID de la receta, y muestra el nombre y la imagen de la receta en un diseño compacto.
 class _RecetaMiniCard extends StatelessWidget {
   final String recetaId;
   const _RecetaMiniCard({required this.recetaId});

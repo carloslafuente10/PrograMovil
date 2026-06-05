@@ -1,15 +1,15 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'detalle_historial_usuario_screen.dart';
-import '../servicios/pdf_servicios.dart';
-
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
+import 'package:cloud_firestore/cloud_firestore.dart';// Permite acceder y consultar datos almacenados en Firebase Firestore.
+import 'detalle_historial_usuario_screen.dart';// Pantalla que muestra el detalle del historial de un usuario específico.
+import '../servicios/pdf_servicios.dart';// Servicio encargado de generar y exportar reportes en formato PDF.
+// Pantalla que permite visualizar, filtrar y exportar el historial de actividad de los usuarios.
 class HistorialScreen extends StatefulWidget {
   const HistorialScreen({super.key});
 
   @override
   State<HistorialScreen> createState() => _HistorialScreenState();
 }
-
+// Gestiona los filtros, búsquedas y estadísticas del historial de usuarios.
 class _HistorialScreenState extends State<HistorialScreen> {
   static const Color _verde = Color(0xFF2D9E73);
 

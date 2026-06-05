@@ -1,15 +1,16 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'ver_receta_admin_screen.dart';
-import 'crear_receta_admin_screen.dart';
-
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
+import 'package:cloud_firestore/cloud_firestore.dart';  // Permite la interacción con la base de datos Firestore de Firebase para obtener y manipular datos de recetas.
+import 'ver_receta_admin_screen.dart';// Pantalla que muestra los detalles completos de una receta para el administrador, permitiendo la revisión y gestión de la receta.
+import 'crear_receta_admin_screen.dart';// Pantalla que permite al administrador crear una nueva receta, proporcionando un formulario para ingresar toda la información relevante de la receta.
+// Pantalla principal para que el administrador gestione las recetas existentes, con opciones para buscar, filtrar y acceder a los detalles de cada receta, así como para crear nuevas recetas.
 class AdminRecetasScreen extends StatefulWidget {
   const AdminRecetasScreen({super.key});
 
   @override
+  // Crea el estado mutable para la pantalla de gestión de recetas del administrador, permitiendo la actualización de la interfaz en respuesta a las acciones del usuario, como la búsqueda y selección de recetas.
   State<AdminRecetasScreen> createState() => _AdminRecetasScreenState();
 }
-
+// Estado mutable de la pantalla de gestión de recetas del administrador, que controla la lógica de búsqueda y visualización de recetas, así como la navegación a los detalles de cada receta y la creación de nuevas recetas.
 class _AdminRecetasScreenState extends State<AdminRecetasScreen> {
   static const Color _verde      = Color(0xFF2D9E73);
   static const Color _verdeClaro = Color(0xFFE8F7F1);
@@ -18,13 +19,13 @@ class _AdminRecetasScreenState extends State<AdminRecetasScreen> {
 
   String _buscar  = '';
   final  _buscarCtrl = TextEditingController();
-
+// Limpia los recursos utilizados por el controlador de texto de búsqueda cuando el widget se elimina del árbol de widgets, evitando posibles fugas de memoria.
   @override
   void dispose() {
     _buscarCtrl.dispose();
     super.dispose();
   }
-
+// Widget que muestra un ícono de ingrediente genérico cuando no se proporciona una imagen válida para la receta, proporcionando una representación visual consistente para las recetas sin imagen.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -209,7 +210,7 @@ class _AdminRecetasScreenState extends State<AdminRecetasScreen> {
     );
   }
 }
-
+// Widget que muestra una tarjeta individual para cada receta en la pantalla de gestión de recetas del administrador, incluyendo la imagen, nombre, categoría, calorías y opciones para eliminar la receta o acceder a sus detalles.
 class _RecetaCard extends StatelessWidget {
   final String docId;
   final Map<String, dynamic> data;
@@ -218,7 +219,7 @@ class _RecetaCard extends StatelessWidget {
   static const Color _verdeClaro = Color(0xFFE8F7F1);
 
   const _RecetaCard({required this.docId, required this.data});
-
+// Función que muestra un diálogo de confirmación antes de eliminar una receta, solicitando al administrador que confirme la acción, y luego procesa la eliminación de la receta de la base de datos si se confirma.
   @override
   Widget build(BuildContext context) {
     final img      = data['imagen']?.toString() ?? '';
@@ -319,7 +320,7 @@ class _RecetaCard extends StatelessWidget {
       ),
     );
   }
-
+// Widget que muestra un ícono de ingrediente genérico cuando no se proporciona una imagen válida para la receta, proporcionando una representación visual consistente para las recetas sin imagen.
   void _confirmarEliminar(BuildContext context) {
     showDialog(
       context: context,
@@ -351,7 +352,7 @@ class _RecetaCard extends StatelessWidget {
     );
   }
 }
-
+//  Widget que muestra un ícono de ingrediente genérico cuando no se proporciona una imagen válida para la receta, proporcionando una representación visual consistente para las recetas sin imagen.
 class _Placeholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
@@ -361,7 +362,7 @@ class _Placeholder extends StatelessWidget {
     ),
   );
 }
-
+// Widget que muestra una barra de progreso con porcentaje de coincidencia para cada receta, indicando visualmente qué tan bien coincide la receta con los criterios de búsqueda o selección del administrador, proporcionando una forma rápida de evaluar la relevancia de cada receta en función de su contenido.
 class _MiniBtn extends StatelessWidget {
   final IconData icono;
   final Color color, bg;
@@ -373,7 +374,7 @@ class _MiniBtn extends StatelessWidget {
     required this.bg,
     required this.onTap,
   });
-
+// Widget que muestra una barra de progreso con porcentaje de coincidencia para cada receta, indicando visualmente qué tan bien coincide la receta con los criterios de búsqueda o selección del administrador, proporcionando una forma rápida de evaluar la relevancia de cada receta en función de su contenido.
   @override
   Widget build(BuildContext context) => GestureDetector(
     onTap: onTap,

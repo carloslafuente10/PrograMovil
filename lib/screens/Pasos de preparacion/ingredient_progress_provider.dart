@@ -1,12 +1,12 @@
-import 'package:flutter/foundation.dart';
-import 'recipe_service.dart';
+import 'package:flutter/foundation.dart';// Proporciona herramientas para la gestión de estado mediante ChangeNotifier.
+import 'recipe_service.dart';// Servicio encargado de obtener información de recetas e ingredientes desde la fuente de datos.
 
 /// Representa un ingrediente de la receta con su ID maestro.
 /// 'masterIngredientId' es la clave en 'ingredientes_maestros'.
 class RecipeIngredient {
   final String masterIngredientId;
   final String displayName;
-  final bool es_primordial; // <-- ¡ESTE ES EL NUEVO VIGÍA!
+  final bool es_primordial; //nuevo vigía
 
   const RecipeIngredient({
     required this.masterIngredientId,

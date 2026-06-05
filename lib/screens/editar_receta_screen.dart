@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:flutter/material.dart';// Pantalla para editar o crear una receta, con campos para nombre, calorías, tiempo, imagen, categoría, subcategoría, ingredientes y pasos. Permite guardar la receta en Firestore y manejar tanto recetas nuevas como existentes.
+import 'package:cloud_firestore/cloud_firestore.dart';// Librería para trabajar con Firestore, la base de datos en la nube de Firebase, que se utiliza para almacenar y recuperar las recetas editadas o creadas por el usuario.
+// Importa componentes personalizados para mostrar la tarjeta de receta, la cuadrícula de categorías y el servicio de recetas.
 String _pluralizarUnidad(String cantidad, String unidad) {
   if (unidad.isEmpty) return unidad;
   const invariables = {'g', 'kg', 'ml', 'l', 'al gusto'};
@@ -40,7 +40,7 @@ String _pluralizarUnidad(String cantidad, String unidad) {
   final base = singulares[unidad.toLowerCase()] ?? unidad;
   return plural ? (plurales[base.toLowerCase()] ?? base) : base;
 }
-
+// Método auxiliar para pluralizar el nombre de una unidad según la cantidad, utilizando reglas básicas de pluralización y un diccionario de excepciones para unidades irregulares. Se utiliza para mostrar la cantidad ajustada de ingredientes en la receta.
 class _IngReceta {
   String ingredienteId;
   String nombre;
@@ -66,7 +66,7 @@ class _IngReceta {
     'es_primordial': esPrimordial,
   };
 }
-
+// Modelo que representa un ingrediente dentro de una receta, con su ID (referencia al maestro), nombre, cantidad, unidad, y flags para indicar si es primordial o si es un ingrediente maestro. Incluye un método toMap() para convertirlo a un formato compatible con Firestore al guardar la receta.
 class _Paso {
   String instruccion;
   int orden;
@@ -91,7 +91,7 @@ class EditarRecetaScreen extends StatefulWidget {
   @override
   State<EditarRecetaScreen> createState() => _EditarRecetaScreenState();
 }
-
+// Clase principal de la pantalla de edición de receta, que maneja tanto la creación de nuevas recetas como la edición de recetas existentes. Recibe opcionalmente un docId para cargar una receta existente, un mapa de datos iniciales para prellenar los campos, y un flag soloLectura para mostrar la receta sin permitir editarla. Utiliza un TabController para manejar las pestañas de información, ingredientes y pasos, y varios TextEditingControllers para manejar los campos de texto. También incluye métodos para cargar los datos desde Firestore, guardar los cambios, y mostrar confirmaciones al usuario.
 class _EditarRecetaScreenState extends State<EditarRecetaScreen>
     with SingleTickerProviderStateMixin {
   static const Color _verde = Color(0xFF2D9E73);
@@ -136,7 +136,7 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
     'paquete',
     'rodaja',
   ];
-
+// Lista de unidades sugeridas para los ingredientes, que se muestra como opciones rápidas al agregar o editar un ingrediente. Incluye tanto unidades invariables (g, kg, ml, L, al gusto) como unidades que se pluralizan según la cantidad (taza, cucharada, unidad, etc.).
   @override
   void initState() {
     super.initState();
@@ -196,7 +196,7 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
     }
     if (mounted) setState(() => _ingredientes = lista);
   }
-
+// Método para cargar los ingredientes de la receta desde la lista cruda obtenida de Firestore, resolviendo el nombre del ingrediente a partir del ID maestro cuando sea necesario. Esto permite mostrar el nombre correcto del ingrediente en la interfaz, incluso si en la receta solo se guardó el ID de referencia al maestro.
   Future<void> _cargarMaestros() async {
     try {
       final snap = await FirebaseFirestore.instance
@@ -292,7 +292,7 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
       });
     }
   }
-
+// Método para cargar los pasos de la receta desde Firestore, intentando primero encontrar un documento con el mismo ID que la receta, luego buscando por el campo 'receta_id' (formato original), y finalmente por el campo 'recetas_id' (formato corregido). Si encuentra los datos, los procesa para llenar la lista _pasos que se muestra en la interfaz.
   @override
   void dispose() {
     _tabCtrl.dispose();
@@ -464,7 +464,7 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
       if (mounted) setState(() => _guardando = false);
     }
   }
-
+// Método para guardar la receta en Firestore, incluyendo la información básica, ingredientes y pasos. Si es una receta nueva, crea un nuevo documento; si es una receta existente, actualiza el documento correspondiente. También maneja el guardado de los pasos en la colección 'steps-recetas' con el campo 'receta_id' para mantener la consistencia con el formato de la base de datos.
   @override
   Widget build(BuildContext context) {
     final esNueva = widget.docId == null;
@@ -737,7 +737,7 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
       ),
     );
   }
-
+// Método para construir la vista de solo lectura de la receta, mostrando la imagen, información básica, ingredientes y pasos sin permitir editar. Utiliza widgets personalizados para mostrar cada sección de manera clara y organizada.
   Widget _buildEditor() => TabBarView(
     controller: _tabCtrl,
     children: [_tabInfo(), _tabIngredientes(), _tabPasos()],
@@ -879,7 +879,7 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
       ),
     ],
   );
-
+// Método para construir la pestaña de ingredientes, que muestra una lista de ingredientes con opciones para editar, eliminar y marcar como primordial. También incluye un botón para agregar nuevos ingredientes, que abre un diálogo para ingresar los detalles del ingrediente.
   void _mostrarDialogoIngrediente({int? index}) {
     final ing = index != null ? _ingredientes[index] : null;
     Map<String, dynamic>? maestroInicial;
@@ -965,7 +965,7 @@ class _EditarRecetaScreenState extends State<EditarRecetaScreen>
       ),
     ],
   );
-
+// Método para construir la pestaña de pasos, que muestra una lista de pasos con opciones para editar y eliminar. También incluye un botón para agregar nuevos pasos, que abre un diálogo para ingresar la instrucción del paso.
   void _mostrarDialogoPaso({int? index}) {
     final paso = index != null ? _pasos[index] : null;
     showModalBottomSheet(
@@ -1009,11 +1009,11 @@ class _DialogoIngrediente extends StatefulWidget {
     this.ingInicial,
     this.maestroInicial,
   });
-
+// Diálogo para agregar o editar un ingrediente, con búsqueda y selección de maestros, opción de ingrediente libre, y sugerencias de unidades. Permite guardar el ingrediente y crear nuevos maestros si es necesario.
   @override
   State<_DialogoIngrediente> createState() => _DialogoIngredienteState();
 }
-
+// Estado del diálogo de ingrediente, que maneja la lógica de búsqueda, selección, creación de maestros, y validación de campos para guardar el ingrediente correctamente.
 class _DialogoIngredienteState extends State<_DialogoIngrediente> {
   static const Color _verde = Color(0xFF2D9E73);
   static const Color _verdeClaro = Color(0xFFE8F7F1);
@@ -1078,7 +1078,7 @@ class _DialogoIngredienteState extends State<_DialogoIngrediente> {
       });
     });
   }
-
+// Método para inicializar el estado del diálogo de ingrediente, configurando los controladores de texto, la lista filtrada de maestros, y manejando el caso de edición para cargar los datos del ingrediente existente.
   @override
   void dispose() {
     _busquedaCtrl.dispose();
@@ -1150,7 +1150,7 @@ class _DialogoIngredienteState extends State<_DialogoIngrediente> {
       ),
     );
   }
-
+// Método para crear un nuevo ingrediente maestro a partir de un ingrediente libre, guardándolo en Firestore y actualizando el estado del diálogo para reflejar la nueva selección.
   void _guardar() {
     if (!_esLibre && _maestroSeleccionado == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1190,7 +1190,7 @@ class _DialogoIngredienteState extends State<_DialogoIngrediente> {
     widget.onGuardar(ingrediente);
     Navigator.pop(context);
   }
-
+// Método para validar los campos y guardar el ingrediente, ya sea como un ingrediente libre o asociado a un maestro, y luego cerrar el diálogo.
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
@@ -1665,7 +1665,7 @@ class _DialogoCrearMaestro extends StatefulWidget {
   @override
   State<_DialogoCrearMaestro> createState() => _DialogoCrearMaestroState();
 }
-
+// Diálogo para crear un nuevo ingrediente maestro, con campos para nombre, foto, categoría, y sustitutos. Permite guardar el nuevo maestro en Firestore y actualizar la lista de maestros disponible.
 class _DialogoCrearMaestroState extends State<_DialogoCrearMaestro> {
   static const Color _verde = Color(0xFF2D9E73);
   late final TextEditingController _nombreCtrl;
@@ -1685,13 +1685,13 @@ class _DialogoCrearMaestroState extends State<_DialogoCrearMaestro> {
     'Legumbres',
     'Otros',
   ];
-
+// Método para inicializar el estado del diálogo de creación de maestro, configurando el controlador de texto para el nombre con el valor inicial proporcionado.
   @override
   void initState() {
     super.initState();
     _nombreCtrl = TextEditingController(text: widget.nombreInicial);
   }
-
+// Método para limpiar los controladores de texto al cerrar el diálogo y evitar fugas de memoria.
   @override
   void dispose() {
     _nombreCtrl.dispose();
@@ -1699,7 +1699,7 @@ class _DialogoCrearMaestroState extends State<_DialogoCrearMaestro> {
     _sustCtrl.dispose();
     super.dispose();
   }
-
+// Método para agregar un nuevo sustituto a la lista, validando que no esté vacío ni duplicado, y actualizando el estado para mostrarlo en la interfaz.
   void _addSust() {
     final s = _sustCtrl.text.trim();
     if (s.isNotEmpty && !_sustitutos.contains(s))
@@ -1708,7 +1708,7 @@ class _DialogoCrearMaestroState extends State<_DialogoCrearMaestro> {
         _sustCtrl.clear();
       });
   }
-
+// Método para construir la interfaz del diálogo de creación de maestro, con campos para ingresar el nombre, foto, categoría, y sustitutos, y botones para cancelar o guardar el nuevo maestro.
   @override
   Widget build(BuildContext context) => AlertDialog(
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -1878,7 +1878,7 @@ class _DialogoPaso extends StatefulWidget {
   @override
   State<_DialogoPaso> createState() => _DialogoPasoState();
 }
-
+// Diálogo para editar o agregar la instrucción de un paso, con sugerencias dinámicas basadas en los ingredientes y el número de paso. Permite guardar la instrucción ingresada y actualizar el estado de la receta.
 class _DialogoPasoState extends State<_DialogoPaso> {
   static const Color _verde = Color(0xFF2D9E73);
   late final TextEditingController _ctrl;
@@ -2203,7 +2203,7 @@ class _IngredienteItemEditor extends StatelessWidget {
     ),
   );
 }
-
+// Función auxiliar para pluralizar la unidad de medida según la cantidad, agregando una 's' al final si la cantidad es diferente de 1 y la unidad no está vacía.
 class _PasoItemEditor extends StatelessWidget {
   final _Paso paso;
   final int numero;
@@ -2315,6 +2315,7 @@ class _SelectorCategoria extends StatelessWidget {
     required this.seleccionada,
     required this.onSeleccionar,
   });
+  //  Widget que muestra una lista horizontal de categorías disponibles en Firestore, permitiendo al usuario seleccionar una categoría para la receta. La categoría seleccionada se resalta visualmente y se notifica al padre a través del callback onSeleccionar.
   @override
   Widget build(BuildContext context) => StreamBuilder<QuerySnapshot>(
     stream: FirebaseFirestore.instance
@@ -2389,7 +2390,7 @@ class _Label extends StatelessWidget {
     ),
   );
 }
-
+//  Widget que muestra un campo de texto estilizado con un ícono, utilizado para ingresar información como el nombre del ingrediente, cantidad, unidad, etc. El campo tiene un diseño limpio y moderno, con colores suaves y bordes redondeados.
 class _Campo extends StatelessWidget {
   final TextEditingController ctrl;
   final String hint;
@@ -2413,7 +2414,7 @@ class _Campo extends StatelessWidget {
     ),
   );
 }
-
+//  Widget que muestra el título de una sección dentro del editor de receta, con un estilo de texto destacado y un diseño limpio. Se utiliza para separar visualmente las diferentes partes del formulario, como información general, ingredientes, pasos, etc.
 class _SeccionTitulo extends StatelessWidget {
   final String titulo;
   const _SeccionTitulo(this.titulo);
@@ -2427,7 +2428,7 @@ class _SeccionTitulo extends StatelessWidget {
     ),
   );
 }
-
+//  Widget que muestra una fila de información con una etiqueta y un valor, utilizado para mostrar detalles como el nombre del ingrediente, cantidad, unidad, categoría, etc. La etiqueta se muestra en un color gris suave, mientras que el valor se resalta con un color más oscuro y un estilo de texto más fuerte.
 class _InfoFila extends StatelessWidget {
   final String label, valor;
   const _InfoFila(this.label, this.valor);
@@ -2458,7 +2459,7 @@ class _InfoFila extends StatelessWidget {
     ),
   );
 }
-
+//  Widget que muestra una tarjeta de información con un fondo blanco, bordes redondeados y un diseño limpio. Se utiliza para agrupar visualmente un conjunto de filas de información relacionadas, como los detalles de un ingrediente o un paso de la receta.
 class _InfoCard extends StatelessWidget {
   final List<Widget> children;
   const _InfoCard({required this.children});
@@ -2475,7 +2476,7 @@ class _InfoCard extends StatelessWidget {
     ),
   );
 }
-
+//  Widget que muestra un espacio reservado para la imagen de un ingrediente o receta, con un fondo de color verde claro y un ícono de imagen en el centro. Se utiliza cuando no se ha proporcionado una URL de foto válida, para indicar al usuario que puede agregar una imagen.
 class _PlaceholderImagen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
@@ -2489,7 +2490,7 @@ class _PlaceholderImagen extends StatelessWidget {
     ),
   );
 }
-
+//  Widget que muestra un mensaje de vacío con un ícono de bandeja de entrada, utilizado para indicar que no hay ingredientes o pasos agregados aún. El mensaje se muestra en un color gris suave y se centra en la pantalla.
 class _VacioMsg extends StatelessWidget {
   final String msg;
   const _VacioMsg(this.msg);
@@ -2512,7 +2513,7 @@ class _VacioMsg extends StatelessWidget {
     ),
   );
 }
-
+//  Widget que muestra un botón estilizado con un ícono de agregar, utilizado para acciones como agregar un nuevo ingrediente o paso. El botón tiene un fondo de color verde claro y el ícono y texto se muestran en color verde oscuro, con un diseño moderno y atractivo.
 class _BotonAgregar extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
@@ -2545,7 +2546,7 @@ class _BotonAgregar extends StatelessWidget {
     ),
   );
 }
-
+//  Widget que muestra un campo de texto estilizado con un ícono, utilizado para ingresar información como el nombre del ingrediente, cantidad, unidad, etc. El campo tiene un diseño limpio y moderno, con colores suaves y bordes redondeados. Este widget se diferencia del widget _Campo por tener un estilo de fondo blanco en lugar de gris claro, lo que lo hace más adecuado para resaltar campos importantes dentro de la interfaz de edición de receta.
 class _CampoTexto extends StatelessWidget {
   final TextEditingController ctrl;
   final String label;

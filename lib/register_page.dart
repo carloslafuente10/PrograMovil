@@ -1,15 +1,15 @@
-import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'screens/app_main_screen.dart';
-
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
+import 'package:firebase_auth/firebase_auth.dart';// Permite la autenticación de usuarios mediante Firebase Authentication.
+import 'package:cloud_firestore/cloud_firestore.dart';// Permite almacenar y consultar información en Firebase Firestore.
+import 'screens/app_main_screen.dart';// Pantalla principal de la aplicación después del inicio de sesión.
+// Pantalla encargada del registro de nuevos usuarios en la aplicación.
 class RegistroScreen extends StatefulWidget {
   const RegistroScreen({super.key});
 
   @override
   State<RegistroScreen> createState() => _RegistroScreenState();
 }
-
+// Gestiona la validación, creación de cuentas y animaciones del formulario de registro.
 class _RegistroScreenState extends State<RegistroScreen>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
@@ -32,7 +32,7 @@ class _RegistroScreenState extends State<RegistroScreen>
   static const _fondoClaro = Color(0xFFFFF8F5);
   static const _grisTexto = Color(0xFF5D4037);
   static const _bordeInput = Color(0xFFFFCCBC);
-
+// Inicializa las animaciones de entrada de la pantalla.
   @override
   void initState() {
     super.initState();
@@ -47,7 +47,7 @@ class _RegistroScreenState extends State<RegistroScreen>
     ).animate(CurvedAnimation(parent: _animController, curve: Curves.easeOut));
     _animController.forward();
   }
-
+// Libera los recursos utilizados por controladores y animaciones.
   @override
   void dispose() {
     _animController.dispose();
@@ -57,7 +57,7 @@ class _RegistroScreenState extends State<RegistroScreen>
     _confirmarContrasenaController.dispose();
     super.dispose();
   }
-
+// Valida que el nombre ingresado tenga un formato correcto.
   String? _validarNombre(String? valor) {
     if (valor == null || valor.trim().isEmpty) {
       return 'Por favor ingresa tu nombre completo';
@@ -67,7 +67,7 @@ class _RegistroScreenState extends State<RegistroScreen>
     }
     return null;
   }
-
+// Valida el formato del correo electrónico ingresado.
   String? _validarCorreo(String? valor) {
     if (valor == null || valor.trim().isEmpty) {
       return 'Por favor ingresa tu correo electrónico';
@@ -78,7 +78,7 @@ class _RegistroScreenState extends State<RegistroScreen>
     }
     return null;
   }
-
+// Verifica que la contraseña cumpla los requisitos mínimos.
   String? _validarContrasena(String? valor) {
     if (valor == null || valor.isEmpty) {
       return 'Por favor ingresa una contraseña';
@@ -88,7 +88,7 @@ class _RegistroScreenState extends State<RegistroScreen>
     }
     return null;
   }
-
+// Comprueba que ambas contraseñas coincidan.
   String? _validarConfirmarContrasena(String? valor) {
     if (valor == null || valor.isEmpty) {
       return 'Por favor confirma tu contraseña';
@@ -98,7 +98,7 @@ class _RegistroScreenState extends State<RegistroScreen>
     }
     return null;
   }
-
+// Crea una nueva cuenta de usuario y registra sus datos en Firebase.
   Future<void> _crearCuenta() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -196,7 +196,7 @@ class _RegistroScreenState extends State<RegistroScreen>
       );
     }
   }
-
+// Genera un estilo visual uniforme para los campos del formulario.
   InputDecoration _decoracionCampo({
     required String label,
     required String hint,
@@ -231,7 +231,7 @@ class _RegistroScreenState extends State<RegistroScreen>
       ),
     );
   }
-
+// Construye la interfaz del formulario de registro.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
