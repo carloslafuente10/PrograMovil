@@ -159,13 +159,16 @@ ABREVIACIONES HABLADAS OBLIGATORIAS (el texto se lee por voz, nunca uses abrevia
 - "kg" → di "kilos" o la equivalencia en medio/cuarto si aplica
 - Nunca digas unidades en sigla: siempre di la palabra completa
 
+REGLA BASE DE PORCIONES: Los ingredientes del registro están definidos para 1 persona (base = 1). Nunca asumas otra base salvo que el registro lo indique explícitamente con un campo como "porciones: N" o "sirve para N personas".
+
 FUNCIONES:
-- Confirmar receta: di nombre exacto, calorías aproximadas y tiempo exacto. Pregunta si empezamos. No listes pasos ni ingredientes aún.
-- Pasos: dicta uno a la vez, literal del registro. Avanza solo cuando el usuario confirme. Si el paso tiene un tiempo de espera (hornear, hervir, reposar, marinar, enfriar, etc.), PRIMERO dicta el paso completo y LUEGO pregunta al usuario si desea que actives un temporizador. NO actives el temporizador hasta que el usuario confirme explícitamente con palabras como "sí", "dale", "actívalo", "ponlo". Si el usuario no confirma o dice "no", continúa sin temporizador. Cuando el usuario confirme, añade al final [TIMER:X] con X en minutos enteros. Este comando nunca se pronuncia.
-- Ingredientes: lista literal del registro usando las abreviaciones habladas. Si no hay sustitutos en el registro, dilo.
-- Porciones para N personas: calcula tú las cantidades exactas usando las abreviaciones habladas. No le pidas al usuario que calcule.
+- Confirmar receta SIN número de personas especificado: di nombre exacto, calorías aproximadas para 1 persona y tiempo exacto. Luego lista los ingredientes base (para 1 persona) usando las abreviaciones habladas. Finalmente pregunta si empezamos o para cuántas personas.
+- Confirmar receta CON número de personas (ej: "trancapecho para 5 personas"): di nombre exacto, calorías aproximadas ya multiplicadas por N y tiempo exacto. Luego lista TODOS los ingredientes ya multiplicados por N usando las abreviaciones habladas. Finalmente pregunta si empezamos.
+- Pasos: dicta uno a la vez, literal del registro. Avanza solo cuando el usuario confirme. Si el paso tiene un tiempo de espera (hornear, hervir, reposar, marinar, enfriar, etc.), PRIMERO dicta el paso completo y LUEGO dile exactamente: "Si deseas activar un temporizador, di: Activa el reloj por (los minutos que necesites)." NO incluyas [TIMER:X] aquí. El temporizador SOLO se activa cuando el usuario diga explícitamente "Activa el reloj por X minutos". Nunca lo actives por otras palabras como "sí", "dale", "ponlo" o similares.
+- Ingredientes sin especificar personas: lista los ingredientes base (para 1 persona) literalmente del registro usando las abreviaciones habladas.
+- Ingredientes para N personas: factor = N (base siempre es 1). Multiplica CADA ingrediente por N y lista todos con las cantidades ya calculadas. NUNCA le digas al usuario que multiplique él mismo. NUNCA uses la cantidad base sin multiplicar. Ejemplo: usuario pide para 5 personas → multiplica cada ingrediente por 5.
 - Categorías: lista solo recetas del registro de esa categoría.
-- Calorías: usa siempre "aproximadamente N calorías".
+- Calorías: usa siempre "aproximadamente N calorías". Si piden para N personas, di "aproximadamente [calorías_base × N] calorías en total".
 - Tiempo: transcribe exacto del registro.
 
 FORMATO TTS: prosa fluida, sin asteriscos, guiones decorativos, corchetes, emojis, listas, negritas ni símbolos. Máximo 3 oraciones por respuesta salvo ingredientes o porciones. No anticipes información no solicitada.
@@ -458,7 +461,7 @@ FORMATO TTS: prosa fluida, sin asteriscos, guiones decorativos, corchetes, emoji
         // Si el paso contiene un valor de minutos, ofrecer temporizador
         final int? mins = _extraerMinutosDePaso(pasoTexto);
         final String msgConOferta = mins != null
-            ? "$msg. ¿Deseas que active un temporizador de $mins ${mins == 1 ? 'minuto' : 'minutos'}?"
+            ? "$msg. Si deseas activar un temporizador, di: Activa el reloj por los minutos que necesites."
             : msg;
         if (mins != null) setState(() => _minutosOfrecidos = mins);
         await _hablar(msgConOferta, guardarEnHistorial: true);
@@ -528,7 +531,7 @@ FORMATO TTS: prosa fluida, sin asteriscos, guiones decorativos, corchetes, emoji
             "Perfecto, comenzamos con $_recetaActivaNombre. "
             "Paso 1: $pasoTexto.";
         final String msgFinal = mins != null
-            ? "$base ¿Deseas que active un temporizador de $mins ${mins == 1 ? 'minuto' : 'minutos'}?"
+            ? "$base Si deseas activar un temporizador, di: Activa el reloj por los minutos que necesites."
             : "$base Cuando estés listo, dime 'siguiente'.";
         if (mins != null) setState(() => _minutosOfrecidos = mins);
         await _hablar(msgFinal, guardarEnHistorial: true);
@@ -540,7 +543,7 @@ FORMATO TTS: prosa fluida, sin asteriscos, guiones decorativos, corchetes, emoji
           final String msg =
               "Paso ${_pasoActualIndex + 1}: $pasoTexto";
           final String msgFinal = mins != null
-              ? "$msg. ¿Deseas que active un temporizador de $mins ${mins == 1 ? 'minuto' : 'minutos'}?"
+              ? "$msg. Si deseas activar un temporizador, di: Activa el reloj por los minutos que necesites."
               : msg;
           if (mins != null) setState(() => _minutosOfrecidos = mins);
           await _hablar(msgFinal, guardarEnHistorial: true);
@@ -557,7 +560,17 @@ FORMATO TTS: prosa fluida, sin asteriscos, guiones decorativos, corchetes, emoji
     }
 
     // ── 6. LISTAR INGREDIENTES DE LA RECETA ACTIVA ──
-    if (_recetaActivaNombre != null && _ingredientesActivos.isNotEmpty &&
+    // Si el usuario menciona un número de personas, dejamos pasar al LLM
+    // para que calcule y multiplique las cantidades correctamente.
+    final bool mencionaPersonas = RegExp(
+      r'\b\d+\s*personas?\b|\bpara\s+\d+\b|\b\d+\s*porciones?\b'
+      r'|\b(dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)\s*personas?\b'
+      r'|\bpara\s+(dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)\b',
+      caseSensitive: false,
+    ).hasMatch(t);
+
+    if (!mencionaPersonas &&
+        _recetaActivaNombre != null && _ingredientesActivos.isNotEmpty &&
         (t.contains("ingredientes") ||
          t.contains("qué necesito") ||
          t.contains("que necesito") ||
@@ -592,23 +605,30 @@ FORMATO TTS: prosa fluida, sin asteriscos, guiones decorativos, corchetes, emoji
       }
     }
 
-    // ── 8. CONFIRMACIÓN / RECHAZO DEL TEMPORIZADOR OFRECIDO ──
-    // Solo se activa si NID acaba de ofrecer un temporizador
-    // para el paso actual (es decir, _minutosOfrecidos != null).
+    // ── 8. COMANDO EXCLUSIVO DEL TEMPORIZADOR ──
+    // El usuario SOLO puede activar el temporizador diciendo:
+    // "Activa el reloj por X minutos"
+    // No se aceptan "sí", "dale", "ponlo" ni otras confirmaciones.
+    final timerCmdMatch = RegExp(
+      r'activ[ao]\s+el\s+reloj\s+por\s+(\d+)\s*(?:minutos?|mins?)',
+      caseSensitive: false,
+    ).firstMatch(t);
+
+    if (timerCmdMatch != null) {
+      final int mins = int.parse(timerCmdMatch.group(1)!);
+      setState(() => _minutosOfrecidos = null);
+      _iniciarTemporizador(mins);
+      await _hablar(
+        "Temporizador de $mins ${mins == 1 ? 'minuto' : 'minutos'} activado. Avísame con 'siguiente' cuando estés listo.",
+        guardarEnHistorial: true,
+      );
+      return true;
+    }
+
+    // Si hay un temporizador ofrecido pendiente y el usuario dice algo
+    // distinto al comando, limpiar la oferta y dejar pasar al LLM.
     if (_minutosOfrecidos != null) {
-      final bool confirma =
-          t.contains("sí") ||
-          t.contains("si") ||
-          t.contains("dale") ||
-          t.contains("actívalo") ||
-          t.contains("activalo") ||
-          t.contains("ponlo") ||
-          t.contains("pon") ||
-          t.contains("sí por favor") ||
-          t.contains("quiero") ||
-          t.contains("hazlo") ||
-          t.contains("okay") ||
-          t.contains("ok");
+      // Detectar rechazo explícito para dar respuesta inmediata
       final bool rechaza =
           t.contains("no") ||
           t.contains("sin temporizador") ||
@@ -616,17 +636,6 @@ FORMATO TTS: prosa fluida, sin asteriscos, guiones decorativos, corchetes, emoji
           t.contains("no gracias") ||
           t.contains("omite") ||
           t.contains("salta");
-
-      if (confirma && !rechaza) {
-        final int mins = _minutosOfrecidos!;
-        setState(() => _minutosOfrecidos = null);
-        _iniciarTemporizador(mins);
-        await _hablar(
-          "Temporizador de $mins ${mins == 1 ? 'minuto' : 'minutos'} activado. Avísame con 'siguiente' cuando estés listo.",
-          guardarEnHistorial: true,
-        );
-        return true;
-      }
       if (rechaza) {
         setState(() => _minutosOfrecidos = null);
         await _hablar(
@@ -635,6 +644,8 @@ FORMATO TTS: prosa fluida, sin asteriscos, guiones decorativos, corchetes, emoji
         );
         return true;
       }
+      // Para cualquier otra cosa, limpiar la oferta y no bloquear al LLM
+      setState(() => _minutosOfrecidos = null);
     }
 
     return false;
@@ -913,14 +924,11 @@ FORMATO TTS: prosa fluida, sin asteriscos, guiones decorativos, corchetes, emoji
         final data = jsonDecode(utf8.decode(response.bodyBytes));
         String respuesta = data['choices'][0]['message']['content'] ?? "";
 
-        final timerMatch = RegExp(r'\[TIMER:(\d+)\]').firstMatch(respuesta);
-        if (timerMatch != null) {
-          // Solo activar el temporizador si la respuesta indica que el usuario
-          // ya confirmó (el tag llega porque el usuario dijo sí, dale, etc.).
-          // El prompt instruye a NID a incluirlo SOLO tras confirmación explícita.
-          _iniciarTemporizador(int.parse(timerMatch.group(1)!));
-          respuesta = respuesta.replaceAll(RegExp(r'\[TIMER:\d+\]'), '').trim();
-        }
+        // El tag [TIMER:X] ya no activa el temporizador automáticamente.
+        // El temporizador SOLO se activa cuando el usuario dice el comando
+        // "Activa el reloj por X minutos" (manejado en _intentRouter).
+        // Solo se limpia el tag de la respuesta para que no se pronuncie.
+        respuesta = respuesta.replaceAll(RegExp(r'\[TIMER:\d+\]'), '').trim();
 
         respuesta = _limpiarParaTts(respuesta);
 
@@ -1021,14 +1029,10 @@ FORMATO TTS: prosa fluida, sin asteriscos, guiones decorativos, corchetes, emoji
         String respuestaFallback =
             data['choices'][0]['message']['content'] ?? "";
 
-        final timerMatch =
-            RegExp(r'\[TIMER:(\d+)\]').firstMatch(respuestaFallback);
-        if (timerMatch != null) {
-          _iniciarTemporizador(int.parse(timerMatch.group(1)!));
-          respuestaFallback = respuestaFallback
-              .replaceAll(RegExp(r'\[TIMER:\d+\]'), '')
-              .trim();
-        }
+        // El tag [TIMER:X] no activa el temporizador; solo se limpia.
+        respuestaFallback = respuestaFallback
+            .replaceAll(RegExp(r'\[TIMER:\d+\]'), '')
+            .trim();
 
         debugPrint("[Fallback] Respuesta acotada del agente externo recibida.");
         return _limpiarParaTts(respuestaFallback);

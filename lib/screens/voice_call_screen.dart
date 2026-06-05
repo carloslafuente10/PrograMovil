@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;//librería para realizar solicitudes HT
 import 'package:speech_to_text/speech_to_text.dart' as stt;// Permite convertir la voz del usuario en texto.
 import 'package:flutter_tts/flutter_tts.dart';// Permite convertir texto en voz mediante síntesis de voz.
 
-// ═══════════════════════════════════════════════════════════════════════════
+
 // VoiceCallScreen — Asistente de voz NID
 //
 // FLUJO COMPLETO:
@@ -23,7 +23,8 @@ import 'package:flutter_tts/flutter_tts.dart';// Permite convertir texto en voz 
 //   speech_to_text: ^6.6.0
 //   flutter_tts:    ^4.0.2
 //   cloud_firestore, http, flutter_dotenv  ← ya están en el proyecto
-// ═══════════════════════════════════════════════════════════════════════════
+
+// Pantalla que permite la interacción por voz con el asistente virtual.
 
 class VoiceCallScreen extends StatefulWidget {
   const VoiceCallScreen({super.key});
@@ -31,29 +32,30 @@ class VoiceCallScreen extends StatefulWidget {
   @override
   State<VoiceCallScreen> createState() => _VoiceCallScreenState();
 }
-
+//Gestiona la lógica de reconocimiento de voz,
+// animaciones y estados de la llamada de voz.
 class _VoiceCallScreenState extends State<VoiceCallScreen>
     with SingleTickerProviderStateMixin {
 
-  // ─────────────────────────────────────────────
+ 
   // PALETA CIBERPUNK ANDINO
-  // ─────────────────────────────────────────────
+ 
   static const Color _negro      = Color(0xFF0A0A0F);
   static const Color _moradoNeon = Color(0xFF7B2FBE);
   static const Color _cianNeon   = Color(0xFF00F5FF);
   static const Color _doradoInca = Color(0xFFFFD700);
   static const Color _verdeApp   = Color(0xFF2D9E73);
 
-  // ─────────────────────────────────────────────
+  
   // SERVICIOS EXTERNOS
-  // ─────────────────────────────────────────────
+  
   final stt.SpeechToText _speech = stt.SpeechToText();
   final FlutterTts         _tts   = FlutterTts();
   final String _apiKey = dotenv.env['GROQ_API_KEY'] ?? '';
 
-  // ─────────────────────────────────────────────
+
   // ESTADO DE AUDIO / UI
-  // ─────────────────────────────────────────────
+
   String _textoEscuchado = "";
   String _preguntaFinal  = "";
   String _respuestaNID   = "";   // Última respuesta visible y en caché para TTS
@@ -61,12 +63,12 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   bool   _procesando     = false;
   bool   _hablando       = false;
 
-  // ─────────────────────────────────────────────
+  
   // CATÁLOGO RAG (Firestore)
   // _catalogoContexto  → String plano para inyectar en el prompt
   // _recetasData       → datos estructurados para el IntentRouter local
   // _catalogoCargado   → semáforo UI
-  // ─────────────────────────────────────────────
+  
   /// Índice slim: solo "ID | Nombre | Categoría | Calorías | Tiempo"
   /// Se inyecta en Groq cuando NO hay receta activa (~500 tokens máx.)
   String _catalogoContexto = "";
@@ -82,9 +84,8 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   ///                 'ingredientes': List<String>, 'pasos': List<String> }
   final List<Map<String, dynamic>> _recetasData = [];
 
-  // ─────────────────────────────────────────────
+  
   // ESTADO DE RECETA ACTIVA (control paso a paso)
-  // ─────────────────────────────────────────────
 
   /// Nombre de la receta que el usuario eligió en esta sesión
   String? _recetaActivaNombre;
@@ -98,27 +99,27 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   /// Índice del paso que NID está dictando actualmente (0-based)
   int _pasoActualIndex = -1; // -1 = no se ha iniciado el dictado
 
-  // ─────────────────────────────────────────────
+  
   // HISTORIAL PARA GROQ (memoria a corto plazo)
   // Formato: [{"role": "user"/"assistant", "content": "..."}]
   // Se envía completo en cada llamada para mantener el hilo.
-  // ─────────────────────────────────────────────
+  
   final List<Map<String, String>> _historial = [];
 
-  // ─────────────────────────────────────────────
+ 
   // ANIMACIÓN DE PULSO DEL AVATAR
-  // ─────────────────────────────────────────────
+  
   late AnimationController _pulsoController;
   late Animation<double>    _pulsoAnimation;
 
-  // ─────────────────────────────────────────────
+  
   // VARIABLES DEL TEMPORIZADOR NATIVO
-  // ─────────────────────────────────────────────
+  
   Timer?   _countdownTimer;
   Duration _timerDuration = Duration.zero;
   bool     _timerActivo   = false;
 
-  // ═══════════════════════════════════════════════════════════════════════════
+ 
   // SYSTEM PROMPT — POLÍTICA ZERO-HALLUCINATION + FORMATO TTS
   //
   // ESTRUCTURA:
@@ -130,7 +131,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen>
   //   [F] Fidelidad numérica estricta (NO aproximaciones en ingredientes)
   //   [G] Brevedad y dosificación
   //   [H] Porciones dinámicas
-  // ═══════════════════════════════════════════════════════════════════════════
+  
   static const String _systemPromptTemplate = """
 [A — IDENTIDAD]
 Eres NID, el asistente culinario de voz de la cordillera del fogón humeante.
@@ -194,19 +195,18 @@ PROHIBIDO pedirle al usuario que haga el cálculo o sugerirle que duplique por s
 PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual a 100g, di 100 gramos, no unos 100 gramos.
 """;
 
-  // ─────────────────────────────────────────────
+ 
   // SALUDO INICIAL EXACTO DE NID
   // Se pronuncia automáticamente al terminar de
   // cargar el catálogo. No gasta tokens de API.
-  // ─────────────────────────────────────────────
+ 
   static const String _saludoInicial =
       "Bienvenido cocinero, mi nombre es NID. "
       "Espero que mi ayuda pueda satisfacer las dudas que tengas "
       "para preparar nuestra próxima obra gastronómica.";
 
-  // ─────────────────────────────────────────────
   // initState / dispose
-  // ─────────────────────────────────────────────
+  
   @override
   void initState() {
     super.initState();
@@ -233,10 +233,10 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     super.dispose();
   }
 
-  // ─────────────────────────────────────────────
+ 
   // _configurarTts
   // Voz pausada y levemente grave para NID.
-  // ─────────────────────────────────────────────
+ 
   Future<void> _configurarTts() async {
     await _tts.setLanguage("es-US");
     await _tts.setSpeechRate(0.42);
@@ -246,13 +246,13 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     });
   }
 
-  // ─────────────────────────────────────────────
+
   // _iniciarTemporizador / _cancelarTemporizador
   // Motor nativo del temporizador. Se activa cuando
   // la IA responde con el comando oculto [TIMER:X].
   // La detección ocurre ANTES de limpiar para TTS,
   // por lo que el tag nunca es pronunciado.
-  // ─────────────────────────────────────────────
+ 
   void _iniciarTemporizador(int minutos) {
     _cancelarTemporizador(); // Limpia uno previo si existe
     setState(() {
@@ -632,13 +632,13 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
         _respuestaNID   = "";
       });
 
-      // ═══════════════════════════════════════════════════════
+      
       // [PARTE 1-A] STT: Inicialización robusta con onStatus
-      // ─────────────────────────────────────────────────────
+     
       // onStatus sincroniza el flag _escuchando si el OS detiene
       // el mic por su cuenta (estado "done" / "notListening").
       // Esto evita que el botón quede activo sin audio real.
-      // ═══════════════════════════════════════════════════════
+     
       final disponible = await _speech.initialize(
         onError: (err) {
           // "error_speech_timeout" es esperado en silencio largo; no es fatal.
@@ -660,13 +660,13 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
       );
 
       if (disponible) {
-        // ═══════════════════════════════════════════════════════
+    
         // [PARTE 1-B] Selección dinámica del locale
-        // ─────────────────────────────────────────────────────
+     
         // Prioridad: es_BO → es_ES → primera es_* disponible.
         // El diccionario fonético correcto reduce palabras incompletas
         // en vocablos culinarios del español latinoamericano.
-        // ═══════════════════════════════════════════════════════
+       
         String localeElegido = "es_ES"; // guardia por defecto
         try {
           final locales = await _speech.locales();
@@ -688,9 +688,9 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
 
         setState(() => _escuchando = true);
 
-        // ═══════════════════════════════════════════════════════
+        
         // [PARTE 1-C] Parámetros anti-corte prematuro
-        // ─────────────────────────────────────────────────────
+       
         // listenMode: ListenMode.dictation
         //   Le dice al backend del OS que el usuario dictará frases largas,
         //   no comandos cortos (modo búsqueda). En Android activa el modelo
@@ -816,9 +816,9 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
         // ── C. Limpiar caracteres no aptos para TTS ──
         respuesta = _limpiarParaTts(respuesta);
 
-        // ══════════════════════════════════════════════════════════════
+       
         // [PARTE 2] FALLBACK INTELIGENTE — Agente externo conversacional
-        // ──────────────────────────────────────────────────────────────
+        
         // Si Groq devolvió la frase de rechazo exacta del catálogo, en
         // lugar de reproducirla seca, interceptamos aquí y disparamos
         // una segunda llamada al mismo LLM sin restricciones de catálogo.
@@ -843,7 +843,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
             respuesta = respuestaFallback;
           }
         }
-        // ── [FIN PARTE 2] ──────────────────────────────────────────────
+        // ── [FIN PARTE 2]
 
         // ── D. Si Groq confirmó una receta → activarla localmente ──
         _intentarActivarReceta(pregunta, respuesta);
@@ -883,7 +883,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  
   // [PARTE 2] _consultarAgenteExterno — Fallback acotado (sin alucinaciones)
   //
   // Se invoca SOLO cuando el LLM principal rechazó la consulta por no
@@ -898,7 +898,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
   //   • Sin historial: turno aislado para evitar contaminación de contexto.
   //   • Timeout independiente (12 s) para no bloquear la UI.
   //   • Devuelve String limpio para TTS, o null si falla (conserva rechazo).
-  // ═══════════════════════════════════════════════════════════════════════════
+
   Future<String?> _consultarAgenteExterno(String preguntaUsuario) async {
     // System prompt de fallback: personalidad de NID, cero conocimiento externo.
     const String systemFallback =
@@ -970,7 +970,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
   // lectura en el motor de voz de Chrome/Flutter:
   // asteriscos, guiones decorativos, corchetes,
   // listas numeradas, etc.
-  // ─────────────────────────────────────────────
+ 
   String _limpiarParaTts(String texto) {
     return texto
         .replaceAll(RegExp(r'\*+'), '')           // Asteriscos simples y dobles
@@ -984,7 +984,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
         .trim();
   }
 
-  // ─────────────────────────────────────────────
+
   // _intentarActivarReceta
   // Heurística: si el usuario mencionó un plato
   // y Groq lo confirmó (no rechazó), lo buscamos
@@ -995,7 +995,7 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
   // _recetaActivaContexto queda fijo durante toda la sesión.
   // Groq siempre recibirá el contexto de ESA receta y nunca
   // podrá contradecir que existe.
-  // ─────────────────────────────────────────────
+ 
   void _intentarActivarReceta(String pregunta, String respuestaNid) {
     // Si ya hay una receta activa → respetar la sesión en curso (Fix 5)
     if (_recetaActivaNombre != null) return;
@@ -1024,12 +1024,11 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     }
   }
 
-  // ─────────────────────────────────────────────
+  
   // _hablar
   // Punto único de reproducción TTS.
   // Actualiza _respuestaNID (caché para "repite eso")
   // y opcionalmente agrega al historial de Groq.
-  // ─────────────────────────────────────────────
   Future<void> _hablar(String texto, {required bool guardarEnHistorial}) async {
     final String limpio = _limpiarParaTts(texto);
     setState(() {
@@ -1241,13 +1240,13 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     );
   }
 
-  // ─────────────────────────────────────────────
+
   // _buildTimerWidget
   // Tarjeta flotante ciberpunk del temporizador.
   // Se superpone sobre el avatar usando Positioned.
   // Respeta el diseño dark/neon de NID.
   // Se oculta automáticamente cuando _timerActivo=false.
-  // ─────────────────────────────────────────────
+  
   Widget _buildTimerWidget() {
     if (!_timerActivo) return const SizedBox.shrink();
 
@@ -1333,12 +1332,12 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     );
   }
 
-  // ─────────────────────────────────────────────
+ 
   // _buildAvatar
   // Círculo animado con patrón andino geométrico.
   // Pulsa al ritmo de _pulsoAnimation cuando habla.
   // El anillo cambia de color según el estado.
-  // ─────────────────────────────────────────────
+  
   Widget _buildAvatar() {
     return Center(
       child: Column(
@@ -1473,12 +1472,12 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     return "LISTO PARA ESCUCHARTE";
   }
 
-  // ─────────────────────────────────────────────
+  
   // _buildPanelTexto
   // Muestra: transcripción en tiempo real,
   // indicador de procesamiento y respuesta de NID.
   // Incluye chips de acciones rápidas contextuales.
-  // ─────────────────────────────────────────────
+  
   Widget _buildPanelTexto() {
     return Container(
       // Sin margin horizontal: el padding ya viene del Padding externo en build()
@@ -1607,12 +1606,12 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     );
   }
 
-  // ─────────────────────────────────────────────
+
   // _buildAccionesRapidas
   // Chips contextuales que aparecen cuando hay
   // una receta activa. Permiten acciones comunes
   // sin hablar, ideal para manos ocupadas en cocina.
-  // ─────────────────────────────────────────────
+  
   Widget _buildAccionesRapidas() {
     final List<Map<String, dynamic>> acciones = [
       if (_pasoActualIndex == -1)
@@ -1652,11 +1651,11 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
     );
   }
 
-  // ─────────────────────────────────────────────
+  
   // _buildControles
   // Botón principal del micrófono.
   // Botón rojo para interrumpir TTS si NID habla.
-  // ─────────────────────────────────────────────
+ 
   Widget _buildControles() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 24),
@@ -1721,12 +1720,12 @@ PROHIBIDO aproximar el resultado del cálculo: si 200g dividido entre 2 es igual
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+
 // _AndeanPatternPainter
 // Patrón geométrico andino (rombos tipo wiphala) para el fondo del avatar.
 // Reemplazar con Image.asset('assets/images/nid_avatar.png') cuando
 // tengas el asset listo.
-// ═══════════════════════════════════════════════════════════════════════════
+
 class _AndeanPatternPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {

@@ -1,26 +1,27 @@
-import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces gráficas.
+import 'package:flutter/material.dart';// Librería principal de Flutter para la construcción de interfaces.
 import 'package:flutter/services.dart'; // Necesario para HapticFeedback
-import 'package:cloud_firestore/cloud_firestore.dart';// Librería para interactuar con Firestore, la base de datos en la nube de Firebase.
-import 'package:http/http.dart' as http;// Librería para realizar solicitudes HTTP, utilizada para comunicarse con la API de Grok.
-import 'dart:async';// Librería para manejar operaciones asíncronas, como temporizadores y solicitudes de red.
-import 'dart:convert';// Librería para codificar y decodificar datos JSON, utilizada para procesar las respuestas de la API de Grok.
-import 'package:firebase_auth/firebase_auth.dart';// Librería para manejar la autenticación de usuarios con Firebase, utilizada para obtener información del usuario actual.
-import 'detalle_receta_screen.dart';// Pantalla que muestra el detalle completo de una receta, incluyendo ingredientes y pasos de preparación.
-import 'voice_call_screen.dart';// Pantalla que simula una llamada de voz con A.L.I.C.I.A., la chef virtual, para una experiencia más inmersiva al recibir sugerencias o reportar problemas.
-import 'package:flutter_dotenv/flutter_dotenv.dart';// Librería para cargar variables de entorno desde un archivo .env, utilizada para almacenar la clave de API de Grok de forma segura.
-import 'components/receta_card_widget.dart';// Widget personalizado que muestra una tarjeta de receta con imagen, información nutricional y opción para agregar o quitar de favoritos.
-import 'voice_transition_screen.dart';// Pantalla que muestra una animación de transición de voz, utilizada para mejorar la experiencia visual al iniciar o finalizar una interacción de voz con A.L.I.C.I.A.
-// Pantalla principal de sugerencias y chat con A.L.I.C.I.A., la chef virtual del Mercado Andino. Aquí los usuarios pueden interactuar con A.L.I.C.I.A. para recibir recomendaciones de recetas, reportar problemas o simplemente charlar sobre cocina.
+import 'package:cloud_firestore/cloud_firestore.dart';// Acceso a la base de datos Firestore.
+import 'package:http/http.dart' as http;// Realiza peticiones HTTP a servicios externos.
+import 'dart:async';// Manejo de temporizadores y operaciones asíncronas.
+import 'dart:convert';// Codificación y decodificación JSON.
+import 'package:firebase_auth/firebase_auth.dart';// Gestión de autenticación con Firebase.
+import 'detalle_receta_screen.dart';// Pantalla de detalle de recetas.
+import 'package:flutter_dotenv/flutter_dotenv.dart';// Carga variables de entorno.
+import 'components/receta_card_widget.dart';// Widget reutilizable para mostrar recetas.
+import 'voice_transition_screen.dart';// Pantalla de transición para comandos de voz.
+// Pantalla principal del asistente virtual A.L.I.C.I.A.
+// Gestiona consultas, sugerencias y reportes de usuarios.
 class SugerenciasChatScreen extends StatefulWidget {
   const SugerenciasChatScreen({super.key});
 
   @override
   State<SugerenciasChatScreen> createState() => _SugerenciasChatScreenState();
 }
-// Estado de la pantalla de sugerencias y chat, que maneja la lógica de interacción con A.L.I.C.I.A., la gestión de mensajes, el temporizador para pasos de recetas, y la comunicación con la API de Grok para obtener respuestas inteligentes basadas en el contexto de la conversación.
+//Controla la lógica del chat, temporizadores,
+//reportes y comunicación con la IA.
 class _SugerenciasChatScreenState extends State<SugerenciasChatScreen>
     with TickerProviderStateMixin {
- 
+  
   // VARIABLES DE ESTADO GENERALES
   
   final TextEditingController _controller = TextEditingController();
@@ -36,9 +37,9 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen>
   bool _mostrarPasoFinalTimbre = false;
   String _interpretacionIA = "";
 
-  
-  // VARIABLES DEL FLUJO DE REPORTE (GAMIFICADO)
 
+  // VARIABLES DEL FLUJO DE REPORTE (GAMIFICADO)
+  
   int _pasoReporte = 0;
   bool _bloquearReportes = false;
   String _categoriaReporteActual = "";
@@ -47,7 +48,7 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen>
   final List<String> _fraseArmada = [];
   bool _mostrarCampoLibre = false;
 
-  
+ 
   // VARIABLES DEL NUEVO WIZARD DE REPORTES (IMAGEN)
   
   /// Paso actual del wizard visual (0-7):
@@ -113,15 +114,6 @@ class _SugerenciasChatScreenState extends State<SugerenciasChatScreen>
   double _progreso = 0.0;
 
   
-  // VARIABLES DEL FLUJO DE AYUDA
-  
-  String? _categoriaComidaElegida;
-  List<String> _ingredientesPrimordiales = [];
-  final List<String> _ingredientesSeleccionados = [];
-  bool _mostrarGridIngredientes = false;
-  bool _bloquearCategorias = false;
-
- 
   // VARIABLES DEL TEMPORIZADOR NATIVO
   
   Timer? _countdownTimer;
@@ -234,7 +226,7 @@ Jamás te contradigas diciendo que no cuentas con una receta que ya confirmaste.
     if (mounted) setState(() => _timerActivo = false);
   }
 
-
+  
   // SANITIZACIÓN DE RECETAS (De tu compañero)
   
   String _sanitizarRecetaParaContexto(Map<String, dynamic> data) {
@@ -301,7 +293,7 @@ Jamás te contradigas diciendo que no cuentas con una receta que ya confirmaste.
     }
     return ctx.toString();
   }
-// Método auxiliar para construir el prompt de validación que se enviará a la API de Grok. Este prompt instruye a Grok sobre cómo evaluar la legitimidad de un reporte de error basado en criterios específicos como relación, coherencia y contexto dentro de la aplicación. El prompt es detallado para asegurar que Grok entienda exactamente qué se espera en la respuesta, que debe ser únicamente "VALIDO" o "INVALIDO" sin explicaciones adicionales.
+
   String _construirPromptValidacion(
     String categoriaReporte,
     String subCategoria,
@@ -357,7 +349,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       return "Se nos ha derramado el caldo... Revisa tu conexión a internet.";
     }
   }
-// Método simulado para verificar la existencia de una receta en Firebase. En un escenario real, este método haría una consulta a Firestore para comprobar si la receta existe basándose en el texto proporcionado. Aquí se simula con un retraso y siempre devuelve true para fines de demostración.
+
   Future<bool> _verificarRecetaEnFirebase(String texto) async {
     try {
       await Future.delayed(const Duration(milliseconds: 600));
@@ -367,143 +359,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       return false;
     }
   }
-// Método auxiliar para generar variantes de una categoría de comida. Dado que las categorías en la base de datos pueden tener ligeras variaciones (mayúsculas, minúsculas, singular/plural), esta función toma una categoría base y genera una lista de posibles variantes que podrían coincidir en la consulta a Firestore. Esto aumenta las probabilidades de encontrar recetas relacionadas sin importar cómo esté escrita la categoría en la base de datos.
-  List<String> _generarVariantes(String categoria) {
-    String base = categoria.trim();
-    String singular = base.endsWith('s')
-        ? base.substring(0, base.length - 1)
-        : base;
-    String plural = base.endsWith('s') ? base : '${base}s';
 
-    return [
-      base,
-      base.toLowerCase(),
-      base.toUpperCase(),
-      base[0].toUpperCase() + base.substring(1).toLowerCase(),
-      singular,
-      singular.toLowerCase(),
-      plural,
-      plural.toLowerCase(),
-    ].toSet().toList();
-  }
- 
-  // BÚSQUEDA DE RECETAS (Fusión Porcentajes + Contexto)
-  
-  Future<void> _buscarRecetasRecomendadas() async {
-    if (_categoriaComidaElegida == null || _ingredientesSeleccionados.isEmpty)
-      return;
-    setState(() => _estaCargando = true);
-    try {
-      final variantes = _generarVariantes(_categoriaComidaElegida!);
-      final snapshot = await FirebaseFirestore.instance
-          .collection('app-recetas-completas')
-          .where(
-            Filter.or(
-              Filter('categoria', whereIn: variantes),
-              Filter('categoría', whereIn: variantes),
-            ),
-          )
-          .get();
-
-      List<Map<String, dynamic>> recetasEncontradas = [];
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        final String contextoSanitizado = _sanitizarRecetaParaContexto(
-          data,
-        ); // De tu compañero
-        List ingredientesDoc = data['ingredientes'] ?? [];
-
-        List<String> nombresReceta = ingredientesDoc
-            .map(
-              (i) =>
-                  (i is Map
-                          ? (i['nombre'] ??
-                                i['name'] ??
-                                i['ingrediente_id'] ??
-                                '')
-                          : i.toString())
-                      .toString()
-                      .trim()
-                      .toLowerCase()
-                      .replaceAll('-', ' '),
-            )
-            .where((n) => n.isNotEmpty)
-            .toList();
-
-        if (nombresReceta.isEmpty) continue;
-
-        int coincidencias = 0;
-        for (String ingSel in _ingredientesSeleccionados) {
-          if (nombresReceta.any(
-            (nr) =>
-                nr.contains(ingSel.toLowerCase().trim()) ||
-                ingSel.toLowerCase().trim().contains(nr),
-          )) {
-            coincidencias++;
-          }
-        }
-
-        // Lógica de porcentajes y límite visual (Tu lógica)
-        if (coincidencias > 0) {
-          double porcentaje = (coincidencias / nombresReceta.length) * 100;
-          if (porcentaje > 100) porcentaje = 100.0;
-
-          recetasEncontradas.add({
-            'id': doc.id,
-            'nombre': data['nombre']?.toString() ?? "Receta",
-            'img': data['imagen']?.toString() ?? '',
-            'calorias':
-                (data['calorías'] ?? data['calorias'])?.toString() ?? '—',
-            'tiempo': data['tiempo']?.toString() ?? '—',
-            'categoria':
-                (data['categoría'] ?? data['categoria'])?.toString() ?? '',
-            'porcentaje': porcentaje,
-            'contexto':
-                contextoSanitizado, // Listo para inyectar si se necesita
-          });
-        }
-      }
-
-      recetasEncontradas.sort(
-        (a, b) =>
-            (b['porcentaje'] as double).compareTo(a['porcentaje'] as double),
-      );
-      if (recetasEncontradas.length > 4) {
-        recetasEncontradas = recetasEncontradas.sublist(0, 4);
-      }
-
-      setState(() {
-        if (recetasEncontradas.isEmpty) {
-          _mensajes.add({
-            "rol": "llama",
-            "texto":
-                "He buscado en mi alacena pero no tengo una receta exacta con esa combinación. 🥣 ¿Intentamos con otros ingredientes?",
-            "tipo": "texto",
-          });
-        } else {
-          _mensajes.add({
-            "rol": "llama",
-            "texto":
-                "¡He encontrado el maridaje perfecto! 👨‍🍳 Aquí tienes las opciones que mejor combinan con tu selección.",
-            "tipo": "recetas_grid",
-            "recetas": recetasEncontradas,
-          });
-        }
-      });
-    } catch (e) {
-      debugPrint("Error buscar recetas: $e");
-      setState(
-        () => _mensajes.add({
-          "rol": "llama",
-          "texto": "Se nos ha derramado el caldo... Error en la conexión.",
-          "tipo": "texto",
-        }),
-      );
-    } finally {
-      setState(() => _estaCargando = false);
-    }
-  }
-//  Método para manejar la selección de una opción principal en el menú de A.L.I.C.I.A. Dependiendo de la opción seleccionada (Reporte, Ayuda, Consulta Específica o Sugerencia), este método actualiza el estado de la pantalla para preparar la interacción correspondiente. Esto incluye limpiar mensajes anteriores, configurar flags de espera para detalles o párrafos, y agregar un mensaje inicial de A.L.I.C.I.A. que guíe al usuario sobre qué hacer a continuación. Además, se reinicia el progreso visual y se asegura de que todas las variables relacionadas con reportes o sugerencias anteriores estén reseteadas para evitar conflictos en la nueva interacción.
   void _seleccionarOpcion(String titulo, String descripcion) {
     setState(() {
       _opcionSeleccionada = true;
@@ -511,11 +367,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       _mensajes.clear();
       _esperandoDetalleReporte = false;
       _esperandoParrafoSugerencia = false;
-      _mostrarGridIngredientes = false;
-      _bloquearCategorias = false;
+
       _bloquearFlujoReporte = false;
-      _categoriaComidaElegida = null;
-      _ingredientesSeleccionados.clear();
+
       _categoriaReporteActual = "";
       _subCategoriaReporteActual = "";
       _bloquearReportes = false;
@@ -544,10 +398,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
         tipoMensaje = "botones_reporte_categorias";
         _esperandoDetalleReporte = true;
         _animarProgreso(0.0);
-      } else if (titulo == "Ayuda") {
-        saludoChef =
-            "Aquí estoy para guiarte en tu siguiente comida. Por favor selecciona una categoría:";
-        tipoMensaje = "botones_categoria";
       } else if (titulo == "Consulta Especifica") {
         saludoChef =
             "¡Entrando comandas de alta cocina! 🚀 Escribe libremente tu inquietud culinaria o técnica.";
@@ -560,7 +410,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       _mensajes.add({"rol": "llama", "texto": saludoChef, "tipo": tipoMensaje});
     });
   }
-// Método para manejar la selección de una categoría de reporte en el flujo gamificado de reportes. Cuando el usuario selecciona una categoría principal (como "Contenido", "Experiencia" o "Rendimiento"), este método actualiza el estado para bloquear nuevas selecciones, guardar la categoría elegida, y preparar la siguiente etapa del reporte que es la selección de subcategorías específicas. Además, se agrega un mensaje a la conversación que guía al usuario sobre qué hacer a continuación, y se anima el progreso visual para reflejar el avance en el proceso de reporte.
+
   void _seleccionarCategoriaReporte(String categoria) {
     if (_bloquearReportes) return;
     HapticFeedback.lightImpact();
@@ -601,7 +451,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     });
     _animarProgreso(0.33);
   }
-// Método para manejar la selección de una subcategoría de reporte después de que el usuario ha elegido una categoría principal. Este método es crucial para guiar al usuario a través del proceso gamificado de reporte, ya que dependiendo de la subcategoría seleccionada, se actualizará el banco de palabras dinámico que se utilizará para ayudar al usuario a construir su descripción del problema. Además, se actualiza el estado para reflejar la subcategoría elegida, se avanza al siguiente paso del reporte, y se agregan mensajes a la conversación para mantener al usuario informado sobre lo que sigue.
+
   void _seleccionarSubcategoriaReporte(String subcat) {
     if (_bloquearFlujoReporte) return;
     HapticFeedback.lightImpact();
@@ -673,7 +523,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     });
     _animarProgreso(0.66);
   }
-// Método para confirmar la frase construida por el usuario en el proceso de reporte y enviarla para validación a la API de Grok. Este método es el punto culminante del flujo gamificado de reportes, donde se toma la descripción del problema que el usuario ha armado utilizando las burbujas o el campo libre, y se envía a Grok para determinar si es un reporte válido. Dependiendo de la respuesta de Grok, se actualiza la conversación con mensajes apropiados que guían al usuario sobre los siguientes pasos, como revisar el reporte o enviarlo formalmente al equipo administrativo.
+
   Future<void> _confirmarFraseBancoYEnviar() async {
     final String textoFinal =
         _mostrarCampoLibre && _controller.text.trim().isNotEmpty
@@ -775,56 +625,8 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       });
     }
   }
-// Método para cargar los ingredientes primordiales de las recetas basándose en la categoría de comida elegida por el usuario. Este método realiza una consulta a Firestore para obtener las recetas que coinciden con la categoría seleccionada, y luego extrae los ingredientes marcados como primordiales para presentarlos al usuario. La lógica incluye la generación de variantes de la categoría para asegurar una búsqueda más amplia, y la construcción de un set de ingredientes únicos que luego se muestra en un grid para que el usuario pueda seleccionar cuáles tiene disponibles.
-  Future<void> _cargarIngredientesPrimordiales(String categoria) async {
-    setState(() => _estaCargando = true);
-    try {
-      final variantes = _generarVariantes(categoria);
-      final snapshot = await FirebaseFirestore.instance
-          .collection('app-recetas-completas')
-          .where(
-            Filter.or(
-              Filter('categoria', whereIn: variantes),
-              Filter('categoría', whereIn: variantes),
-            ),
-          )
-          .get();
 
-      Set<String> setIngs = {};
-      for (var doc in snapshot.docs) {
-        for (var ing in (doc.data()['ingredientes'] ?? [])) {
-          if (ing is Map &&
-              (ing['es_primordial'] == true ||
-                  ing['es_primordial'].toString().toLowerCase() == 'true')) {
-            String nom = (ing['nombre'] ?? ing['ingrediente_id'] ?? '')
-                .toString()
-                .replaceAll('-', ' ')
-                .trim();
-            if (nom.isNotEmpty) {
-              nom = nom[0].toUpperCase() + nom.substring(1).toLowerCase();
-              setIngs.add(nom);
-            }
-          }
-        }
-      }
-
-      setState(() {
-        _ingredientesPrimordiales = setIngs.toList()..sort();
-        _mostrarGridIngredientes = true;
-        _mensajes.add({
-          "rol": "llama",
-          "texto": "Por favor elige los ingredientes disponibles:",
-          "tipo": "grid_ingredients",
-        });
-      });
-    } catch (e) {
-      debugPrint("Error DB: $e");
-    } finally {
-      setState(() => _estaCargando = false);
-    }
-  }
-
-
+  
   // ENVÍO DE MENSAJES (Fusión Regex Temporizador)
   
   Future<void> _enviarMensaje() async {
@@ -840,11 +642,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       _controller.clear();
       _estaCargando = true;
     });
-
-    if (textoOriginal.startsWith("Dame una recomendación de")) {
-      await _buscarRecetasRecomendadas();
-      return;
-    }
 
     if (_esperandoParrafoSugerencia) {
       setState(() {
@@ -894,7 +691,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
   
   // LÓGICA DE ENVÍO DE REPORTES Y EMAILJS (Tu lógica)
-  
+ 
   Future<void> _procesarEnvioAlAdmin() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -1006,8 +803,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                 onPressed: () => setState(() {
                   _opcionSeleccionada = false;
                   _mensajes.clear();
-                  _mostrarGridIngredientes = false;
-                  _bloquearCategorias = false;
+
                   _pasoReporte = 0;
                   _fraseArmada.clear();
                   _animarProgreso(0.0);
@@ -1255,7 +1051,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
  
   // Helper: icono string → IconData
-  
+ 
   IconData _iconoDesdeString(String nombre) {
     switch (nombre) {
       case "menu_book":
@@ -1281,7 +1077,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     }
   }
 
- 
+
   // Helper: generar respuesta interpretada de ALICIA
   
   String _generarRespuestaAlicia() {
@@ -1569,7 +1365,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
               // con precisión a qué altura del mostrador quieres que inicien.
               SizedBox(height: MediaQuery.of(context).size.height * 0.48),
 
-          
               ...categorias.map((cat) {
                 return GestureDetector(
                   onTap: () {
@@ -2482,7 +2277,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
 
  
   // Helper reutilizable para filas de revisión
- 
+  
   Widget _buildRevisionFila(
     IconData icon,
     Color color,
@@ -2966,13 +2761,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
               icono: Icons.bug_report_outlined,
               colorIcono: const Color(0xFFE57373),
             ),
-            _buildMenuButton(
-              titulo: "Ayuda",
-              descripcion: "Necesito una recomendación de comida",
-              subDescripcion: "Necesito una recomendación",
-              icono: Icons.restaurant_menu,
-              colorIcono: const Color(0xFFFFB74D),
-            ),
+
             _buildHighlightedButton(),
           ],
         ),
@@ -3188,7 +2977,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-  
+ 
   // FUSIÓN: Avatar Animado (De tu compañero) + Burbuja TextFlexible (Tuya)
   
   Widget _buildChatLayout() {
@@ -3276,13 +3065,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
                             _buildReporteSubcategoriasGrid(
                               msg["categoria_reporte"],
                             ),
-                          if (msg["tipo"] == "botones_categoria")
-                            _buildCategoriasGrid(),
-                          if (msg["tipo"] == "grid_ingredients" &&
-                              _mostrarGridIngredientes)
-                            _buildIngredientesGrid(),
-                          if (msg["tipo"] == "recetas_grid")
-                            _buildRecetasGridCards(msg["recetas"]),
+
                           if (msg["tipo"] == "reporte_btn" ||
                               msg["tipo"] == "sugerencia_btn")
                             _buildActionBtn(
@@ -3317,7 +3100,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-
+  
   // UI ARQUITECTURA TÁCTIL (Tus diseños conservados)
 
   Widget _buildReporteCategoriasGrid() {
@@ -4046,9 +3829,9 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 
-
+  
   // UI DEL TEMPORIZADOR NATIVO (De tu compañero)
-
+  
   Widget _buildTimerWidget() {
     if (!_timerActivo) return const SizedBox.shrink();
 
@@ -4129,262 +3912,7 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
       ),
     );
   }
-// UI DE SELECCIÓN DE CATEGORÍAS E INGREDIENTES (Tus diseños conservados)
-  Widget _buildCategoriasGrid() {
-    final List<Map<String, dynamic>> cats = [
-      {
-        "nombre": "Desayuno",
-        "icono": Icons.free_breakfast,
-        "color": const Color(0xFFFFB74D),
-      },
-      {
-        "nombre": "Almuerzo",
-        "icono": Icons.lunch_dining,
-        "color": const Color(0xFFE57373),
-      },
-      {
-        "nombre": "Cena",
-        "icono": Icons.dinner_dining,
-        "color": const Color(0xFF7986CB),
-      },
-      {
-        "nombre": "Snack",
-        "icono": Icons.fastfood,
-        "color": const Color(0xFF81C784),
-      },
-      {
-        "nombre": "Refrescos",
-        "icono": Icons.local_drink,
-        "color": const Color(0xFF4FC3F7),
-      },
-    ];
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 12,
-        alignment: WrapAlignment.center,
-        children: cats.map((cat) {
-          final String nombre = cat["nombre"];
-          final bool isSelected = _categoriaComidaElegida == nombre;
-          final bool desactivar = _bloquearCategorias && !isSelected;
-          final Color baseColor = cat["color"];
 
-          return GestureDetector(
-            onTap: desactivar
-                ? null
-                : () {
-                    HapticFeedback.lightImpact();
-                    if (_bloquearCategorias) return;
-                    setState(() {
-                      _bloquearCategorias = true;
-                      _categoriaComidaElegida = nombre;
-                      _mensajes.add({
-                        "rol": "usuario",
-                        "texto": "Categoría: $nombre",
-                        "tipo": "texto",
-                      });
-                    });
-                    _cargarIngredientesPrimordiales(nombre);
-                  },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: isSelected ? baseColor.withOpacity(0.15) : Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isSelected ? baseColor : Colors.grey.shade300,
-                  width: isSelected ? 2.5 : 1.5,
-                ),
-                boxShadow: desactivar
-                    ? []
-                    : [
-                        BoxShadow(
-                          color: baseColor.withOpacity(isSelected ? 0.5 : 0.2),
-                          blurRadius: 0,
-                          offset: Offset(0, isSelected ? 1 : 4),
-                        ),
-                      ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    cat["icono"],
-                    size: 18,
-                    color: desactivar ? Colors.grey.shade400 : baseColor,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    nombre,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                      color: desactivar ? Colors.grey.shade400 : Colors.black87,
-                    ),
-                  ),
-                  if (isSelected) ...[
-                    const SizedBox(width: 6),
-                    Icon(Icons.check_circle, size: 16, color: baseColor),
-                  ],
-                ],
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-// UI DE SELECCIÓN DE INGREDIENTES (Tus diseños conservados)
-  Widget _buildIngredientesGrid() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Column(
-        children: [
-          Wrap(
-            spacing: 10.0,
-            runSpacing: 12.0,
-            alignment: WrapAlignment.center,
-            children: _ingredientesPrimordiales.map((ing) {
-              final bool isSel = _ingredientesSeleccionados.contains(ing);
-              return GestureDetector(
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  setState(() {
-                    if (isSel) {
-                      _ingredientesSeleccionados.remove(ing);
-                    } else if (_ingredientesSeleccionados.length < 8) {
-                      _ingredientesSeleccionados.add(ing);
-                    }
-                  });
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSel ? _verde.withOpacity(0.12) : Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: isSel ? _verde : Colors.grey.shade300,
-                      width: isSel ? 2 : 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: isSel
-                            ? _verde.withOpacity(0.3)
-                            : Colors.grey.withOpacity(0.15),
-                        blurRadius: 0,
-                        offset: Offset(0, isSel ? 1 : 3),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (isSel)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: Icon(
-                            Icons.check_circle,
-                            size: 16,
-                            color: _verde,
-                          ),
-                        ),
-                      Text(
-                        ing,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          color: isSel ? _verde : Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: AnimatedOpacity(
-              opacity: _ingredientesSeleccionados.isNotEmpty ? 1.0 : 0.45,
-              duration: const Duration(milliseconds: 300),
-              child: ElevatedButton.icon(
-                onPressed: _ingredientesSeleccionados.isNotEmpty
-                    ? () {
-                        HapticFeedback.mediumImpact();
-                        setState(() {
-                          _mostrarGridIngredientes = false;
-                          _controller.text =
-                              "Dame una recomendación de $_categoriaComidaElegida usando: ${_ingredientesSeleccionados.join(', ')}";
-                        });
-                        _enviarMensaje();
-                      }
-                    : null,
-                icon: const Icon(Icons.restaurant_menu, size: 20),
-                label: const Text(
-                  "Cocinar con estos ingredientes",
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _verde,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: 4,
-                  shadowColor: _verde.withOpacity(0.4),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-// UI DE RESULTADOS DE RECETAS (Tus diseños conservados)
-  Widget _buildRecetasGridCards(List<dynamic> recetasData) {
-    final recetas = recetasData.cast<Map<String, dynamic>>();
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 16),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 16,
-        alignment: WrapAlignment.center,
-        children: recetas.map((receta) {
-          return SizedBox(
-            width: 150,
-            height: 215,
-            child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => DetalleRecetaScreen(
-                      recetaId: receta['id']!,
-                      nombreReceta: receta['nombre']!,
-                    ),
-                  ),
-                );
-              },
-              child: RecetaCardWidget(
-                receta: receta,
-                verde: _verde,
-                porcentajeMatch: receta['porcentaje'] as double,
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-// UI DE RESULTADOS DE RECETAS (Tus diseños conservados)
   Widget _buildActionBtn(VoidCallback onPres, IconData icon, String label) {
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 12),
@@ -4403,4 +3931,6 @@ Responde ÚNICAMENTE con la palabra 'VALIDO' si cumple los 3 criterios, o 'INVAL
     );
   }
 }
+
+
 
