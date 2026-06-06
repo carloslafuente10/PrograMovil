@@ -350,8 +350,8 @@ Las pruebas funcionales del proyecto se realizaron siguiendo los criterios de ac
 |---|---|---|
 | **Carlos La Fuente** | Scrum Master · Developer | Integración UI↔backend, panel admin, historial, merge de ramas, branding |
 | **Lenny Calle** | Developer · Tester | Favoritos, notificaciones, login visual, estado con Provider, PDFs mejorados |
-| **Hans Flores** | Developer | Asistentes IA (A.L.I.C.I.A. y NID), reportes, exportación PDF/Excel/CSV, planificador |
-| **Arnold Sanabria** | Developer · Tester | Autenticación Firebase, OTP, checklist, sustitutos, filtros de catálogo |
+| **Hans Flores** | Developer | Sustitutos, filtros de catálogo, reportes, exportación PDF/Excel/CSV, planificador |
+| **Arnold Sanabria** | Developer · Tester | Autenticación Firebase, Asistentes IA (A.L.I.C.I.A. y NID), OTP, checklist, sustitutos, filtros de catálogo |
 | **Nayra Oviedo** | UI/UX · Developer | Home, perfil, detalle de receta, recetas personales, ingredientes, Firestore |
 
 ---
