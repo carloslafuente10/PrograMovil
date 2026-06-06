@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/images/logo.png" alt="YAGU Logo" width="140"/>
+  <img src="assets/images/yagu_reportes.png"  alt="YAGU Logo" width="140"/>
 
   <h1>🐆 YAGU</h1>
   <p><strong>Aplicación móvil de recetas con asistencia de inteligencia artificial</strong></p>
